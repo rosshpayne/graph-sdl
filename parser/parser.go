@@ -27,6 +27,10 @@ var enumRepo ast.EnumRepo_
 type Parser struct {
 	l *lexer.Lexer
 
+	extend bool
+
+	abort bool
+
 	curToken  token.Token
 	peekToken token.Token
 
@@ -77,7 +81,7 @@ func (p *Parser) printToken(s ...string) {
 	}
 }
 func (p *Parser) hasError() bool {
-	if len(p.perror) > 15 {
+	if len(p.perror) > 15 || p.abort {
 		return true
 	}
 	return false
@@ -125,13 +129,23 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 			break
 		}
 		if stmt != nil {
-			// add to cache
-			ast.Add(stmt.TypeName(), stmt)
+			// if no errors add to cache / DB
+			if len(p.perror) == 0 {
+				ast.Add(stmt.TypeName(), stmt)
+			}
 			//
 			program.Statements = append(program.Statements, stmt)
 		}
+		if p.extend {
+			p.extend = false
+		}
+
+	}
+	if p.hasError() {
+		return program, p.perror
 	}
 	// Validation - via multiple parses of AST
+
 	var validationFail bool
 	var stillUnresolved []ast.Name_
 	//
@@ -157,7 +171,9 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 				}
 			}
 		}
-
+		for _, v := range stillUnresolved {
+			p.addErr(fmt.Sprintf(`Unresolved type "%s" %s`, v.Name, v.AtPosition()))
+		}
 		if !validationFail {
 			switch x := v.(type) {
 			case *ast.Object_:
@@ -178,6 +194,10 @@ var opt bool = true // is optional
 
 func (p *Parser) parseStatement() ast.TypeSystemDef {
 	p.skipComment()
+	if p.curToken.Type == token.EXTEND {
+		p.extend = true
+		p.nextToken() // read over extend
+	}
 	stmtType := p.curToken.Literal
 	if f, ok := p.parseFns[p.curToken.Type]; ok {
 		return f(stmtType)
@@ -194,12 +214,32 @@ func (p *Parser) parseStatement() ast.TypeSystemDef {
 func (p *Parser) ParseObjectType(op string) ast.TypeSystemDef {
 	// Types: query, mutation, subscription
 	p.nextToken() // read over type
-	obj := &ast.Object_{}
+	if !p.extend {
+		obj := &ast.Object_{}
 
-	p.parseName(obj).parseImplements(obj, opt).parseDirectives(obj, opt).parseFields(obj, opt)
+		p.parseName(obj).parseImplements(obj, opt).parseDirectives(obj, opt).parseFields(obj, opt)
 
-	return obj
+		return obj
+	} else {
+		// return original AST associated with the extend Name.
+		obj := p.parseExtendName()
+		if obj != nil {
+			if inp, ok := obj.(*ast.Object_); !ok {
+				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
+				p.abort = true
+			} else {
+				icnt, dcnt, fcnt := len(inp.Implements), len(inp.Directives), len(inp.FieldSet)
 
+				p.parseImplements(inp, opt).parseDirectives(inp, opt).parseFields(inp, opt)
+
+				if icnt == len(inp.Implements) && dcnt == len(inp.Directives) && fcnt == len(inp.FieldSet) {
+					p.addErr(fmt.Sprintf(`extend for type "%s" contains no changes`, inp.TypeName()))
+				}
+				return inp
+			}
+		}
+	}
+	return nil
 }
 
 // ====================  Enum Type  ============================
@@ -212,11 +252,32 @@ func (p *Parser) ParseObjectType(op string) ast.TypeSystemDef {
 //		Description-opt EnumValue Directives-opt
 func (p *Parser) ParseEnumType(op string) ast.TypeSystemDef {
 	p.nextToken() // read type
-	obj := &ast.Enum_{}
+	if !p.extend {
+		obj := &ast.Enum_{}
 
-	p.parseName(obj).parseDirectives(obj, opt).parseEnumValues(obj, opt)
+		p.parseName(obj).parseDirectives(obj, opt).parseEnumValues(obj, opt)
 
-	return obj
+		return obj
+	} else {
+		// return original AST associated with the extend Name.
+		obj := p.parseExtendName()
+		if obj != nil {
+			if inp, ok := obj.(*ast.Enum_); !ok {
+				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
+				p.abort = true
+			} else {
+				dcnt, fcnt := len(inp.Directives), len(inp.Values)
+
+				p.parseDirectives(inp, opt).parseEnumValues(inp)
+
+				if dcnt == len(inp.Directives) && fcnt == len(inp.Values) {
+					p.addErr(fmt.Sprintf(`extend for type "%s" contains no changes`, inp.TypeName()))
+				}
+				return inp
+			}
+		}
+	}
+	return nil
 }
 
 // ====================== Interface ===========================
@@ -224,11 +285,32 @@ func (p *Parser) ParseEnumType(op string) ast.TypeSystemDef {
 //		Description-opt	interface	Name	Directives-opt	FieldsDefinition-opt
 func (p *Parser) ParseInterfaceType(op string) ast.TypeSystemDef {
 	p.nextToken() // read over interfcae keyword
-	obj := &ast.Interface_{}
+	if !p.extend {
+		obj := &ast.Interface_{}
 
-	p.parseName(obj).parseDirectives(obj, opt).parseFields(obj, opt)
+		p.parseName(obj).parseDirectives(obj, opt).parseFields(obj, opt)
 
-	return obj
+		return obj
+	} else {
+		// return original AST associated with the extend Name.
+		obj := p.parseExtendName()
+		if obj != nil {
+			if inp, ok := obj.(*ast.Interface_); !ok {
+				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
+				p.abort = true
+			} else {
+				dcnt, fcnt := len(inp.Directives), len(inp.FieldSet)
+
+				p.parseDirectives(inp, opt).parseFields(inp, opt)
+
+				if dcnt == len(inp.Directives) && fcnt == len(inp.FieldSet) {
+					p.addErr(fmt.Sprintf(`extend for type "%s" contains no changes`, inp.TypeName()))
+				}
+				return inp
+			}
+		}
+	}
+	return nil
 }
 
 // ====================== Union ===============================
@@ -239,23 +321,67 @@ func (p *Parser) ParseInterfaceType(op string) ast.TypeSystemDef {
 //		UnionMemberTypes | NamedType
 func (p *Parser) ParseUnionType(op string) ast.TypeSystemDef {
 	p.nextToken() // read over interfcae keyword
-	obj := &ast.Union_{}
+	if !p.extend {
+		obj := &ast.Union_{}
 
-	p.parseName(obj).parseDirectives(obj, opt).parseUnionMembers(obj, opt)
+		p.parseName(obj).parseDirectives(obj, opt).parseUnionMembers(obj, opt)
 
-	return obj
+		return obj
+	} else {
+		// return original AST associated with the extend Name.
+		obj := p.parseExtendName()
+		if obj != nil {
+			if inp, ok := obj.(*ast.Union_); !ok {
+				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
+				p.abort = true
+			} else {
+				dcnt, fcnt := len(inp.Directives), len(inp.NameS)
+
+				p.parseDirectives(inp, opt).parseUnionMembers(inp)
+
+				if dcnt == len(inp.Directives) && fcnt == len(inp.NameS) {
+					p.addErr(fmt.Sprintf(`extend for type "%s" contains no changes`, inp.TypeName()))
+				}
+				return inp
+			}
+		}
+	}
+	return nil
 }
 
 // ====================== Input ===============================
 // InputObjectTypeDefinition
 //		Description-opt	input	Name	DirectivesConst-opt	InputFieldsDefinition-opt
 func (p *Parser) ParseInputValueType(op string) ast.TypeSystemDef {
-	p.nextToken() // read over interfcae keyword
-	inp := &ast.Input_{}
 
-	p.parseName(inp).parseDirectives(inp, opt).parseInputFieldDefs(inp)
+	p.nextToken("read over input") // read over input keyword
+	if !p.extend {
+		inp := &ast.Input_{}
 
-	return inp
+		p.parseName(inp).parseDirectives(inp, opt).parseInputFieldDefs(inp)
+
+		return inp
+	} else {
+		// return original AST associated with the extend Name.
+		obj := p.parseExtendName()
+		if obj != nil {
+			if inp, ok := obj.(*ast.Input_); !ok {
+				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
+				p.abort = true
+			} else {
+				dcnt, fcnt := len(inp.Directives), len(inp.InputValueS)
+
+				p.parseDirectives(inp, opt).parseInputFieldDefs(inp)
+
+				if dcnt == len(inp.Directives) && fcnt == len(inp.InputValueS) {
+					p.addErr(fmt.Sprintf(`extend for type "%s" contains no changes`, inp.TypeName()))
+				}
+				return inp
+			}
+		}
+	}
+	return nil
+
 }
 
 // =============================================================
@@ -295,7 +421,44 @@ func (p *Parser) parseName(f ast.NameI) *Parser {
 		p.addErr(fmt.Sprintf(`Expected name identifer got %s of "%s"`, p.curToken.Type, p.curToken.Literal))
 	}
 	p.nextToken() // read over name
+
 	return p
+}
+
+// ==================== parseExtendName ===============================
+
+func (p *Parser) parseExtendName() ast.TypeSystemDef {
+	if p.hasError() {
+		return nil
+	}
+	var extName string
+	// does name entity exist
+	if p.curToken.Type == token.IDENT {
+		extName = p.curToken.Literal
+	} else {
+		p.addErr(fmt.Sprintf(`Expected name identifer got %s of "%s"`, p.curToken.Type, p.curToken.Literal))
+	}
+	if obj, ok := ast.Fetch(ast.NameValue_(extName)); !ok {
+		if typeDef, err := ast.DBFetch(ast.NameValue_(extName)); err != nil {
+			p.addErr(err.Error())
+		} else {
+			if len(typeDef) == 0 { // no type found in DB
+				p.addErr(fmt.Sprintf(`Cannot extend, type "%s" does not exist %s`, extName, p.Loc()))
+				p.abort = true
+			} else {
+				// generate the AST
+				l := lexer.New(typeDef)
+				p2 := New(l)
+				obj = p2.parseStatement()
+			}
+		}
+		p.nextToken() // read over name
+		return obj
+	} else {
+		p.nextToken() // read over name
+		return obj
+	}
+
 }
 
 func (p *Parser) parseEnumValues(enum *ast.Enum_, optional ...bool) *Parser {
@@ -419,16 +582,6 @@ func (p *Parser) parseDirectives(f ast.DirectiveI, optional ...bool) *Parser { /
 	}
 	return p
 }
-
-// func (p *Parser) parseArgument(d *ast.DirectiveT) {
-
-// 	if p.curToken.Type != token.LPAREN {
-// 		p.addErr(fmt.Sprintf("Expected a ( got %s, %s", p.curToken.Type, p.curToken.Literal))
-// 		p.nextToken()
-// 	} else {
-// 		p.parseArguments(d)
-// 	}
-// }
 
 //
 // type Argument struct {
@@ -667,7 +820,7 @@ func (p *Parser) parseInputValueDefs(f ast.FieldArgI, encl [2]token.TokenType) *
 			}
 			f.AppendField(v, &p.perror)
 		}
-		p.nextToken() //read over )
+		p.nextToken("parse inputvalueDefs") //read over )
 	}
 
 	return p
