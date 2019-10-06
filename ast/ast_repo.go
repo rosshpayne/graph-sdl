@@ -11,18 +11,18 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 )
 
-type typeRepo map[NameValue_]TypeI_
+type typeCache map[NameValue_]TypeSystemDef
 
 type TypeRow struct {
 	PKey string
 	Def  string
 }
 
-var typeRepo_ typeRepo
+var typeCache_ typeCache
 var db *dynamodb.DynamoDB
 
 func init() {
-	typeRepo_ = make(typeRepo)
+	typeCache_ = make(typeCache)
 
 	dynamodbService := func() *dynamodb.DynamoDB {
 		sess, err := session.NewSession(&aws.Config{
@@ -37,25 +37,27 @@ func init() {
 	db = dynamodbService()
 }
 
-func Fetch(input NameValue_) (TypeI_, bool) {
-	if x, ok := typeRepo_[input]; !ok {
+// Fetch - when type is in cache it is said to be "resolved".
+//  unresolved types are therefore not in the typeCaches
+func Fetch(input NameValue_) (TypeSystemDef, bool) { // TODO: use TypeSystemDef instead of TypeSystemDef??
+	if x, ok := typeCache_[input]; !ok {
 		return nil, false
 	} else {
 		return x, true
 	}
 }
 
-func Add(input NameValue_, obj TypeI_) {
+func Add(input NameValue_, obj TypeSystemDef) {
 	// save to cache if not already cached
 	fmt.Println("REPO ADD ", input)
-	if _, ok := typeRepo_[input]; !ok {
-		typeRepo_[input] = obj
-		dbPersist(input, obj)
-	}
+	//if _, ok := typeCache_[input]; !ok {
+	typeCache_[input] = obj
+	dbPersist(input, obj)
+	//	}
 }
 
 func fetchInterface(input Name_) (*Interface_, bool, string) {
-	if itf, ok := typeRepo_[input.Name]; ok {
+	if itf, ok := typeCache_[input.Name]; ok {
 		if itf_, ok := itf.(*Interface_); !ok {
 			return nil, false, fmt.Sprintf(`Implements type "%s" is not an Interface %s`, input, input.AtPosition())
 		} else {
@@ -67,7 +69,7 @@ func fetchInterface(input Name_) (*Interface_, bool, string) {
 
 }
 
-func dbPersist(input NameValue_, obj TypeI_) error {
+func dbPersist(input NameValue_, obj TypeSystemDef) error {
 
 	//
 	typeDef := TypeRow{PKey: input.String(), Def: obj.String()}
@@ -85,10 +87,10 @@ func dbPersist(input NameValue_, obj TypeI_) error {
 	return nil
 }
 
-func ListCache() []TypeI_ {
-	l := make([]TypeI_, len(typeRepo_), len(typeRepo_))
+func ListCache() []TypeSystemDef {
+	l := make([]TypeSystemDef, len(typeCache_), len(typeCache_))
 	i := 0
-	for _, v := range typeRepo_ {
+	for _, v := range typeCache_ {
 		l[i] = v
 		i++
 	}
