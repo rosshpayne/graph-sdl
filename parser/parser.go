@@ -16,7 +16,7 @@ type (
 )
 
 const (
-	cErrLimit = 5 // how many parse errors are permitted before processing stops
+	cErrLimit = 8 // how many parse errors are permitted before processing stops
 )
 
 //var typeRepo ast.TypeRepo_

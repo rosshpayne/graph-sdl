@@ -263,3 +263,60 @@ type Person {
 		t.Errorf(`*************  program.String() wrong.`)
 	}
 }
+
+func TestFieldArgument7(t *testing.T) {
+
+	input := `
+	
+	type Person2 {
+  name: String!
+  age: Int!
+  inputX(info: [Measure] = [{height: 123.2 weight: 12} {height: 1423.2 weight: 132}]): Float
+  posts: [Boolean!]!
+  addres: Address!
+}
+	
+	extend type Person2 {
+  isHiddenLocally: Boolean
+}
+
+extend type Person2 @addedDirective34
+
+`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	for _, e := range errs {
+		fmt.Println("*** ", e.Error())
+	}
+	fmt.Println(d.String())
+	if compare(d.String(), input) {
+		fmt.Println(trimWS(d.String()))
+		fmt.Println(trimWS(input))
+		t.Errorf(`*************  program.String() wrong.`)
+	}
+}
+
+func TestFieldArgument7a(t *testing.T) {
+
+	input := `
+	
+
+extend type Person2 @addedDirective67
+
+`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	for _, e := range errs {
+		fmt.Println("*** ", e.Error())
+	}
+	fmt.Println(d.String())
+	if compare(d.String(), input) {
+		fmt.Println(trimWS(d.String()))
+		fmt.Println(trimWS(input))
+		t.Errorf(`*************  program.String() wrong.`)
+	}
+}
