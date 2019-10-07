@@ -199,25 +199,26 @@ type Business implements NamedEntity & ValuedEntity & NamedEntity {
 func TestImplements6(t *testing.T) {
 
 	input := `
-interface NamedEntity {
-  name: String
-}
+	interface NamedEntity {
+	  name: [[String!]!]!
+	}
 
-interface ValuedEntity {
-  value: Int
-}
+	interface ValuedEntity {
+	  value: Int
+	}
 
-type Person implements NamedEntity {
-  name: String
-  age: Int
-}
+	type Person implements NamedEntity {
+	  name: [[String!]!]!
+	  age: Int
+	}
 
-type Business implements NamedEntity & ValuedEntity {
-  name: String
-  value: Int
-  employeeCount: Int
-}
-`
+	type Business implements NamedEntity & ValuedEntity {
+	  name: [[String!]!]!
+	  value: Int
+	  employeeCount: Int
+	}
+	`
+
 	l := lexer.New(input)
 	p := New(l)
 	d, err := p.ParseDocument()
@@ -232,6 +233,102 @@ type Business implements NamedEntity & ValuedEntity {
 		fmt.Println(trimWS(d.String()))
 		fmt.Println(trimWS(input))
 		t.Errorf(`*************  program.String() wrong.`)
+	}
+}
+
+func TestImplements6a(t *testing.T) {
+
+	input := `
+	interface NamedEntity6a {
+	  name: [[String!]!]!
+	}
+
+	interface ValuedEntity6a {
+	  value: Int
+	}
+
+	type Person6a implements NamedEntity6a {
+	  name: [[String!]!]!
+	  age: Int
+	}
+
+	type Business6a implements NamedEntity6a & ValuedEntity6a {
+	  name: [[String!]]!
+	  value: Int
+	  employeeCount: Int
+	}
+	`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Object type "Business6a" does not implement interface "NamedEntity6a", missing "name"`
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		for _, v := range errs {
+			fmt.Println(v.Error())
+		}
+		t.Errorf(fmt.Sprintf(`Not expected - should be %d errors got %d`, len(expectedErr), len(errs)))
+	}
+
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if v.Error() != expectedErr[i] {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+}
+
+func TestBadInterfaceKeyword(t *testing.T) {
+
+	input := `
+	interfacei NamedEntity6b {
+	  name: [[String!]!]!
+	}
+
+	interface ValuedEntity6b {
+	  value: Int
+	}
+
+	type Person6b implements NamedEntity6b {
+	  name: [[String!]!]!
+	  age: Int
+	}
+
+	type Business6b implements NamedEntity6b & ValuedEntity6b {
+	  name: [[String!]]!
+	  value: Int
+	  employeeCount: Int
+	}
+	`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Object type "Business6a" does not implement interface "NamedEntity6a", missing "name"`
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		for _, v := range errs {
+			fmt.Println(v.Error())
+		}
+		t.Errorf(fmt.Sprintf(`Not expected - should be %d errors got %d`, len(expectedErr), len(errs)))
+	}
+
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if v.Error() != expectedErr[i] {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
 	}
 }
 
@@ -347,7 +444,7 @@ interface NamedEntity2a {
 
 interface ValuedEntity2a {
   value: Int
-  size: String
+  size: [String]
   length: Float
 }
 
@@ -365,6 +462,59 @@ type Business2a implements & NamedEntity2a & ValuedEntity2a {
 
 type Business3a implements & NamedEntity2a & ValuedEntity2a {
   name: String
+  XXX: Boolean
+  size: String
+  length: Float
+  value: Int
+  employeeCount: Int
+}
+`
+	l := lexer.New(input)
+	p := New(l)
+	d, err := p.ParseDocument()
+	for _, v := range err {
+		t.Errorf(v.Error())
+	}
+	//fmt.Println(d.String())
+	if len(err) == 0 {
+		if compare(d.String(), input) {
+			fmt.Println(trimWS(d.String()))
+			fmt.Println(trimWS(input))
+			t.Errorf(`*************  program.String() wrong.`)
+		}
+	}
+}
+
+func TestImplementsAllFields3(t *testing.T) {
+
+	input := `
+interface NamedEntity2a {
+  name: String
+  XXX: Boolean
+  
+}
+
+interface ValuedEntity2a {
+  value: Int
+  size: String
+  length: Float
+}
+
+type Person2a implements NamedEntity2a {
+  name: String
+  age: [[Int!]]!
+}
+
+type Business2a implements & NamedEntity2a & ValuedEntity2a {
+  name: String
+  value: Int
+  length: String
+  employeeCount: Int
+}
+
+type Business3a implements & NamedEntity2a & ValuedEntity2a {
+  name: String
+    age: [[Int!]]!
   XXX: Boolean
   size: String
   length: Float

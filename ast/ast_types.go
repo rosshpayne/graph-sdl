@@ -86,9 +86,9 @@ type EnumRepo_ map[string]struct{}
 type Type_ struct {
 	Constraint byte      // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
 	TypeFlag   TypeFlag_ // Scalar (int,float,boolean,string,ID - Name_ defines the actual type e.g. Name_=Int) Object, Interface, Union, Enum, InputObj (AST contains type def)
-	AST        TypeI_    // AST instance of type. WHen would this be used??
-	Depth      int       // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
-	Name_                // type name. inherit AssignName()
+	//	AST        TypeI_    // AST instance of type. WHen would this be used??
+	Depth int // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
+	Name_     // type name. inherit AssignName()
 	//Value      ValueI    // default value
 }
 
@@ -121,6 +121,11 @@ func (t Type_) String() string {
 		}
 	}
 	return s.String()
+}
+
+// equalTypes compare two Type_ ignoring location of Name
+func equalTypes(a, b *Type_) bool {
+	return a.Name_.String() == b.Name_.String() && a.Constraint == b.Constraint && a.Depth == b.Depth && a.TypeFlag == b.TypeFlag
 }
 
 // ==================== interfaces ======================
@@ -205,22 +210,22 @@ func (f *Object_) CheckImplements(err *[]error) {
 			for _, ifn := range itf.FieldSet {
 				for _, fn := range f.FieldSet {
 					if fn.Name_.String() == ifn.Name_.String() {
-						if fn.Type.Name_.String() == ifn.Type.Name_.String() {
+						if equalTypes(fn.Type, ifn.Type) {
 							satisfied[fn.Name] = true
 						}
 					}
 				}
-			}
-			var s strings.Builder
-			for k, v := range satisfied {
-				if !v {
-					s.WriteString(` "`)
-					s.WriteString(k.String())
-					s.WriteString(`"`)
+				var s strings.Builder
+				for k, v := range satisfied {
+					if !v {
+						s.WriteString(` "`)
+						s.WriteString(k.String())
+						s.WriteString(`"`)
+					}
 				}
-			}
-			if len(s.String()) > 0 {
-				*err = append(*err, fmt.Errorf(`Object type "%s" does not implement interface "%s", missing%s`, f.Name_.String(), itf.Name_.String(), s.String()))
+				if len(s.String()) > 0 {
+					*err = append(*err, fmt.Errorf(`Object type "%s" does not implement interface "%s", missing%s`, f.Name_.String(), itf.Name_.String(), s.String()))
+				}
 			}
 		}
 	}
@@ -330,7 +335,7 @@ func (f *Field_) CheckUnresolvedTypes(unresolved *[]Name_) {
 		log.Panic(fmt.Errorf("Severe Error - not expected: Field.Type is not assigned for [%s]", f.Name_.String()))
 	}
 	if f.Type.TypeFlag == 0 { // non-zero means its been defined in the Lexer as a Go Scalar type.
-		if typ, ok := Fetch(f.Type.Name); !ok {
+		if _, ok := Fetch(f.Type.Name); !ok {
 			*unresolved = append(*unresolved, f.Type.Name_)
 		} else {
 			// TODO - is this necessary
@@ -338,7 +343,7 @@ func (f *Field_) CheckUnresolvedTypes(unresolved *[]Name_) {
 			// 	err := fmt.Errorf("Type not known [%c]", f.Type.TypeFlag)
 			// 	*unresolved = append(*unresolved, err)
 			// }
-			f.Type.AST = typ
+			//f.Type.AST = nil //typ
 		}
 	}
 	//
@@ -396,7 +401,7 @@ func (fa InputValueS) CheckUnresolvedTypes(unresolved *[]Name_) {
 
 	for _, v := range fa {
 		if v.Type.TypeFlag == 0 {
-			if typ, ok := Fetch(v.Type.Name); !ok {
+			if _, ok := Fetch(v.Type.Name); !ok {
 				*unresolved = append(*unresolved, v.Type.Name_)
 			} else {
 				//TODO - do I need this
@@ -404,7 +409,7 @@ func (fa InputValueS) CheckUnresolvedTypes(unresolved *[]Name_) {
 				// 	err := fmt.Errorf("Type not known [%c]", v.Type.TypeFlag)
 				// 	*unresolved = append(*unresolved, err)
 				// }
-				v.Type.AST = typ
+				//	v.Type.AST = nil //typ
 			}
 		}
 	}
@@ -429,7 +434,7 @@ func (fa *InputValueDef) checkUnresolvedType(unresolved *[]Name_) {
 		log.Panic(err)
 	}
 	if fa.Type.TypeFlag == 0 {
-		if typ, ok := Fetch(fa.Type.Name); !ok {
+		if _, ok := Fetch(fa.Type.Name); !ok {
 			*unresolved = append(*unresolved, fa.Type.Name_)
 		} else {
 			// TODO - do I need this?
@@ -437,7 +442,7 @@ func (fa *InputValueDef) checkUnresolvedType(unresolved *[]Name_) {
 			// 	err := fmt.Errorf("Type not known [%c]", fa.Type.Name_.String())
 			// 	*unresolved = append(*unresolved, err)
 			// }
-			fa.Type.AST = typ
+			//fa.Type.AST = nil //typ
 		}
 	}
 }
