@@ -56,6 +56,14 @@ func Add(input NameValue_, obj TypeSystemDef) {
 	//	}
 }
 
+func Add2Cache(input NameValue_, obj TypeSystemDef) {
+	// save to cache if not already cached
+	fmt.Println("REPO ADD2Cache ", input)
+	//if _, ok := typeCache_[input]; !ok {
+	typeCache_[input] = obj
+	//	}
+}
+
 func fetchInterface(input Name_) (*Interface_, bool, string) {
 	if itf, ok := typeCache_[input.Name]; ok {
 		if itf_, ok := itf.(*Interface_); !ok {

@@ -10,8 +10,8 @@ import (
 func TestMultiDirective1(t *testing.T) {
 
 	input := `
-input ExampleInputObject @ june (asdf:234) @ june2 (aesdf:234) @ june3 (as2df:"abc") {
-  a: String = "AbcDef" @ ref (if:123) @ jack (sd: "abc") @ june (asdf:234) @ ju (asdf:234) @ judkne (asdf:234) @ junse (asdf:234) @ junqe (asdf:234)  @ june (assdf:234)
+input ExampleInputObjectDirective @ june (asdf:234) @ june2 (aesdf:234) @ june3 (as2df:"abc") {
+  a: String = "AbcDef" @ ref (if:123) @ jack (sd: "abc") @ june (asdf:234) @ ju (asdf:234) @ judkne (asdf:234) @ junse (asdf:234) @ junqe (asdf:234) 
   b: Int!@june(asdf:234) @ ju (asdf:234)
 }
 `
@@ -30,4 +30,63 @@ input ExampleInputObject @ june (asdf:234) @ june2 (aesdf:234) @ june3 (as2df:"a
 	// for v, o := range repo {
 	// 	fmt.Printf(" %s, %T\n", v, o)
 	// }
+}
+
+func TestInputDoesnotExist(t *testing.T) {
+
+	input := `
+extend input ExampleInputXYZ @ june (asdf:234) 
+`
+	var expectedErr [1]string
+	expectedErr[0] = `Cannot extend, type "ExampleInputXYZ" does not exist at line: 2 column: 14`
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	if len(errs) != len(expectedErr) {
+		for _, v := range errs {
+			fmt.Println(v.Error())
+		}
+		t.Errorf(fmt.Sprintf(`Not expected - should be %d errors got %d`, len(expectedErr), len(errs)))
+	}
+	//fmt.Println(d.String())
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if v.Error() != expectedErr[i] {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+}
+
+func TestExtendInpDirDuplicate(t *testing.T) {
+
+	input := `
+extend input ExampleInputObjectDirective @ june (asdf:234) 
+`
+	var expectedErr [2]string
+	expectedErr[0] = `Duplicate Directive name "june" at line: 2, column: 44`
+	expectedErr[1] = `extend for type "ExampleInputObjectDirective" contains no changes at line: 0, column: 0`
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	if len(errs) != len(expectedErr) {
+		for _, v := range errs {
+			fmt.Println(v.Error())
+		}
+		t.Errorf(fmt.Sprintf(`Not expected - should be %d errors got %d`, len(expectedErr), len(errs)))
+	}
+	//fmt.Println(d.String())
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if v.Error() != expectedErr[i] {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
 }

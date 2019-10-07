@@ -194,8 +194,34 @@ func (o *Object_) TypeName() NameValue_ {
 func (f *Object_) CheckImplements(err *[]error) {
 	for _, v := range f.Implements {
 		// check name represents a interface type in repo
-		if _, ok, str := fetchInterface(v); !ok {
+		if itf, ok, str := fetchInterface(v); !ok {
 			*err = append(*err, errors.New(fmt.Sprintf(str)))
+		} else {
+			// check object implements the interface
+			satisfied := make(map[NameValue_]bool)
+			for _, v := range itf.FieldSet {
+				satisfied[v.Name] = false
+			}
+			for _, ifn := range itf.FieldSet {
+				for _, fn := range f.FieldSet {
+					if fn.Name_.String() == ifn.Name_.String() {
+						if fn.Type.Name_.String() == ifn.Type.Name_.String() {
+							satisfied[fn.Name] = true
+						}
+					}
+				}
+			}
+			var s strings.Builder
+			for k, v := range satisfied {
+				if !v {
+					s.WriteString(` "`)
+					s.WriteString(k.String())
+					s.WriteString(`"`)
+				}
+			}
+			if len(s.String()) > 0 {
+				*err = append(*err, fmt.Errorf(`Object type "%s" does not implement interface "%s", missing%s`, f.Name_.String(), itf.Name_.String(), s.String()))
+			}
 		}
 	}
 }

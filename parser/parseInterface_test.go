@@ -294,3 +294,96 @@ type Business implements NamedEntity & ValuedEntity {
 		t.Errorf(`*************  program.String() wrong.`)
 	}
 }
+
+func TestImplementsAllFields(t *testing.T) {
+
+	input := `
+interface NamedEntity2a {
+  name: String
+  
+}
+
+interface ValuedEntity2a {
+  value: Int
+  size: String
+  length: Float
+}
+
+type Person2a implements NamedEntity2a {
+  name: String
+  age: Int
+}
+
+type Business2a implements & NamedEntity2a & ValuedEntity2a {
+  name: String
+  value: Int
+  employeeCount: Int
+}
+`
+	l := lexer.New(input)
+	p := New(l)
+	d, err := p.ParseDocument()
+	for _, v := range err {
+		t.Errorf(v.Error())
+	}
+	//fmt.Println(d.String())
+	if len(err) == 0 {
+		if compare(d.String(), input) {
+			fmt.Println(trimWS(d.String()))
+			fmt.Println(trimWS(input))
+			t.Errorf(`*************  program.String() wrong.`)
+		}
+	}
+}
+
+func TestImplementsAllFields2(t *testing.T) {
+
+	input := `
+interface NamedEntity2a {
+  name: String
+  XXX: Boolean
+  
+}
+
+interface ValuedEntity2a {
+  value: Int
+  size: String
+  length: Float
+}
+
+type Person2a implements NamedEntity2a {
+  name: String
+  age: Int
+}
+
+type Business2a implements & NamedEntity2a & ValuedEntity2a {
+  name: String
+  value: Int
+  length: String
+  employeeCount: Int
+}
+
+type Business3a implements & NamedEntity2a & ValuedEntity2a {
+  name: String
+  XXX: Boolean
+  size: String
+  length: Float
+  value: Int
+  employeeCount: Int
+}
+`
+	l := lexer.New(input)
+	p := New(l)
+	d, err := p.ParseDocument()
+	for _, v := range err {
+		t.Errorf(v.Error())
+	}
+	//fmt.Println(d.String())
+	if len(err) == 0 {
+		if compare(d.String(), input) {
+			fmt.Println(trimWS(d.String()))
+			fmt.Println(trimWS(input))
+			t.Errorf(`*************  program.String() wrong.`)
+		}
+	}
+}

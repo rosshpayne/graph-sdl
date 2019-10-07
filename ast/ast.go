@@ -220,7 +220,7 @@ func (a *Arguments_) String() string {
 // used as type for argument into parseFragment(f DirectiveI)
 //  called using .parseDirectives(stmt) . where stmt has embedded DirectiveT field as anonymous
 type DirectiveI interface {
-	AppendDirective(s *DirectiveT)
+	AppendDirective(s *DirectiveT) error
 	//AssignLoc(loc *Loc_)
 }
 
@@ -238,8 +238,15 @@ type Directives_ struct {
 	Directives []*DirectiveT
 }
 
-func (d *Directives_) AppendDirective(s *DirectiveT) {
+func (d *Directives_) AppendDirective(s *DirectiveT) error {
+	for _, v := range d.Directives {
+		if v.Name_.String() == s.Name_.String() {
+			loc := s.Name_.Loc
+			return fmt.Errorf(`Duplicate Directive name "%s" at line: %d, column: %d`, s.Name_.String(), loc.Line, loc.Column)
+		}
+	}
 	d.Directives = append(d.Directives, s)
+	return nil
 }
 
 func (d *Directives_) String() string {

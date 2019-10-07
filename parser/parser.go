@@ -131,7 +131,7 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 		if stmt != nil {
 			// if no errors add to cache / DB
 			if len(p.perror) == 0 {
-				ast.Add(stmt.TypeName(), stmt)
+				ast.Add2Cache(stmt.TypeName(), stmt)
 			}
 			//
 			program.Statements = append(program.Statements, stmt)
@@ -167,7 +167,8 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 					// resolved - generate AST and add type to cache
 					l := lexer.New(typeDef)
 					p := New(l)
-					p.ParseDocument()
+					p.ParseDocument() // TODO - is parseStatement workable
+					//p.parseStatement()
 				}
 			}
 		}
@@ -185,6 +186,12 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 			//v.CheckIVTypeConsistency()
 
 			// pass validation - add type to repo
+		}
+	}
+
+	if len(p.perror) == 0 {
+		for _, v := range program.Statements {
+			ast.Add(v.TypeName(), v)
 		}
 	}
 	return program, p.perror
@@ -354,7 +361,7 @@ func (p *Parser) ParseUnionType(op string) ast.TypeSystemDef {
 //		Description-opt	input	Name	DirectivesConst-opt	InputFieldsDefinition-opt
 func (p *Parser) ParseInputValueType(op string) ast.TypeSystemDef {
 
-	p.nextToken("read over input") // read over input keyword
+	p.nextToken() // read over input keyword
 	if !p.extend {
 		inp := &ast.Input_{}
 
@@ -578,7 +585,9 @@ func (p *Parser) parseDirectives(f ast.DirectiveI, optional ...bool) *Parser { /
 		d := &ast.DirectiveT{Arguments_: ast.Arguments_{Arguments: a}}
 
 		p.parseName(d).parseArguments(d, opt)
-		f.AppendDirective(d)
+		if err := f.AppendDirective(d); err != nil {
+			p.addErr(err.Error())
+		}
 	}
 	return p
 }
@@ -820,7 +829,7 @@ func (p *Parser) parseInputValueDefs(f ast.FieldArgI, encl [2]token.TokenType) *
 			}
 			f.AppendField(v, &p.perror)
 		}
-		p.nextToken("parse inputvalueDefs") //read over )
+		p.nextToken() //read over )
 	}
 
 	return p
