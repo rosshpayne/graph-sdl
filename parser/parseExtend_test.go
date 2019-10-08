@@ -91,30 +91,29 @@ extend input ExampleInputObject  {
 // 	}
 // }
 
-func TestExtend2(t *testing.T) {
+func TestExtendDupField(t *testing.T) {
 
 	input := `
-input ExampleInputObject {
-  a: String
-  b: Int!
-}
 
-extend input ExampleInputObject 
+extend input ExampleInputObject {
+	age: [Int!]
+}
 
 `
 
-	expectedDoc := `input ExampleInputObject {a : String b : Int! name : String age : [Int!] }`
-
+	var expectedErr [1]string
+	expectedErr[0] = `Duplicate input value name "age" at line: 4, column: 2` //
 	l := lexer.New(input)
 	p := New(l)
-	d, errs := p.ParseDocument()
-	fmt.Println(d.String())
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
 	for i, v := range errs {
-		fmt.Println(i, v.Error())
-	}
-	if compare(d.String(), expectedDoc) {
-		fmt.Println(trimWS(d.String()))
-		fmt.Println(trimWS(expectedDoc))
-		t.Errorf(`*************  program.String() wrong.`)
+		if i < len(expectedErr) {
+			if v.Error() != expectedErr[i] {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
 	}
 }

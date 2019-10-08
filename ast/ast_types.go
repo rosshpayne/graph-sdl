@@ -44,6 +44,15 @@ const (
 	NA
 )
 
+func isScalar(n TypeFlag_) bool {
+	switch n {
+	case SCALAR, INT, FLOAT, BOOLEAN, OBJECT, STRING, RAWSTRING:
+		return true
+	default:
+		return false
+	}
+}
+
 func fetchTypeFlag(n TypeI_) TypeFlag_ {
 	// output non-Scalar Go types
 	switch n.(type) {
@@ -60,17 +69,6 @@ func fetchTypeFlag(n TypeI_) TypeFlag_ {
 	}
 }
 
-// func IsInputType(fieldType interface{}) {
-// 	switch fieldType.(type) {
-// 	case *Enum:
-// 		return true
-// 	case *Input:
-// 		return true
-
-// 	}
-// 	return false
-// }
-
 type TypeI_ interface {
 	TypeSystemNode()
 	TypeName() NameValue_
@@ -81,12 +79,46 @@ type TypeI_ interface {
 
 type EnumRepo_ map[string]struct{}
 
+// IsInputType(type)
+//	 If type is a List type or Non‐Null type:
+//		Let unwrappedType be the unwrapped type of type.
+//			Return IsInputType(unwrappedType)
+//	 If type is a Scalar, Enum, or Input Object type:
+//				Return true
+//	 Return false
+
+func IsInputType(t *Type_) bool {
+	if isScalar(t.TypeFlag) || t.TypeFlag == ENUM || t.TypeFlag == INPUTOBJ {
+		return true
+	}
+	return false
+}
+
+// IsOutputType(type)
+//	If type is a List type or Non‐Null type:
+//		 Let unwrappedType be the unwrapped type of type.
+//			Return IsOutputType(unwrappedType)
+//	If type is a Scalar, Object, Interface, Union, or Enum type:
+//		Return true
+//	Return false
+
+func IsOutputType(t *Type_) bool {
+	if isScalar(t.TypeFlag) || t.TypeFlag == ENUM || t.TypeFlag == OBJECT || t.TypeFlag == INTERFACE || t.TypeFlag == UNION {
+		return true
+	}
+	return false
+}
+
 // ============================ Type_ ======================
 
+// type Type__ {
+// 	Type Type_
+// 	Loc *Loc
+// }
 type Type_ struct {
 	Constraint byte      // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
 	TypeFlag   TypeFlag_ // Scalar (int,float,boolean,string,ID - Name_ defines the actual type e.g. Name_=Int) Object, Interface, Union, Enum, InputObj (AST contains type def)
-	//	AST        TypeI_    // AST instance of type. WHen would this be used??
+	//	AST        TypeI_    // AST instance of type. WHen would this be used??. A type has no AST but an instance of a type does.
 	Depth int // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
 	Name_     // type name. inherit AssignName()
 	//Value      ValueI    // default value
@@ -123,8 +155,7 @@ func (t Type_) String() string {
 	return s.String()
 }
 
-// equalTypes compare two Type_ ignoring location of Name
-func equalTypes(a, b *Type_) bool {
+func (a *Type_) Equals(b *Type_) bool {
 	return a.Name_.String() == b.Name_.String() && a.Constraint == b.Constraint && a.Depth == b.Depth && a.TypeFlag == b.TypeFlag
 }
 
@@ -196,6 +227,7 @@ func (o *Object_) TypeSystemNode() {}
 func (o *Object_) TypeName() NameValue_ {
 	return o.Name
 }
+
 func (f *Object_) CheckImplements(err *[]error) {
 	for _, v := range f.Implements {
 		// check name represents a interface type in repo
@@ -207,10 +239,10 @@ func (f *Object_) CheckImplements(err *[]error) {
 			for _, v := range itf.FieldSet {
 				satisfied[v.Name] = false
 			}
-			for _, ifn := range itf.FieldSet {
-				for _, fn := range f.FieldSet {
-					if fn.Name_.String() == ifn.Name_.String() {
-						if equalTypes(fn.Type, ifn.Type) {
+			for _, ifn := range itf.FieldSet { // interface fields
+				for _, fn := range f.FieldSet { // object fields
+					if ifn.Name_.String() == fn.Name_.String() {
+						if ifn.Type.Equals(fn.Type) {
 							satisfied[fn.Name] = true
 						}
 					}
@@ -224,7 +256,7 @@ func (f *Object_) CheckImplements(err *[]error) {
 					}
 				}
 				if len(s.String()) > 0 {
-					*err = append(*err, fmt.Errorf(`Object type "%s" does not implement interface "%s", missing%s`, f.Name_.String(), itf.Name_.String(), s.String()))
+					*err = append(*err, fmt.Errorf(`Object type "%s" does not implement interface "%s", missing%s`, f.Name_, itf.Name_, s))
 				}
 			}
 		}
@@ -234,6 +266,16 @@ func (f *Object_) CheckImplements(err *[]error) {
 func (f *Object_) CheckUnresolvedTypes(unresolved *[]Name_) {
 	f.FieldSet.CheckUnresolvedTypes(unresolved)
 	f.Implements.CheckUnresolvedTypes(unresolved)
+}
+
+func (f *Object_) CheckIsOutputType(err *[]error) {
+	for _, v := range f.FieldSet {
+		if !IsOutputType(v.Type) {
+			//loc := v.Name_.Loc
+			*err = append(*err, fmt.Errorf(`Field "%s" type "%s", is not an output type %s`, v.Name_, v.Type.Name, v.Type.Name_.AtPosition()))
+		}
+	}
+
 }
 
 // use following method to disambiguate the promoted AssignName method from Name_ and Directives_ fields. Forces use of Name_ method.
@@ -299,7 +341,8 @@ func (fs *FieldSet) CheckUnresolvedTypes(unresolved *[]Name_) {
 
 func (fs *FieldSet) AppendField(f_ *Field_) error {
 	for _, v := range *fs {
-		if v.Name_.String() == f_.Name_.String() {
+		// check field (Name and Type) not already present
+		if v.Equals(f_) {
 			loc := f_.Name_.Loc
 			return fmt.Errorf(`Duplicate Field name "%s" at line: %d, column: %d`, f_.Name_.String(), loc.Line, loc.Column)
 		}
@@ -328,6 +371,10 @@ type Field_ struct {
 
 func (f *Field_) AssignType(t *Type_) {
 	f.Type = t
+}
+
+func (a *Field_) Equals(b *Field_) bool {
+	return a.Name_.Equals(b.Name_) && a.Type.Equals(b.Type)
 }
 
 func (f *Field_) CheckUnresolvedTypes(unresolved *[]Name_) {
@@ -372,7 +419,7 @@ type InputValueS []*InputValueDef
 
 func (fa *InputValueS) AppendField(f *InputValueDef, unresolved *[]error) {
 	for _, v := range *fa {
-		if v.Name_.String() == f.Name_.String() {
+		if v.Name_.String() == f.Name_.String() && v.Type.Equals(f.Type) {
 			loc := f.Name_.Loc
 			*unresolved = append(*unresolved, fmt.Errorf(`Duplicate input value name "%s" at line: %d, column: %d`, f.Name_.String(), loc.Line, loc.Column))
 		}
@@ -580,6 +627,19 @@ func (u *Union_) TypeSystemNode() {}
 func (u *Union_) TypeName() NameValue_ {
 	return u.Name
 }
+
+// func (u *Union_) Equals(b *Union_) bool {
+// 	if u.Name.Equals(b.Name) {
+// 		return false
+// 	}
+// 	if !u.NameS.Equals(b) {
+// 		return false
+// 	}
+// 	if !u.Directives_.Equasl(b) {
+// 		return false
+// 	}
+// 	return true
+// }
 
 func (u *Union_) String() string {
 	var s strings.Builder

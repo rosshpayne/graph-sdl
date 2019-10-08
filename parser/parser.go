@@ -178,6 +178,7 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 		if !validationFail {
 			switch x := v.(type) {
 			case *ast.Object_:
+				x.CheckIsOutputType(&p.perror)
 				x.CheckImplements(&p.perror) // check implements are interfaces
 			case *ast.Enum_:
 			case *ast.Interface_:

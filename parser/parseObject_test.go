@@ -320,3 +320,38 @@ extend type Person2 @addedDirective67
 		t.Errorf(`*************  program.String() wrong.`)
 	}
 }
+
+func TestObjFieldCheckType(t *testing.T) {
+
+	input := `
+	
+input MyInput66 {
+  x: Float
+  y: Float
+}
+type Measure66 {
+    height: Float
+    weight: Int
+    form: MyInput66
+}
+`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Field "form" type "MyInput66", is not an output type at line: 10 column: 11` //
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) != 1 {
+		t.Errorf(`Expected 1 error "... is not an output type", got none `)
+	}
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if v.Error() != expectedErr[i] {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+}

@@ -283,6 +283,10 @@ func (n NameValue_) String() string {
 	return string(n)
 }
 
+func (a NameValue_) Equals(b NameValue_) bool {
+	return string(a) == string(b)
+}
+
 type Name_ struct {
 	Name NameValue_
 	Loc  *Loc_
@@ -290,6 +294,10 @@ type Name_ struct {
 
 func (n Name_) String() string {
 	return string(n.Name)
+}
+
+func (a Name_) Equals(b Name_) bool {
+	return a.Name.Equals(b.Name)
 }
 
 func (n Name_) AtPosition() string {
