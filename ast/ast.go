@@ -21,16 +21,8 @@ type ValueI interface {
 // =================  InputValue =================================
 
 // input values used for "default values" in arguments in type and field arguments and input objecs.
-// type InputValue_ struct {
-// 	Value ValueI //  IV:type|value = assert type to determine InputValue_'s type.
-// 	//   scalars stored as a string, true/false as boolean value. Should support data types;Enum, List, Object,null,true, false
-// 	//	inputValueType_ //  Based on Token metadata in token Value - scalar types, List, Object, Enum, Null. No need for Loc.
-// 	//Type Type_
-// 	Loc *Loc_
-// }
-
 type InputValue_ struct {
-	Value ValueI //  IV:type|value = assert type to determine InputValue_'s type.
+	Value ValueI //  IV:type|value = assert type to determine InputValue_'s type via dTString
 	Loc   *Loc_
 }
 
@@ -53,7 +45,7 @@ func (iv *InputValue_) String() string {
 func (iv *InputValue_) dTString() string {
 	switch iv.Value.(type) {
 	case Int_:
-		return token.INT + iv.Loc.String()
+		return token.INT
 	case Float_:
 		return token.FLOAT
 	case Bool_:
@@ -62,16 +54,71 @@ func (iv *InputValue_) dTString() string {
 		return token.STRING
 	case *RawString_:
 		return token.STRING
-	case List_:
-		return token.LIST
+	case *Scalar_:
+		return token.SCALAR
 	case *EnumValue_:
 		return token.ENUM
-	case QObject_:
+	case *Object_:
 		return token.OBJECT
+	case *Input_:
+		return token.INPUT
 	case Null_:
 		return token.NULL
 	}
 	return "NoTypeFound"
+}
+
+// dataTypeString - prints the datatype of the input value
+func (t *Type_) isType() TypeFlag_ {
+	switch t.Name.String() {
+	// system scalars
+	case token.INT:
+		return INT
+	case token.FLOAT:
+		return FLOAT
+	case token.STRING, token.RAWSTRING:
+		return STRING
+	case token.BOOLEAN:
+		return BOOLEAN
+	// case token.ID:
+	// 	return ID
+	default:
+		// non system types
+		if t.AST != nil {
+			switch t.AST.(type) {
+			case *Enum_:
+				return ENUM
+			case *Object_:
+				return OBJECT
+			case *Interface_:
+				return INTERFACE
+			case *Input_:
+				return INPUT
+			case *Union_:
+				return UNION
+				// case *Scalar_:
+				// 	return SCALAR
+				// case Null_:
+				// 	return NULL
+			}
+			return NA
+		}
+	}
+	return NA
+}
+
+func (t *Type_) isScalar() bool {
+
+	switch t.isType() {
+	case INT, FLOAT, STRING, BOOLEAN:
+		return true
+	default:
+		if _, ok := t.AST.(*Scalar_); ok {
+			return true
+		}
+		return false
+	}
+
 }
 
 // ================= Input Value scalar datatypes ===================
@@ -168,47 +215,6 @@ func (l List_) Exists() bool {
 		return true
 	}
 	return false
-}
-
-// ========= Argument ==========
-
-type ArgumentI interface {
-	String() string
-	AppendArgument(s *ArgumentT)
-}
-
-type ArgumentT struct {
-	//( name:value )
-	Name_
-	Value *InputValue_ // could use string as this value is mapped directly to get function - at this stage we don't care about its type maybe?
-}
-
-func (a *ArgumentT) String(last bool) string {
-	if last {
-		return a.Name_.String() + ":" + a.Value.String()
-	}
-	return a.Name_.String() + ":" + a.Value.String() + " "
-}
-
-type Arguments_ struct {
-	Arguments []*ArgumentT
-}
-
-func (a *Arguments_) AppendArgument(ss *ArgumentT) {
-	a.Arguments = append(a.Arguments, ss)
-}
-
-func (a *Arguments_) String() string {
-	var s strings.Builder
-	if len(a.Arguments) > 0 {
-		s.WriteString("(")
-		for i, v := range a.Arguments {
-			s.WriteString(v.String(i == len(a.Arguments)-1))
-		}
-		s.WriteString(")")
-		return s.String()
-	}
-	return ""
 }
 
 // ========== Directives ================

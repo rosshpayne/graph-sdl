@@ -12,7 +12,7 @@ func TestFieldArgument1(t *testing.T) {
 	input := `type Person {
   name: String!
   age: Int!
-  inputX(age: int = 123): Float
+  inputX(age: Int = 123): Float
   posts: [Boolean!]!
 }`
 
@@ -21,13 +21,46 @@ func TestFieldArgument1(t *testing.T) {
 	d, errs := p.ParseDocument()
 	fmt.Println(d.String())
 	for _, e := range errs {
-		fmt.Println("*** ", e.Error())
+		t.Errorf(`*** %s`, e.Error())
 	}
 	fmt.Println(d.String())
 	if compare(d.String(), input) {
 		fmt.Println(trimWS(d.String()))
 		fmt.Println(trimWS(input))
 		t.Errorf(`*************  program.String() wrong.`)
+	}
+}
+
+func TestFieldInvalidDT(t *testing.T) {
+
+	input := `type Person {
+  name: String!
+  age: Int!
+  inputX(age: int = 123): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Unresolved type "int" at line: 4 column: 15` //
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	for _, v := range errs {
+		fmt.Println(v.Error())
+	}
+	// if len(errs) != 1 {
+	// 	t.Errorf(`Expected %d error to %d`, len(expectedErr), len(errs))
+	// }
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if v.Error() != expectedErr[i] {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
 	}
 }
 
@@ -101,7 +134,7 @@ type Measure {
 type Person {
   name: String!
   age: Int!
-  inputX(info: [int!] = [1,2,4 56 345 2342 234 25252 2525223 null]): Float
+  inputX(info: [Int!] = [1,2,4 56 345 2342 234 25252 2525223 null]): Float
   posts: [Boolean!]!
 }`
 
@@ -120,7 +153,7 @@ type Person {
 	}
 }
 
-func TestFieldArgument4a(t *testing.T) {
+func TestFieldArgTypeNotFound(t *testing.T) {
 
 	input := `
 
@@ -130,19 +163,23 @@ type Person {
   inputX(info: [[int!]] = [[1,2,4 56] [345 2342 234 25252 2525223 null]]): Float
   posts: [Boolean!]!
 }`
-
+	var expectedErr [1]string
+	expectedErr[0] = `Type "int" does not exist at line: 6 column: 18`
 	l := lexer.New(input)
 	p := New(l)
-	d, errs := p.ParseDocument()
-	fmt.Println(d.String())
-	for _, e := range errs {
-		fmt.Println("*** ", e.Error())
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`Expected 1 error "... is not an output type", got none `)
 	}
-	fmt.Println(d.String())
-	if compare(d.String(), input) {
-		fmt.Println(trimWS(d.String()))
-		fmt.Println(trimWS(input))
-		t.Errorf(`*************  program.String() wrong.`)
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if v.Error() != expectedErr[i] {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
 	}
 }
 
@@ -207,7 +244,7 @@ type Person {
 func TestFieldArgument5(t *testing.T) {
 
 	input := `
-type Measure {
+input Measure {
     height: Float
     weight: Int
 }
@@ -283,17 +320,24 @@ func TestFieldArgument7(t *testing.T) {
 extend type Person2 @addedDirective34
 
 `
-
+	expectedDoc := `type Person2 @addedDirective34 {
+name : String!
+age : Int!
+inputX(info : [Measure] =[{height:123.2 weight:12 }  {height:1423.2 weight:132 }  ] ) : Float
+posts : [Boolean!]!
+addres : Address!
+isHiddenLocally : Boolean
+}`
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
 	for _, e := range errs {
 		fmt.Println("*** ", e.Error())
 	}
-	fmt.Println(d.String())
-	if compare(d.String(), input) {
+	//fmt.Println(d.String())
+	if compare(d.String(), expectedDoc) {
 		fmt.Println(trimWS(d.String()))
-		fmt.Println(trimWS(input))
+		fmt.Println(trimWS(expectedDoc))
 		t.Errorf(`*************  program.String() wrong.`)
 	}
 }
@@ -321,28 +365,63 @@ extend type Person2 @addedDirective67
 	}
 }
 
-func TestObjFieldCheckType(t *testing.T) {
+func TestObjCheckOutputType(t *testing.T) {
 
 	input := `
 	
-input MyInput66 {
+input MyInput67 {
   x: Float
   y: Float
 }
-type Measure66 {
+type Measure67 {
     height: Float
     weight: Int
-    form: MyInput66
+    form: MyInput67
 }
 `
 
 	var expectedErr [1]string
-	expectedErr[0] = `Field "form" type "MyInput66", is not an output type at line: 10 column: 11` //
+	expectedErr[0] = `Field "form" type "MyInput6", is not an output type at line: 10 column: 11` //
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
 	//fmt.Println(d.String())
 	if len(errs) != 1 {
+		t.Errorf(`Expected 1 error "... is not an output type", got none `)
+	}
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if v.Error() != expectedErr[i] {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+}
+
+func TestObjCheckInputType(t *testing.T) {
+
+	input := `
+	
+type Myobject66 {
+  x: Float
+  y: Int
+}
+type Measure66 {
+    height: String
+    weight: Myobject66
+    form (x : Myobject66) : Float
+}
+`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Field "form" type "Myobject66", is not an input type at line: 10 column: 15` //
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
 		t.Errorf(`Expected 1 error "... is not an output type", got none `)
 	}
 	for i, v := range errs {

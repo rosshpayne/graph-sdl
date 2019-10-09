@@ -39,7 +39,11 @@ func init() {
 
 // Fetch - when type is in cache it is said to be "resolved".
 //  unresolved types are therefore not in the typeCaches
-func Fetch(input NameValue_) (TypeSystemDef, bool) { // TODO: use TypeSystemDef instead of TypeSystemDef??
+func Fetch(input NameValue_) (TypeSystemDef, bool) {
+	return CacheFetch(input)
+}
+
+func CacheFetch(input NameValue_) (TypeSystemDef, bool) { // TODO: use TypeSystemDef instead of TypeSystemDef??
 	if x, ok := typeCache_[input]; !ok {
 		return nil, false
 	} else {

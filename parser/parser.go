@@ -48,8 +48,8 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerFn(token.ENUM, p.ParseEnumType)
 	p.registerFn(token.INTERFACE, p.ParseInterfaceType)
 	p.registerFn(token.UNION, p.ParseUnionType)
-	p.registerFn(token.INPUTOBJS, p.ParseInputValueType)
-
+	p.registerFn(token.INPUT, p.ParseInputValueType)
+	p.registerFn(token.SCALAR, p.ParseScalarType)
 	// Read two tokens, so curToken and peekToken are both set
 	p.nextToken()
 	//fmt.Println("New 1 ", p.curToken.Literal)
@@ -153,8 +153,10 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 		var unresolved []ast.Name_
 		// returns slice of unresolved types from each statement in the document
 		v.CheckUnresolvedTypes(&unresolved)
+
 		// resolve unresolved types by checking in DB
 		for _, v_ := range unresolved {
+
 			if typeDef, err := ast.DBFetch(v_.Name); err != nil {
 				p.addErr(err.Error())
 				continue
@@ -179,6 +181,8 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 			switch x := v.(type) {
 			case *ast.Object_:
 				x.CheckIsOutputType(&p.perror)
+				x.CheckIsInputType(&p.perror)
+				//x.CheckInputListValueTypes(&p.perror)
 				x.CheckImplements(&p.perror) // check implements are interfaces
 			case *ast.Enum_:
 			case *ast.Interface_:
@@ -211,6 +215,38 @@ func (p *Parser) parseStatement() ast.TypeSystemDef {
 		return f(stmtType)
 	}
 	return nil
+}
+
+// ====================  fetchAST  =============================
+
+func (p *Parser) fetchAST(name string) ast.TypeSystemDef {
+	// search in cache, then database and parse database statement
+	//  to generate the type's AST and return it
+	var (
+		ast_ ast.TypeSystemDef
+		ok   bool
+	)
+	name_ := ast.NameValue_(name)
+	if ast_, ok = ast.CacheFetch(name_); !ok {
+		if typeDef, err := ast.DBFetch(name_); err != nil {
+			p.addErr(err.Error())
+			p.abort = true
+			return nil
+		} else {
+			if len(typeDef) == 0 { // no type found in DB
+				p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, name, p.Loc()))
+				p.abort = true
+				return nil
+			} else {
+				// generate the AST
+				l := lexer.New(typeDef)
+				p2 := New(l)
+				ast_ := p2.parseStatement()
+				ast.Add2Cache(name_, ast_)
+			}
+		}
+	}
+	return ast_
 }
 
 // ==================== Object Type  ============================
@@ -377,11 +413,46 @@ func (p *Parser) ParseInputValueType(op string) ast.TypeSystemDef {
 				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
 				p.abort = true
 			} else {
-				dcnt, fcnt := len(inp.Directives), len(inp.InputValueS)
+				dcnt, fcnt := len(inp.Directives), len(inp.InputValueDefs)
 
 				p.parseDirectives(inp, opt).parseInputFieldDefs(inp)
 
-				if dcnt == len(inp.Directives) && fcnt == len(inp.InputValueS) {
+				if dcnt == len(inp.Directives) && fcnt == len(inp.InputValueDefs) {
+					p.addErr(fmt.Sprintf(`extend for type "%s" contains no changes`, inp.TypeName()))
+				}
+				return inp
+			}
+		}
+	}
+	return nil
+
+}
+
+// ====================== Scalar_ ===============================
+// InputObjectTypeDefinition
+//		Description-opt	input	Name	DirectivesConst-opt	InputFieldsDefinition-opt
+func (p *Parser) ParseScalarType(op string) ast.TypeSystemDef {
+
+	p.nextToken() // read over input keyword
+	if !p.extend {
+		inp := &ast.Scalar_{}
+
+		p.parseName(inp).parseDirectives(inp, opt)
+
+		return inp
+	} else {
+		// return original AST associated with the extend Name.
+		obj := p.parseExtendName()
+		if obj != nil {
+			if inp, ok := obj.(*ast.Input_); !ok {
+				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
+				p.abort = true
+			} else {
+				dcnt := len(inp.Directives)
+
+				p.parseDirectives(inp, opt)
+
+				if dcnt == len(inp.Directives) {
 					p.addErr(fmt.Sprintf(`extend for type "%s" contains no changes`, inp.TypeName()))
 				}
 				return inp
@@ -701,9 +772,10 @@ func (p *Parser) parseType(f ast.HasTypeI) *Parser {
 		}
 	}
 	var (
-		bit     byte
-		name    string
-		typedef ast.TypeFlag_ // token defines SCALAR types only. All other types will be populated in repoType map.
+		bit  byte
+		name string
+		ast_ ast.TypeSystemDef
+		//typedef ast.TypeFlag_ // token defines SCALAR types only. All other types will be populated in repoType map.
 		depth   int
 		nameLoc *ast.Loc_
 	)
@@ -711,6 +783,7 @@ func (p *Parser) parseType(f ast.HasTypeI) *Parser {
 	switch p.curToken.Type {
 
 	case token.LBRACKET:
+		// [ typeName ]
 		var (
 			depthClose uint
 		)
@@ -726,11 +799,12 @@ func (p *Parser) parseType(f ast.HasTypeI) *Parser {
 			p.addErr(fmt.Sprintf("Expected type identifer got %s, %s", p.curToken.Type, p.curToken.Literal))
 			break
 		}
-		if p.curToken.IsScalarType {
-			typedef = ast.SCALAR
-		}
 		nameLoc = p.Loc()
 		name = p.curToken.Literal
+		// System ScalarTypes are defined by the Type_.Name_, Non-system Scalar and non-scalar are defined by the AST.
+		if !p.curToken.IsScalarType {
+			ast_ = p.fetchAST(string(name))
+		}
 		p.nextToken() // read over IDENT
 		for bangs := 0; p.curToken.Type == token.RBRACKET || p.curToken.Type == token.BANG; {
 			if p.curToken.Type == token.BANG {
@@ -753,11 +827,12 @@ func (p *Parser) parseType(f ast.HasTypeI) *Parser {
 			return p
 		}
 	default:
+		// typeName
 		//if p.curToken.IsScalarType {
 		if p.curToken.Type == token.IDENT || p.curToken.IsScalarType {
 			name = p.curToken.Literal
-			if p.curToken.IsScalarType {
-				typedef = ast.SCALAR // should be sourced from typeRepo
+			if !p.curToken.IsScalarType {
+				ast_ = p.fetchAST(string(name))
 			}
 			if p.peekToken.Type == token.BANG {
 				bit = 1 << 0
@@ -772,7 +847,9 @@ func (p *Parser) parseType(f ast.HasTypeI) *Parser {
 	if p.hasError() {
 		return p
 	}
-	t := &ast.Type_{Constraint: bit, TypeFlag: typedef, Depth: depth}
+	// name is the type name Int, Person, [name], ...
+	//	t := &ast.Type_{Constraint: bit, TypeFlag: typedef, Depth: depth, AST: obj}
+	t := &ast.Type_{Constraint: bit, Depth: depth, AST: ast_}
 	t.AssignName(name, nameLoc, &p.perror)
 	f.AssignType(t) // assign the name of the named type. Later pass of AST will confirm if the named type has been defined.
 	return p

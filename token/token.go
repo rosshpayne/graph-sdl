@@ -16,13 +16,13 @@ const (
 	EOF     = "EOF"
 
 	// GQL Input Values types
-	INT       = "INT"    // 1343456
-	FLOAT     = "FLOAT"  // 3.42
-	STRING    = "STRING" // contents between " or """
+	INT       = "Int"    // 1343456
+	FLOAT     = "Float"  // 3.42
+	STRING    = "String" // contents between " or """
 	RAWSTRING = "RAWSTRING"
-	NULL      = "NULL"
-	ENUM      = "ENUM"
-	LIST      = "LIST"
+	NULL      = "null"
+	ENUM      = "enum"
+	LIST      = "list"
 	BOOLEAN   = "Boolean"
 	OBJECT    = "Object"
 
@@ -72,8 +72,9 @@ const (
 	ON         = "ON"
 	TRUE       = "TRUE"
 	FALSE      = "FALSE"
-	INPUTOBJS  = "INPUTOBJS"
+	INPUT      = "INPUT"
 	EXTEND     = "EXTEND"
+	SCALAR     = "SCALAR"
 )
 
 type Pos struct {
@@ -101,7 +102,7 @@ var keywords = map[string]struct {
 	"String":  {STRING, NONVALUE, true},
 	"Boolean": {BOOLEAN, NONVALUE, true},
 	//	"ID":      {ID, NONVALUE, true},
-	"enum":       {ENUM, NONVALUE, true},
+	"enum":       {ENUM, NONVALUE, false},
 	"on":         {ON, NONVALUE, false},
 	"type":       {TYPE, NONVALUE, false},
 	"null":       {NULL, VALUE, false},
@@ -110,8 +111,9 @@ var keywords = map[string]struct {
 	"union":      {UNION, NONVALUE, false},
 	"implements": {IMPLEMENTS, NONVALUE, false},
 	"interface":  {INTERFACE, NONVALUE, false},
-	"input":      {INPUTOBJS, NONVALUE, false},
+	"input":      {INPUT, NONVALUE, false},
 	"extend":     {EXTEND, NONVALUE, false},
+	"scalar":     {SCALAR, NONVALUE, false},
 }
 
 func LookupIdent(ident string) (TokenType, TokenCat, bool) {

@@ -30,28 +30,28 @@ const (
 	INT
 	FLOAT
 	BOOLEAN
+	STRING
+	RAWSTRING
+	//
 	NULL
 	OBJECT
 	ENUM
-	INPUTOBJ
+	INPUT
 	LIST
-	STRING
-	RAWSTRING
-	// other non-scalar types
 	INTERFACE
 	UNION
 	// error - not available
 	NA
 )
 
-func isScalar(n TypeFlag_) bool {
-	switch n {
-	case SCALAR, INT, FLOAT, BOOLEAN, OBJECT, STRING, RAWSTRING:
-		return true
-	default:
-		return false
-	}
-}
+// func isScalar(n TypeSystemDef) bool {
+// 	switch n.isType {
+// 	case SCALAR, INT, FLOAT, BOOLEAN, STRING, RAWSTRING: // TODO: add ID
+// 		return true
+// 	default:
+// 		return false
+// 	}
+// }
 
 func fetchTypeFlag(n TypeI_) TypeFlag_ {
 	// output non-Scalar Go types
@@ -88,10 +88,16 @@ type EnumRepo_ map[string]struct{}
 //	 Return false
 
 func IsInputType(t *Type_) bool {
-	if isScalar(t.TypeFlag) || t.TypeFlag == ENUM || t.TypeFlag == INPUTOBJ {
+	// determine inputType from t.Name
+	if t.isScalar() {
 		return true
 	}
-	return false
+	switch t.isType() {
+	case ENUM, INPUT:
+		return true
+	default:
+		return false
+	}
 }
 
 // IsOutputType(type)
@@ -103,10 +109,15 @@ func IsInputType(t *Type_) bool {
 //	Return false
 
 func IsOutputType(t *Type_) bool {
-	if isScalar(t.TypeFlag) || t.TypeFlag == ENUM || t.TypeFlag == OBJECT || t.TypeFlag == INTERFACE || t.TypeFlag == UNION {
+	if t.isScalar() {
 		return true
 	}
-	return false
+	switch t.isType() {
+	case ENUM, OBJECT, INTERFACE, UNION:
+		return true
+	default:
+		return false
+	}
 }
 
 // ============================ Type_ ======================
@@ -116,11 +127,11 @@ func IsOutputType(t *Type_) bool {
 // 	Loc *Loc
 // }
 type Type_ struct {
-	Constraint byte      // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
-	TypeFlag   TypeFlag_ // Scalar (int,float,boolean,string,ID - Name_ defines the actual type e.g. Name_=Int) Object, Interface, Union, Enum, InputObj (AST contains type def)
-	//	AST        TypeI_    // AST instance of type. WHen would this be used??. A type has no AST but an instance of a type does.
-	Depth int // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
-	Name_     // type name. inherit AssignName()
+	Constraint byte // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
+	//TypeFlag   TypeFlag_ // Scalar (int,float,boolean,string,ID - Name_ defines the actual type e.g. Name_=Int) Object, Interface, Union, Enum, InputObj (AST contains type def)
+	AST   TypeSystemDef // AST instance of type. WHen would this be used??. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
+	Depth int           // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
+	Name_               // type name. inherit AssignName()
 	//Value      ValueI    // default value
 }
 
@@ -156,7 +167,7 @@ func (t Type_) String() string {
 }
 
 func (a *Type_) Equals(b *Type_) bool {
-	return a.Name_.String() == b.Name_.String() && a.Constraint == b.Constraint && a.Depth == b.Depth && a.TypeFlag == b.TypeFlag
+	return a.Name_.String() == b.Name_.String() && a.Constraint == b.Constraint && a.Depth == b.Depth
 }
 
 // ==================== interfaces ======================
@@ -169,12 +180,54 @@ type FieldArgI interface {
 	AppendField(f_ *InputValueDef, unresolved *[]error)
 }
 
+// ========= Argument ==========
+
+type ArgumentI interface {
+	String() string
+	AppendArgument(s *ArgumentT)
+}
+
+type ArgumentT struct {
+	//( name:value )
+	Name_
+	Value *InputValue_
+}
+
+func (a *ArgumentT) String(last bool) string {
+	if last {
+		return a.Name_.String() + ":" + a.Value.String()
+	}
+	return a.Name_.String() + ":" + a.Value.String() + " "
+}
+
+type Arguments_ struct {
+	Arguments []*ArgumentT
+}
+
+func (a *Arguments_) AppendArgument(ss *ArgumentT) {
+	a.Arguments = append(a.Arguments, ss)
+}
+
+func (a *Arguments_) String() string {
+	var s strings.Builder
+	if len(a.Arguments) > 0 {
+		s.WriteString("(")
+		for i, v := range a.Arguments {
+			s.WriteString(v.String(i == len(a.Arguments)-1))
+		}
+		s.WriteString(")")
+		return s.String()
+	}
+	return ""
+}
+
 // ================ QObject ====================
-// used as input object values
+// used as input values in List input value type
 
 type QObject_ []*ArgumentT
 
-func (o QObject_) ValueNode() {}
+func (o QObject_) TypeSystemNode() {}
+func (o QObject_) ValueNode()      {}
 func (o QObject_) String() string {
 	var s strings.Builder
 	s.WriteString("{")
@@ -224,6 +277,7 @@ type Object_ struct {
 }
 
 func (o *Object_) TypeSystemNode() {}
+func (o *Object_) ValueNode()      {}
 func (o *Object_) TypeName() NameValue_ {
 	return o.Name
 }
@@ -271,11 +325,21 @@ func (f *Object_) CheckUnresolvedTypes(unresolved *[]Name_) {
 func (f *Object_) CheckIsOutputType(err *[]error) {
 	for _, v := range f.FieldSet {
 		if !IsOutputType(v.Type) {
-			//loc := v.Name_.Loc
 			*err = append(*err, fmt.Errorf(`Field "%s" type "%s", is not an output type %s`, v.Name_, v.Type.Name, v.Type.Name_.AtPosition()))
 		}
 	}
 
+}
+
+func (f *Object_) CheckIsInputType(err *[]error) {
+	for _, v := range f.FieldSet {
+		for _, p := range v.ArgumentDefs {
+			if !IsInputType(p.Type) {
+				*err = append(*err, fmt.Errorf(`Field "%s" type "%s", is not an input type %s`, v.Name_, p.Type.Name, p.Type.Name_.AtPosition()))
+			}
+			//	_ := p.DefaultVal.isType() // e.g. scalar, int | List
+		}
+	}
 }
 
 // use following method to disambiguate the promoted AssignName method from Name_ and Directives_ fields. Forces use of Name_ method.
@@ -322,20 +386,6 @@ func (f *FieldSet) String() string {
 func (fs *FieldSet) CheckUnresolvedTypes(unresolved *[]Name_) {
 	for _, v := range *fs {
 		v.CheckUnresolvedTypes(unresolved)
-		// if v.Type.TypeFlag == 0 { // ie. a user defined type not known to the Lexer
-		// 	if typ, ok := Fetch(v.Type.Name); !ok {
-		// 		*unresolved = append(*unresolved, v.Type.Name_)
-		// 	} else {
-		// 		// TODO - is this necessary
-		// 		// if v.Type.TypeFlag = fetchTypeFlag(typ); v.Type.TypeFlag == NA {
-		// 		// 	err := fmt.Errorf("Type not known [%c]", v.Type.Name_.String())
-		// 		// 	*unresolved = append(*unresolved, err)
-		// 		// }
-		// 		v.Type.AST = typ
-		// 	}
-		// }
-		// // check argument types
-		// InputValueS.CheckUnresolvedTypes(unresolved *[]Name_)
 	}
 }
 
@@ -363,7 +413,7 @@ type HasTypeI interface {
 type Field_ struct {
 	Desc string
 	Name_
-	InputValueS // []*InputValueDef
+	ArgumentDefs InputValueDefs //[]*InputValueDef
 	// :
 	Type *Type_
 	Directives_
@@ -381,20 +431,15 @@ func (f *Field_) CheckUnresolvedTypes(unresolved *[]Name_) {
 	if f.Type == nil {
 		log.Panic(fmt.Errorf("Severe Error - not expected: Field.Type is not assigned for [%s]", f.Name_.String()))
 	}
-	if f.Type.TypeFlag == 0 { // non-zero means its been defined in the Lexer as a Go Scalar type.
-		if _, ok := Fetch(f.Type.Name); !ok {
+	if !f.Type.isScalar() && f.Type.AST == nil {
+		if obj, ok := CacheFetch(f.Type.Name); !ok {
 			*unresolved = append(*unresolved, f.Type.Name_)
 		} else {
-			// TODO - is this necessary
-			// if f.Type.TypeFlag = fetchTypeFlag(typ); f.Type.TypeFlag == NA {
-			// 	err := fmt.Errorf("Type not known [%c]", f.Type.TypeFlag)
-			// 	*unresolved = append(*unresolved, err)
-			// }
-			//f.Type.AST = nil //typ
+			f.Type.AST = obj
 		}
 	}
 	//
-	f.InputValueS.CheckUnresolvedTypes(unresolved)
+	f.ArgumentDefs.CheckUnresolvedTypes(unresolved)
 }
 
 // use following method to override the promoted methods from Name_ and Directives_ fields. Forces use of Name_ method.
@@ -406,28 +451,32 @@ func (f *Field_) String() string {
 	var encl [2]token.TokenType = [2]token.TokenType{token.LPAREN, token.RPAREN}
 	var s strings.Builder
 	s.WriteString("\n" + f.Name_.String())
-	s.WriteString(f.InputValueS.String(encl))
+	s.WriteString(f.ArgumentDefs.String(encl))
 	s.WriteString(" : ")
 	s.WriteString(f.Type.String())
 	s.WriteString(f.Directives_.String())
 	return s.String()
 }
 
-// ==================== InputValueS ================================
-// Slice of *InputValueDef
-type InputValueS []*InputValueDef
+func (f *Field_) AppendField(f_ *InputValueDef, unresolved *[]error) {
+	f.ArgumentDefs.AppendField(f_, unresolved)
+}
 
-func (fa *InputValueS) AppendField(f *InputValueDef, unresolved *[]error) {
+// ==================== ArgumentDefs ================================
+// Slice of *InputValueDef
+type InputValueDefs []*InputValueDef
+
+func (fa *InputValueDefs) AppendField(f *InputValueDef, unresolved *[]error) {
 	for _, v := range *fa {
 		if v.Name_.String() == f.Name_.String() && v.Type.Equals(f.Type) {
 			loc := f.Name_.Loc
-			*unresolved = append(*unresolved, fmt.Errorf(`Duplicate input value name "%s" at line: %d, column: %d`, f.Name_.String(), loc.Line, loc.Column))
+			*unresolved = append(*unresolved, fmt.Errorf(`Duplicate input value name "%s" at line: %d, column: %d`, f.Name_, loc.Line, loc.Column))
 		}
 	}
 	*fa = append(*fa, f)
 }
 
-func (fa *InputValueS) String(encl [2]token.TokenType) string {
+func (fa *InputValueDefs) String(encl [2]token.TokenType) string {
 	var s strings.Builder
 	for i, v := range *fa {
 		if i == 0 {
@@ -444,19 +493,14 @@ func (fa *InputValueS) String(encl [2]token.TokenType) string {
 	return s.String()
 }
 
-func (fa InputValueS) CheckUnresolvedTypes(unresolved *[]Name_) {
+func (fa InputValueDefs) CheckUnresolvedTypes(unresolved *[]Name_) {
 
 	for _, v := range fa {
-		if v.Type.TypeFlag == 0 {
-			if _, ok := Fetch(v.Type.Name); !ok {
+		if !v.Type.isScalar() && v.Type.AST == nil {
+			if ast, ok := CacheFetch(v.Type.Name); !ok {
 				*unresolved = append(*unresolved, v.Type.Name_)
 			} else {
-				//TODO - do I need this
-				// if v.Type.TypeFlag = fetchTypeFlag(typ); v.Type.TypeFlag == NA {
-				// 	err := fmt.Errorf("Type not known [%c]", v.Type.TypeFlag)
-				// 	*unresolved = append(*unresolved, err)
-				// }
-				//	v.Type.AST = nil //typ
+				v.Type.AST = ast
 			}
 		}
 	}
@@ -480,16 +524,11 @@ func (fa *InputValueDef) checkUnresolvedType(unresolved *[]Name_) {
 		err := fmt.Errorf("Severe Error - not expected: InputValueDef.Type is not assigned for [%s]", fa.Name_.String())
 		log.Panic(err)
 	}
-	if fa.Type.TypeFlag == 0 {
-		if _, ok := Fetch(fa.Type.Name); !ok {
+	if !fa.Type.isScalar() && fa.Type.AST == nil {
+		if ast, ok := CacheFetch(fa.Type.Name); !ok {
 			*unresolved = append(*unresolved, fa.Type.Name_)
 		} else {
-			// TODO - do I need this?
-			// if fa.Type.TypeFlag = fetchTypeFlag(typ); fa.Type.TypeFlag == NA {
-			// 	err := fmt.Errorf("Type not known [%c]", fa.Type.Name_.String())
-			// 	*unresolved = append(*unresolved, err)
-			// }
-			//fa.Type.AST = nil //typ
+			fa.Type.AST = ast
 		}
 	}
 }
@@ -665,10 +704,11 @@ type Input_ struct {
 	Desc string
 	Name_
 	Directives_
-	InputValueS // []*InputValueDef
+	InputValueDefs // []*InputValueDef
 }
 
 func (e *Input_) TypeSystemNode() {}
+func (e *Input_) ValueNode()      {}
 
 func (i *Input_) TypeName() NameValue_ {
 	return i.Name
@@ -680,6 +720,31 @@ func (u *Input_) String() string {
 	s.WriteString("\ninput ")
 	s.WriteString(u.Name.String())
 	s.WriteString(" " + u.Directives_.String())
-	s.WriteString(u.InputValueS.String(encl))
+	s.WriteString(u.InputValueDefs.String(encl))
+	return s.String()
+}
+
+// ======================  Scalar_ =========================
+// ScalarTypeDefinition:
+//		Description-opt	input	Name	DirectivesConst-opt	InputFieldsDefinition-opt
+type Scalar_ struct {
+	Desc string
+	Name_
+	Directives_
+}
+
+func (e *Scalar_) TypeSystemNode() {}
+func (e *Scalar_) ValueNode()      {}
+
+func (i *Scalar_) TypeName() NameValue_ {
+	return i.Name
+}
+func (i *Scalar_) CheckUnresolvedTypes(unresolved *[]Name_) {}
+
+func (u *Scalar_) String() string {
+	var s strings.Builder
+	s.WriteString("\nscalar ")
+	s.WriteString(u.Name.String())
+	s.WriteString(" " + u.Directives_.String())
 	return s.String()
 }

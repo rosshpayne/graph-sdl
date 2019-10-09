@@ -141,12 +141,19 @@ type Person implements NamedEntity & ValuedEntity {
 	expectedErr[1] = `Type "FLoat", not defined at line: 9 column: 11`
 	expectedErr[2] = `Type "Bool", not defined at line: 11 column: 11`
 	expectedErr[3] = `Type "In", not defined at line: 16 column: 8`
+
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
 	//fmt.Println(d.String())
+	for _, v := range errs {
+		fmt.Println(v.Error())
+	}
+	// if len(errs) != 1 {
+	// 	t.Errorf(`Expected %d error to %d`, len(expectedErr), len(errs))
+	// }
 	for i, v := range errs {
-		if i < 4 {
+		if i < len(expectedErr) {
 			if v.Error() != expectedErr[i] {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
