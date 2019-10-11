@@ -325,7 +325,7 @@ type Person {
   posts: [Boolean!]!
 }`
 	var expectedErr [1]string
-	expectedErr[0] = `Argument "info", argument type is not an INPUT OBJECT, at line: 9 column: 10`
+	expectedErr[0] = `Argument "info" type "Measure", is not an input type at line: 9 column: 16`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -333,6 +333,9 @@ type Person {
 	fmt.Println(d.String())
 	if len(errs) > 1 {
 		t.Errorf(`***  Expected one error got %d.`, len(errs))
+	}
+	for _, e := range errs {
+		fmt.Println("*** ", e.Error())
 	}
 	for i, v := range errs {
 		if i < len(expectedErr) {
