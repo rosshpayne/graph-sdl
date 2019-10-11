@@ -24,6 +24,36 @@ import (
 
 type TypeFlag_ int
 
+func (tf TypeFlag_) String() string {
+	switch tf {
+	case INT:
+		return token.INT
+	case FLOAT:
+		return token.FLOAT
+	case BOOLEAN:
+		return token.BOOLEAN
+	case STRING:
+		return token.STRING
+	case RAWSTRING:
+		return token.STRING
+	case SCALAR:
+		return token.SCALAR
+	case ENUM:
+		return token.ENUM
+	case OBJECT:
+		return token.OBJECT
+	case INPUT: // aka INPUTOBJ
+		return token.INPUT
+	// case INPUTOBJ:
+	// 	return "INPUTOBJ
+	case LIST:
+		return "xxList"
+	case NULL:
+		return token.NULL
+	}
+	return "NoTypeFound"
+}
+
 const (
 	//  input value types
 	SCALAR TypeFlag_ = 1 << iota
@@ -53,21 +83,21 @@ const (
 // 	}
 // }
 
-func fetchTypeFlag(n TypeI_) TypeFlag_ {
-	// output non-Scalar Go types
-	switch n.(type) {
-	case *Object_:
-		return OBJECT
-	case *Enum_:
-		return ENUM
-	case *Interface_:
-		return INTERFACE
-	case *Union_:
-		return UNION
-	default:
-		return NA
-	}
-}
+// func fetchTypeFlag(n TypeI_) TypeFlag_ {
+// 	// output non-Scalar Go types
+// 	switch n.(type) {
+// 	case *Object_:
+// 		return OBJECT
+// 	case *Enum_:
+// 		return ENUM
+// 	case *Interface_:
+// 		return INTERFACE
+// 	case *Union_:
+// 		return UNION
+// 	default:
+// 		return NA
+// 	}
+// }
 
 type TypeI_ interface {
 	TypeSystemNode()
@@ -93,7 +123,7 @@ func IsInputType(t *Type_) bool {
 		return true
 	}
 	switch t.isType() {
-	case ENUM, INPUT:
+	case ENUM, INPUT, OBJECT:
 		return true
 	default:
 		return false
@@ -122,17 +152,11 @@ func IsOutputType(t *Type_) bool {
 
 // ============================ Type_ ======================
 
-// type Type__ {
-// 	Type Type_
-// 	Loc *Loc
-// }
 type Type_ struct {
-	Constraint byte // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
-	//TypeFlag   TypeFlag_ // Scalar (int,float,boolean,string,ID - Name_ defines the actual type e.g. Name_=Int) Object, Interface, Union, Enum, InputObj (AST contains type def)
-	AST   TypeSystemDef // AST instance of type. WHen would this be used??. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
-	Depth int           // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
-	Name_               // type name. inherit AssignName()
-	//Value      ValueI    // default value
+	Constraint byte          // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
+	AST        TypeSystemDef // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
+	Depth      int           // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
+	Name_                    // type name. inherit AssignName()
 }
 
 func (t Type_) String() string {
@@ -200,6 +224,10 @@ func (a *ArgumentT) String(last bool) string {
 	return a.Name_.String() + ":" + a.Value.String() + " "
 }
 
+func (a *ArgumentT) ValidateInputValues(iv *Type_, d *int, err *[]error) {
+
+}
+
 type Arguments_ struct {
 	Arguments []*ArgumentT
 }
@@ -221,14 +249,14 @@ func (a *Arguments_) String() string {
 	return ""
 }
 
-// ================ QObject ====================
+// ================ ObjectVal ====================
 // used as input values in List input value type
 
-type QObject_ []*ArgumentT
+type ObjectVals []*ArgumentT
 
-func (o QObject_) TypeSystemNode() {}
-func (o QObject_) ValueNode()      {}
-func (o QObject_) String() string {
+func (o ObjectVals) TypeSystemNode() {}
+func (o ObjectVals) ValueNode()      {}
+func (o ObjectVals) String() string {
 	var s strings.Builder
 	s.WriteString("{")
 	for _, v := range o {
@@ -237,7 +265,7 @@ func (o QObject_) String() string {
 	s.WriteString("} ")
 	return s.String()
 }
-func (o QObject_) Exists() bool {
+func (o ObjectVals) Exists() bool {
 	if len(o) > 0 {
 		return true
 	}
@@ -338,6 +366,106 @@ func (f *Object_) CheckIsInputType(err *[]error) {
 				*err = append(*err, fmt.Errorf(`Field "%s" type "%s", is not an input type %s`, v.Name_, p.Type.Name, p.Type.Name_.AtPosition()))
 			}
 			//	_ := p.DefaultVal.isType() // e.g. scalar, int | List
+		}
+	}
+}
+
+// type InputValue_ struct {
+// 	Value ValueI //  IV:type|value = assert type to determine InputValue_'s type
+// 	Loc   *Loc_
+// // }
+// type Type_ struct {
+// 	Constraint byte          // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
+// 	AST        TypeSystemDef // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
+// 	Depth      int           // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
+// 	Name_                    // type name. inherit AssignName()
+// }
+// Type       *Type_
+// DefaultVal *InputValue_
+func (f *Object_) CheckInputValueType(err *[]error) {
+	// for each field in the object check if it has any default values to check
+	for _, v := range f.FieldSet {
+		//  type Field_ struct {
+		// 	Desc string
+		// 	Name_
+		// 	ArgumentDefs InputValueDefs //[]*InputValueDef        <===== check this
+		// 	// :
+		// 	Type *Type_
+		// 	Directives_
+		// }
+		// type InputValueDef struct {
+		// 	Desc string
+		// 	Name_
+		// 	Type       *Type_   	// ** argument type specification   <==== required type
+		// 	DefaultVal *InputValue_ // ** input value(s) type(s)        <==== instance data to check against required type
+		// 	Directives_
+		// }
+		// a.Type is required type -  check against a.DefaultVal.Value.isType()
+		for _, a := range v.ArgumentDefs { // aka InputValDef
+			// reqType = a.Type
+			//a.DefaultVal.Value.ValidateInputValues(a.Type, &d, err)
+			if a.DefaultVal != nil {
+
+				switch defvalObj := a.DefaultVal.Value.(type) {
+				case List_: // [ "ads", "wer" ]
+					if a.Type.Depth == 0 { // required type is not a LIST
+						*err = append(*err, fmt.Errorf(`Argument "%s", is not a list type but default value is  %s  %s`, a.Name_, a.Type.isType(), a.AtPosition()))
+						return
+					}
+					var d int = 1
+					defvalObj.ValidateInputValues(a.Type, &d, err)
+					//
+					if d != a.Type.Depth {
+						*err = append(*err, fmt.Errorf(`Argument "%s", nested List type depth different reqired %d, got %d %s`, a.Name_, a.Type.Depth, d, a.DefaultVal.AtPosition()))
+					}
+					//
+				case ObjectVals: // { x: "ads", y: 234 }
+					//  { name:value name:value ... }: []*ArgumentT : so ObjectVal is an ArgumentT: struct {Name_, Value *InputValue_} ie. {name:value}
+					// check required type against DefaultVal type
+					if a.Type.isType() != OBJECT && a.Type.isType() != INPUT {
+						*err = append(*err, fmt.Errorf(`Argument "%s", defaut value type is an INPUT OBJECT, should be a  %s  %s`, a.Name_, a.Type, a.AtPosition()))
+					}
+					// reqType get as an AST  i.e. Pet
+					objFields := make(map[NameValue_]bool)
+					if ivObj, ok := Fetch(a.Type.Name); !ok {
+						*err = append(*err, fmt.Errorf(`Cache fetch failed. %s not in cache `, a.Type.Name))
+					} else {
+						if obj, ok := ivObj.(*Object_); !ok {
+							if obj_, ok := ivObj.(*Input_); !ok {
+								*err = append(*err, fmt.Errorf(`%s is not an Input Object `, a.Type.Name))
+								return
+							} else {
+								for _, v := range obj_.InputValueDefs {
+									objFields[v.Name] = false
+								}
+							}
+						} else {
+							for _, v := range obj.FieldSet {
+								objFields[v.Name] = false
+							}
+						}
+					}
+					// check if default data has fields not in spec Type
+					for _, v := range defvalObj { //
+						if _, ok := objFields[v.Name]; ok {
+							objFields[v.Name] = true
+							//	v.Value.ValidateInputValues(a.Type, d, err) // list, objectval, scalar
+						}
+					}
+					for k, v := range objFields {
+						if v == false {
+							*err = append(*err, fmt.Errorf(`Argument "%s", has fields not in type  %s %s`, k, a.Type.isType(), a.AtPosition()))
+						}
+					}
+
+				default:
+					fmt.Println("DefaultVal type: ", a.DefaultVal.isType())
+					fmt.Println("Required type: ", a.Type.isType())
+					if a.DefaultVal.isType() != a.Type.isType() {
+						*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, a.Type.isType(), a.DefaultVal.isType(), a.DefaultVal.AtPosition()))
+					}
+				}
+			}
 		}
 	}
 }
@@ -468,7 +596,7 @@ type InputValueDefs []*InputValueDef
 
 func (fa *InputValueDefs) AppendField(f *InputValueDef, unresolved *[]error) {
 	for _, v := range *fa {
-		if v.Name_.String() == f.Name_.String() && v.Type.Equals(f.Type) {
+		if v.Name_.String() == f.Name_.String() { //&& v.Type.Equals(f.Type) {
 			loc := f.Name_.Loc
 			*unresolved = append(*unresolved, fmt.Errorf(`Duplicate input value name "%s" at line: %d, column: %d`, f.Name_, loc.Line, loc.Column))
 		}

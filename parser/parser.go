@@ -120,7 +120,7 @@ func (p *Parser) nextToken(s ...string) {
 func (p *Parser) ParseDocument() (*ast.Document, []error) {
 	program := &ast.Document{}
 	program.Statements = []ast.TypeSystemDef{} // slice is initialised  with no elements - each element represents an interface value of type ast.TypeSystemDef
-
+	program.StatementsMap = make(map[ast.NameValue_]ast.TypeSystemDef)
 	// Build AST from GraphQL SDL script
 
 	for p.curToken.Type != token.EOF {
@@ -135,6 +135,8 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 			}
 			//
 			program.Statements = append(program.Statements, stmt)
+			name := stmt.TypeName()
+			program.StatementsMap[name] = stmt
 		}
 		if p.extend {
 			p.extend = false
@@ -182,7 +184,7 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 			case *ast.Object_:
 				x.CheckIsOutputType(&p.perror)
 				x.CheckIsInputType(&p.perror)
-				//x.CheckInputListValueTypes(&p.perror)
+				x.CheckInputValueType(&p.perror)
 				x.CheckImplements(&p.perror) // check implements are interfaces
 			case *ast.Enum_:
 			case *ast.Interface_:
@@ -800,7 +802,7 @@ func (p *Parser) parseType(f ast.HasTypeI) *Parser {
 			break
 		}
 		nameLoc = p.Loc()
-		name = p.curToken.Literal
+		name = p.curToken.Literal // actual type name, Int, Float, Pet ...
 		// System ScalarTypes are defined by the Type_.Name_, Non-system Scalar and non-scalar are defined by the AST.
 		if !p.curToken.IsScalarType {
 			ast_ = p.fetchAST(string(name))
@@ -840,7 +842,7 @@ func (p *Parser) parseType(f ast.HasTypeI) *Parser {
 			}
 			p.nextToken() // read over ! or IDENT
 		} else {
-			p.addErr(fmt.Sprintf("Expected  type identifer got %s, %s %v", p.curToken.Type, p.curToken.Literal, p.curToken.IsScalarType))
+			p.addErr(fmt.Sprintf("Expected type identifer got %s, %s %v", p.curToken.Type, p.curToken.Literal, p.curToken.IsScalarType))
 		}
 	}
 
@@ -848,7 +850,6 @@ func (p *Parser) parseType(f ast.HasTypeI) *Parser {
 		return p
 	}
 	// name is the type name Int, Person, [name], ...
-	//	t := &ast.Type_{Constraint: bit, TypeFlag: typedef, Depth: depth, AST: obj}
 	t := &ast.Type_{Constraint: bit, Depth: depth, AST: ast_}
 	t.AssignName(name, nameLoc, &p.perror)
 	f.AssignType(t) // assign the name of the named type. Later pass of AST will confirm if the named type has been defined.
@@ -939,7 +940,7 @@ func (p *Parser) parseDefaultVal(v *ast.InputValueDef, optional ...bool) *Parser
 func (p *Parser) parseObjectArguments(argS []*ast.ArgumentT) []*ast.ArgumentT {
 
 	for p.nextToken(); p.curToken.Type == token.IDENT; {
-
+		//for p.nextToken(); p.curToken.Type != token.RBRACE ; p.nextToken() { // TODO: use this
 		v := new(ast.ArgumentT)
 
 		p.parseName(v).parseColon().parseInputValue(v)
@@ -1018,7 +1019,7 @@ func (p *Parser) parseInputValue_(iv ...*ast.InputValueDef) *ast.InputValue_ {
 
 	case token.LBRACE:
 		//  { name:value name:value ... }
-		var ObjList ast.QObject_ // []*ArgumentT {Name_,Value *InputValue_}
+		var ObjList ast.ObjectVals // []*ArgumentT {Name_,Value *InputValue_}
 		for p.curToken.Type != token.RBRACE {
 			ObjList = p.parseObjectArguments(ObjList)
 			if p.hasError() {

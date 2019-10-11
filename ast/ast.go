@@ -26,7 +26,7 @@ type InputValue_ struct {
 	Loc   *Loc_
 }
 
-func (iv *InputValue_) InputValueNode() {}
+//func (iv *InputValue_) InputValueNode() {}
 
 func (iv *InputValue_) String() string {
 	switch iv.Value.(type) {
@@ -39,6 +39,10 @@ func (iv *InputValue_) String() string {
 		return ""
 	}
 	return iv.Value.String() //+ "-" + iv.dTString()
+}
+
+func (iv *InputValue_) AtPosition() string {
+	return iv.Loc.String()
 }
 
 // dataTypeString - prints the datatype of the input value
@@ -61,7 +65,11 @@ func (iv *InputValue_) dTString() string {
 	case *Object_:
 		return token.OBJECT
 	case *Input_:
-		return token.INPUT
+		return token.INPUT // defines input specification
+	case ObjectVals:
+		return token.INPUT // actual instance of input specification
+	case List_:
+		return "xxList"
 	case Null_:
 		return token.NULL
 	}
@@ -69,6 +77,38 @@ func (iv *InputValue_) dTString() string {
 }
 
 // dataTypeString - prints the datatype of the input value
+
+func (iv *InputValue_) isType() TypeFlag_ {
+	switch iv.Value.(type) {
+	case Int_:
+		return INT
+	case Float_:
+		return FLOAT
+	case Bool_:
+		return BOOLEAN
+	case *String_:
+		return STRING
+	case *RawString_:
+		return STRING
+	case *Scalar_:
+		return SCALAR
+	case *EnumValue_:
+		return ENUM
+	case *Object_:
+		return OBJECT
+	case *Input_:
+		return INPUT
+	case Null_:
+		return NULL
+	case ObjectVals:
+		return INPUT
+	case List_:
+		return LIST
+	}
+	return NA
+}
+
+// dataTypeString - prints the datatype of the type specification
 func (t *Type_) isType() TypeFlag_ {
 	switch t.Name.String() {
 	// system scalars
@@ -83,21 +123,21 @@ func (t *Type_) isType() TypeFlag_ {
 	// case token.ID:
 	// 	return ID
 	default:
-		// non system types
+		// non scalar types
 		if t.AST != nil {
 			switch t.AST.(type) {
-			case *Enum_:
-				return ENUM
 			case *Object_:
 				return OBJECT
 			case *Interface_:
 				return INTERFACE
+			case *Enum_:
+				return ENUM
 			case *Input_:
 				return INPUT
 			case *Union_:
 				return UNION
-				// case *Scalar_:
-				// 	return SCALAR
+			case *Scalar_:
+				return SCALAR
 				// case Null_:
 				// 	return NULL
 			}
@@ -217,6 +257,82 @@ func (l List_) Exists() bool {
 	return false
 }
 
+// type InputValueDef struct {
+// 	Desc string
+// 	Name_
+// 	Type       *Type_   	// ** argument type specification
+// 	DefaultVal *InputValue_ // ** input value(s) type(s)
+// 	Directives_
+// }
+// type InputValue_ struct {
+// 	Value ValueI //  IV:type|value = assert type to determine InputValue_'s type
+// 	Loc   *Loc_
+// // }
+// type Type_ struct {
+// 	Constraint byte          // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
+// 	AST        TypeSystemDef // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
+// 	Depth      int           // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
+// 	Name_                    // type name. inherit AssignName()
+// }
+
+func (l List_) ValidateInputValues(iv *Type_, d *int, err *[]error) {
+	reqType := iv.isType() // INT, FLOAT, OBJECT, PET,  etc            note: OBJECT is for specification of a type, OBJECTVAL is an object literal for input purposes
+	//
+	for _, v := range l {
+		// we may get an embedded list
+		switch le := v.Value.(type) {
+
+		case List_:
+			*d++
+			for _, v := range le {
+				// check types match
+				fmt.Println("reqType = ", reqType)
+				fmt.Println("v.isType() = ", v.isType())
+				if v.isType() != reqType {
+					*err = append(*err, fmt.Errorf(`Argument "s", defaut value type is an INPUT OBJECT, should be a `))
+				}
+				//v.Value.ValidateInputValues(iv, d, err) // list, objectval, scalar
+			}
+
+		case ObjectVals:
+			//  { name:value name:value ... }: []*ArgumentT : so ObjectVal is an ArgumentT: struct {Name_, Value *InputValue_} ie. {name:value}
+			if reqType != OBJECT { // ie an instance of OBJECT
+				*err = append(*err, fmt.Errorf(`Required type "%s", got "OBJECT" %s`, reqType, v.AtPosition()))
+				return
+			}
+			// reqType is an Object i.e. Pet
+			objFields := make(map[NameValue_]bool)
+			if ivObj, ok := Fetch(iv.Name); !ok {
+				*err = append(*err, fmt.Errorf(`Cache fetch failed. %s not in cache `, iv.Name))
+			} else {
+				if obj, ok := ivObj.(*Object_); !ok {
+					*err = append(*err, fmt.Errorf(`%s is not an Object `, iv.Name))
+					return
+				} else {
+					for _, v := range obj.FieldSet {
+						objFields[v.Name] = false
+					}
+				}
+			}
+			// for _, v := range x.FieldSet {
+			// 	if _,ok := objFields[v.] {
+			// 	v.Value.ValidateInputValues(iv, d, err) // list, objectval, scalar
+			// 	}
+			// }
+		default:
+			// this type should match specified type
+			if t := v.isType(); t != reqType {
+				*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, reqType, t, v.AtPosition()))
+				// } else {
+				// 	// match type with instance data
+				// 	if !iv.isScalar() {
+				// 		.ValidateInputValues(iv, d, err)
+				// 	}
+			}
+		}
+	}
+}
+
 // ========== Directives ================
 
 // Directives[Const]
@@ -326,14 +442,15 @@ func (n *Name_) AssignName(s string, loc *Loc_, errS *[]error) {
 // ======== Document ===================================
 
 type Document struct {
-	Statements []TypeSystemDef
+	Statements    []TypeSystemDef
+	StatementsMap map[NameValue_]TypeSystemDef
 }
 
 func (d Document) String() string {
 	var s strings.Builder
 	tc = 2
 
-	for _, iv := range d.Statements {
+	for _, iv := range d.StatementsMap {
 		s.WriteString(iv.String())
 	}
 	return s.String()
