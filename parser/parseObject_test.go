@@ -324,22 +324,24 @@ type Person {
   inputX(info: Measure = {height: 123.2 weight: 12}): Float
   posts: [Boolean!]!
 }`
+	var expectedErr [1]string
+	expectedErr[0] = `Argument "info", argument type is not an INPUT OBJECT, at line: 9 column: 10`
 
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
 	fmt.Println(d.String())
-	if len(errs) > 0 {
-		t.Errorf(`***  Expected no errors got %d.`, len(errs))
+	if len(errs) > 1 {
+		t.Errorf(`***  Expected one error got %d.`, len(errs))
 	}
-	for _, e := range errs {
-		fmt.Println("*** ", e.Error())
-	}
-	fmt.Println(d.String())
-	if compare(d.String(), input) {
-		fmt.Println(trimWS(d.String()))
-		fmt.Println(trimWS(input))
-		t.Errorf(`***  program.String() wrong.`)
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if v.Error() != expectedErr[i] {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
 	}
 }
 

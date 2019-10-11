@@ -422,25 +422,19 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 				case ObjectVals: // { x: "ads", y: 234 }
 					//  { name:value name:value ... }: []*ArgumentT : so ObjectVal is an ArgumentT: struct {Name_, Value *InputValue_} ie. {name:value}
 					// check required type against DefaultVal type
-					if a.Type.isType() != OBJECT && a.Type.isType() != INPUT {
-						*err = append(*err, fmt.Errorf(`Argument "%s", defaut value type is an INPUT OBJECT, should be a  %s  %s`, a.Name_, a.Type, a.AtPosition()))
+					if a.Type.isType() != INPUT {
+						*err = append(*err, fmt.Errorf(`Argument "%s", argument type is not an INPUT OBJECT, %s`, a.Name_, a.AtPosition()))
+						return
 					}
 					// reqType get as an AST  i.e. Pet
 					objFields := make(map[NameValue_]bool)
 					if ivObj, ok := Fetch(a.Type.Name); !ok {
 						*err = append(*err, fmt.Errorf(`Cache fetch failed. %s not in cache `, a.Type.Name))
 					} else {
-						if obj, ok := ivObj.(*Object_); !ok {
-							if obj_, ok := ivObj.(*Input_); !ok {
-								*err = append(*err, fmt.Errorf(`%s is not an Input Object `, a.Type.Name))
-								return
-							} else {
-								for _, v := range obj_.InputValueDefs {
-									objFields[v.Name] = false
-								}
-							}
+						if obj, ok := ivObj.(*Input_); !ok {
+							*err = append(*err, fmt.Errorf(`%s is not an Input Object `, a.Type.Name))
 						} else {
-							for _, v := range obj.FieldSet {
+							for _, v := range obj.InputValueDefs {
 								objFields[v.Name] = false
 							}
 						}
