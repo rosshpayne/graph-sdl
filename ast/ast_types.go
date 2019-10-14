@@ -224,10 +224,6 @@ func (a *ArgumentT) String(last bool) string {
 	return a.Name_.String() + ":" + a.Value.String() + " "
 }
 
-func (a *ArgumentT) ValidateInputValues(iv *Type_, d *int, err *[]error) {
-
-}
-
 type Arguments_ struct {
 	Arguments []*ArgumentT
 }
@@ -389,7 +385,6 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 		// 	Desc string
 		// 	Name_
 		// 	ArgumentDefs InputValueDefs //[]*InputValueDef        <===== check this
-		// 	// :
 		// 	Type *Type_
 		// 	Directives_
 		// }
@@ -409,13 +404,14 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 				switch defvalObj := a.DefaultVal.Value.(type) {
 				case List_: // [ "ads", "wer" ]
 					if a.Type.Depth == 0 { // required type is not a LIST
-						*err = append(*err, fmt.Errorf(`Argument "%s", is not a list type but default value is  %s  %s`, a.Name_, a.Type.isType(), a.AtPosition()))
+						*err = append(*err, fmt.Errorf(`Argument "%s", type is not a list but default value is a list %s`, a.Name_, a.DefaultVal.AtPosition()))
 						return
 					}
-					var d int = 1
-					defvalObj.ValidateInputValues(a.Type, &d, err)
+					var d int = 0
+					var maxd int
+					defvalObj.ValidateInputValues(a.Type, &d, &maxd, err)
 					//
-					if d != a.Type.Depth {
+					if maxd != a.Type.Depth {
 						*err = append(*err, fmt.Errorf(`Argument "%s", nested List type depth different reqired %d, got %d %s`, a.Name_, a.Type.Depth, d, a.DefaultVal.AtPosition()))
 					}
 					//
@@ -448,8 +444,17 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 				default:
 					fmt.Println("DefaultVal type: ", a.DefaultVal.isType())
 					fmt.Println("Required type: ", a.Type.isType())
-					if a.DefaultVal.isType() != a.Type.isType() {
-						*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, a.Type.isType(), a.DefaultVal.isType(), a.DefaultVal.AtPosition()))
+					fmt.Printf("Constraint : %08b", a.Type.Constraint)
+					//	if a.Type.Depth > 0 { // required type is not a LIST
+					//	if a.DefaultVal.isType() == NULL && (a.Type.Constraint>>uint(depth-d)&1) == 1 { // show right most bit only
+					if a.DefaultVal.isType() == NULL {
+						if a.Type.Constraint>>uint(a.Type.Depth)&1 == 1 { // not null set
+							*err = append(*err, fmt.Errorf(`Value cannot be NULL %s`, a.DefaultVal.AtPosition()))
+						}
+					} else {
+						if a.DefaultVal.isType() != a.Type.isType() {
+							*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, a.Type.isType(), a.DefaultVal.isType(), a.DefaultVal.AtPosition()))
+						}
 					}
 				}
 			}

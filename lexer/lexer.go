@@ -115,7 +115,7 @@ func (l *Lexer) NextToken() token.Token {
 		if unicode.IsLetter(l.ch) || l.ch == '_' {
 			tok = l.readIdentifier()
 			tok.Type, tok.Cat, tok.IsScalarType = token.LookupIdent(tok.Literal) // IDENT,nil or <keyword>,<VALUE | NONVALUE>
-		} else if unicode.IsDigit(l.ch) || l.ch == '-' || l.ch == '+' {
+		} else if unicode.IsDigit(l.ch) || l.ch == '-' {
 			tok = l.readNumber()
 		} else {
 			tok = l.newToken(token.ILLEGAL, l.ch)

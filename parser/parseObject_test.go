@@ -91,6 +91,36 @@ func TestCheckInputValueType0(t *testing.T) {
 
 }
 
+func TestFieldArgTypeNotFound(t *testing.T) {
+
+	input := `
+
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [[int!]] = [[1,2,4 56] [345 2342 234 25252 2525223 null]]): Float
+  posts: [Boolean!]!
+}`
+	var expectedErr [1]string
+	expectedErr[0] = `Type "int" does not exist at line: 6 column: 18`
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`Expected 1 error "... is not an output type", got none `)
+	}
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if v.Error() != expectedErr[i] {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+}
+
 func TestCheckInputValueType1(t *testing.T) {
 
 	input := `type Person88 {
@@ -351,11 +381,8 @@ type Person {
 func TestFieldArgument4(t *testing.T) {
 
 	input := `
-type Measure {
-    height: Float
-    weight: Int
-}
-type Person {
+
+type Person40 {
   name: String!
   age: Int!
   inputX(info: [Int!] = [1,2,4 56 345 2342 234 25252 2525223 null]): Float
@@ -377,36 +404,6 @@ type Person {
 	}
 }
 
-func TestFieldArgTypeNotFound(t *testing.T) {
-
-	input := `
-
-type Person {
-  name: String!
-  age: Int!
-  inputX(info: [[int!]] = [[1,2,4 56] [345 2342 234 25252 2525223 null]]): Float
-  posts: [Boolean!]!
-}`
-	var expectedErr [1]string
-	expectedErr[0] = `Type "int" does not exist at line: 6 column: 18`
-	l := lexer.New(input)
-	p := New(l)
-	_, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	if len(errs) != len(expectedErr) {
-		t.Errorf(`Expected 1 error "... is not an output type", got none `)
-	}
-	for i, v := range errs {
-		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
-				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
-			}
-		} else {
-			t.Errorf(`Not expected Error =[%q]`, v.Error())
-		}
-	}
-}
-
 func TestFieldArgument4b(t *testing.T) {
 
 	input := `
@@ -424,7 +421,6 @@ type Person {
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
-	//	fmt.Println(d.String())
 	for _, e := range errs {
 		fmt.Println("*** ", e.Error())
 	}
@@ -446,7 +442,194 @@ type Measure {
 type Person {
   name: String!
   age: Int!
+  inputX(info: String = ["""abc \ndefasj \nasdf"""]): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Argument "info", type is not a list but default value is a list at line: 9 column: 51`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	if len(errs) > len(expectedErr) {
+		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
+	}
+	// for _, e := range errs {
+	// 	fmt.Println("*** ", e.Error())
+	// }
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if v.Error() != expectedErr[i] {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+}
+
+func TestFieldArgument4d(t *testing.T) {
+
+	input := `
+type Measure {
+    height: Float
+    weight: Int
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [String] = """abc \ndefasj \nasdf"""): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Argument "info", type is a list but default value is not a list at line: 9 column: 29`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	if len(errs) > len(expectedErr) {
+		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
+	}
+	// for _, e := range errs {
+	// 	fmt.Println("*** ", e.Error())
+	// }
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if v.Error() != expectedErr[i] {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+}
+
+func TestFieldArgument4e(t *testing.T) {
+
+	input := `
+type Measure {
+    height: Float
+    weight: Int
+}
+type Person {
+  name: String!
+  age: Int!
   inputX(info: [String] = ["abc defasj asdf" -234.2]): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Required type "String", got "Float" at line: 9 column: 46`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	if len(errs) > len(expectedErr) {
+		t.Errorf(`***  Expected one error got %d.`, len(errs))
+	}
+	// for _, e := range errs {
+	// 	fmt.Println("*** ", e.Error())
+	// }
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if v.Error() != expectedErr[i] {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+}
+
+func TestFieldArgumentInvalidlist(t *testing.T) {
+
+	input := `type Measure {
+    height: Float
+    weight: Int
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [[String]] = [["abc"] ["defasj" "asdf" "asdf" 234 ] ["abc"]]): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Required type "String", got "Int" at line: 8 column: 62`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	if len(errs) > len(expectedErr) {
+		t.Errorf(`***  Expected one error got %d.`, len(errs))
+	}
+	// for _, e := range errs {
+	// 	fmt.Println("*** ", e.Error())
+	// }
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if v.Error() != expectedErr[i] {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+}
+
+func TestFieldArgumentNullCheck(t *testing.T) {
+
+	input := `type Measure {
+    height: Float
+    weight: Int
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [[String]!]! = [["abc"] ["defasj" "asdf" "asdf" null ] ["abc" null] null ]): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = `List cannot contain NULLs at line: 8 column: 84`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	if len(errs) > len(expectedErr) {
+		t.Errorf(`***  Expected one error got %d.`, len(errs))
+	}
+	for _, e := range errs {
+		fmt.Println("*** ", e.Error())
+	}
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if v.Error() != expectedErr[i] {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+}
+
+func TestFieldArgumentNullCheck2(t *testing.T) {
+
+	input := `type Measure {
+    height: Float
+    weight: Int
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [[String]]! = [["abc"] ["defasj" "asdf" "asdf" null ] ["abc" null] null ]): Float
   posts: [Boolean!]!
 }`
 
@@ -454,14 +637,108 @@ type Person {
 	p := New(l)
 	d, errs := p.ParseDocument()
 	fmt.Println(d.String())
+	if len(errs) > 0 {
+		t.Errorf(`***  Expected no error got %d.`, len(errs))
+	}
 	for _, e := range errs {
 		fmt.Println("*** ", e.Error())
 	}
+}
+
+func TestFieldArgumentNullCheck3(t *testing.T) {
+
+	input := `type Measure {
+    height: Float
+    weight: Int
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [[String!]]! = [["abc"] ["defasj" "asdf" "asdf" null ] ["abc" null] null ]): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [2]string
+	expectedErr[0] = `List cannot contain NULLs at line: 8 column: 64`
+	expectedErr[1] = `List cannot contain NULLs at line: 8 column: 78`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
 	fmt.Println(d.String())
-	if compare(d.String(), input) {
-		fmt.Println(trimWS(d.String()))
-		fmt.Println(trimWS(input))
-		t.Errorf(`***  program.String() wrong.`)
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
+	}
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if v.Error() != expectedErr[i] {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+}
+
+func TestFieldArgumentNullCheck4(t *testing.T) {
+
+	input := `type Measure {
+    height: Float
+    weight: Int
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [[[String]]]! = [[["abc" "asdf"] ["defasj" "asdf" "asdf" null ] ["abc" null] null ] ["acb" "dfw" ] "wew"]): Float
+  posts: [Boolean!]!
+}`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	if len(errs) > 0 {
+		t.Errorf(`***  Expected no error got %d.`, len(errs))
+	}
+	for _, e := range errs {
+		fmt.Println("*** ", e.Error())
+	}
+}
+
+func TestFieldArgumentNullCheck5(t *testing.T) {
+
+	input := `type Measure {
+    height: Float
+    weight: Int
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [[String]]! = null ): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Value cannot be NULL at line: 8 column: 30`
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) > len(expectedErr) {
+		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
+	}
+	// for _, e := range errs {
+	// 	fmt.Println("*** ", e.Error())
+	// }
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if v.Error() != expectedErr[i] {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
 	}
 }
 

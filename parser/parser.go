@@ -995,13 +995,13 @@ func (p *Parser) parseInputValue_(iv ...*ast.InputValueDef) *ast.InputValue_ {
 
 	case token.LBRACKET:
 		// [ value value value .. ]
-		p.nextToken() // first value , ]
+		p.nextToken() // read over [
 		if p.curToken.Cat != token.VALUE {
 			p.addErr(fmt.Sprintf("Expect an Input Value followed by another Input Value or a ], got %s %s ", p.curToken.Literal, p.peekToken.Literal))
 			return &ast.InputValue_{}
 		}
 		// edge case: empty, []
-		if p.peekToken.Type == token.RBRACKET {
+		if p.curToken.Type == token.RBRACKET {
 			p.nextToken() // ]
 			var null ast.Null_ = true
 			iv := ast.InputValue_{Value: null, Loc: p.Loc()}
@@ -1037,7 +1037,6 @@ func (p *Parser) parseInputValue_(iv ...*ast.InputValueDef) *ast.InputValue_ {
 		var null ast.Null_ = true
 		iv := ast.InputValue_{Value: null, Loc: p.Loc()}
 		return &iv
-
 	case token.INT:
 		i := ast.Int_(p.curToken.Literal)
 		iv := ast.InputValue_{Value: i, Loc: p.Loc()}
