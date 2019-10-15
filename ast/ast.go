@@ -120,10 +120,12 @@ func (t *Type_) isType() TypeFlag_ {
 		return STRING
 	case token.BOOLEAN:
 		return BOOLEAN
+	case token.NULL:
+		return NULL
 	// case token.ID:
 	// 	return ID
 	default:
-		// non scalar types
+		// user defined types
 		if t.AST != nil {
 			switch t.AST.(type) {
 			case *Object_:
@@ -138,8 +140,7 @@ func (t *Type_) isType() TypeFlag_ {
 				return UNION
 			case *Scalar_:
 				return SCALAR
-				// case Null_:
-				// 	return NULL
+
 			}
 			return NA
 		}
@@ -257,6 +258,12 @@ func (l List_) Exists() bool {
 	return false
 }
 
+// type Input_ struct {
+// 	Desc string
+// 	Name_
+// 	Directives_
+// 	InputValueDefs // []*InputValueDef
+// }
 // type InputValueDef struct {
 // 	Desc string
 // 	Name_
@@ -275,49 +282,34 @@ func (l List_) Exists() bool {
 // 	Name_                    // type name. inherit AssignName()
 // }
 
-func (l List_) ValidateInputValues(iv *Type_, d *int, maxd *int, err *[]error) {
-	reqType := iv.isType() // INT, FLOAT, OBJECT, PET,  etc            note: OBJECT is for specification of a type, OBJECTVAL is an object literal for input purposes
+func (l List_) ValidateListValues(iv *Type_, d *int, maxd *int, err *[]error) {
+	reqType := iv.isType() // INT, FLOAT, OBJECT, PET, MEASURE etc            note: OBJECT is for specification of a type, OBJECTVAL is an object literal for input purposes
 	//
 	// for each element in the LIST
 	///
-	*d++ // current depth ie. [ position in [[[]]]
-	for _, v := range l {
+	*d++ // current depth of [ in [[[]]]
+	if *d > *maxd {
+		*maxd = *d
+	}
+	for _, v := range l { // []*InputValue_ // Measure items {Name_, InputValue_}
 		// what is the type of the list element. Scalar, another LIST, a OBJECT
-		switch v.Value.(type) {
+		switch in := v.Value.(type) {
 
 		case List_:
 			// maxd records maximum depth of list(d=1) [] list of lists [[]](d=2) = [[][][][]] list of lists of lists (d=3) [[[]]] = [[[][][]],[[][][][]],[[]]]
-			if *d > *maxd {
-				*maxd = *d
-			}
-			il := v.Value.(List_) // assert so method, ValidateInputValues, can be accessed
-			il.ValidateInputValues(iv, d, maxd, err)
+			in.ValidateListValues(iv, d, maxd, err)
 			*d--
 
 		case ObjectVals:
-			//  { name:value name:value ... }: []*ArgumentT : so ObjectVal is an ArgumentT: struct {Name_, Value *InputValue_} ie. {name:value}
-			// reqType is an Object i.e. Pet
-			objFields := make(map[NameValue_]bool)
-			if ivObj, ok := Fetch(iv.Name); !ok {
-				*err = append(*err, fmt.Errorf(`Cache fetch failed. %s not in cache `, iv.Name))
-			} else {
-				if obj, ok := ivObj.(*Object_); !ok {
-					*err = append(*err, fmt.Errorf(`%s is not an Object `, iv.Name))
-					return
-				} else {
-					for _, v := range obj.FieldSet {
-						objFields[v.Name] = false
-					}
-				}
-			}
+			// default values in input object form { name:value name:value ... }: []*ArgumentT type ArgumentT: struct {Name_, Value *InputValue_}
+			// reqType is the type of the input object  - which defines the name and associated type for each item in the { }
+			in.ValidateInputObjectValues(iv, err)
+
 		default:
-			if *d > *maxd {
-				*maxd = *d
-			}
-			// this type should match specified type
+			// check the item - this is matched against the type specification for the list ie. [type]
 			if t := v.isType(); t != reqType {
 				if v.isType() == NULL {
-					if iv.Constraint>>uint(iv.Depth-*d)&1 == 1 { // is not-null set
+					if iv.Constraint>>uint(iv.Depth-*d)&1 == 1 { // is not-null constraint set
 						*err = append(*err, fmt.Errorf(`List cannot contain NULLs %s`, v.AtPosition()))
 					}
 				} else {

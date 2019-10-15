@@ -47,7 +47,7 @@ func (tf TypeFlag_) String() string {
 	// case INPUTOBJ:
 	// 	return "INPUTOBJ
 	case LIST:
-		return "xxList"
+		return token.LIST
 	case NULL:
 		return token.NULL
 	}
@@ -190,6 +190,10 @@ func (t Type_) String() string {
 	return s.String()
 }
 
+func (t Type_) TypeName() string {
+	return t.Name.String()
+}
+
 func (a *Type_) Equals(b *Type_) bool {
 	return a.Name_.String() == b.Name_.String() && a.Constraint == b.Constraint && a.Depth == b.Depth
 }
@@ -246,7 +250,7 @@ func (a *Arguments_) String() string {
 }
 
 // ================ ObjectVal ====================
-// used as input values in List input value type
+// used as input values in Input Value Type
 
 type ObjectVals []*ArgumentT
 
@@ -266,6 +270,87 @@ func (o ObjectVals) Exists() bool {
 		return true
 	}
 	return false
+}
+
+// type Type_ struct {
+// 	Constraint byte          // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
+// 	AST        TypeSystemDef // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
+// 	Depth      int           // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
+// 	Name_                    // type name. inherit AssignName()
+// }
+// type Input_ struct {
+// 	Desc string
+// 	Name_
+// 	Directives_
+// 	InputValueDefs // []*InputValueDef
+// }
+
+// type InputValueDef struct {  								<== an ArgumentDef
+// 	Desc string
+// 	Name_
+// 	Type       *Type_   	// ** argument type specification   	<==== required type for argument
+// 	DefaultVal *InputValue_ // ** input value(s) type(s)        	<==== instance data to check against required type
+// 	Directives_
+// }
+
+// 	type ArgumentT struct {
+// Name_
+// Value *InputValue_
+
+func (o ObjectVals) ValidateInputObjectValues(ref *Type_, err *[]error) {
+	//
+	//  ref{ name:value name:value ... } -- ref is the input object type specifed for the argument and { } is the default data
+	//
+	refFields := make(map[NameValue_]*Type_)
+	// check if default input fields has fields not in field Type, PET, MEASURE
+	if ref.isType() != INPUT { // redundant check
+		*err = append(*err, fmt.Errorf(`Argument "%s", type %s is not an INPUT object  %s %s`, "XXX", ref.Name, ref.AtPosition()))
+		return
+	}
+	// get reference type AST object.
+	refOV := ref.AST.(*Input_)
+	// build a map of fields in reference type - which defines the types of each item in {}
+	for _, v := range refOV.InputValueDefs { //
+		refFields[v.Name] = v.Type
+	}
+	//
+	// loop thru name:value pairs using the ref type spec to match against name and its associated type for each pair.
+	//
+	for _, v := range o { // []*ArgumentT    type ArgumentT struct { Name_, Value *InputValue_}  type InputValue_ struct {Value ValueI,Loc *Loc_}
+		//    ValueI populated by parser.parseInputValue_(): ast.Int_, ast.Flaat_, ast.List_, ast.ObjectVals, ast.EnumValue_ etc
+		if reftype, ok := refFields[v.Name]; !ok {
+			*err = append(*err, fmt.Errorf(`field %s does not exist in type %s  %s`, v.Name, ref.TypeName(), v.AtPosition()))
+
+		} else {
+			if v.Value.isType() != reftype.isType() {
+				if (reftype.Depth > 0) && v.Value.isType() != LIST {
+					*err = append(*err, fmt.Errorf(`Argument "%s", has type %s should be  %s %s`, ref.Name, v.Value.isType(), reftype.isType(), v.Value.AtPosition()))
+					return
+				}
+			}
+			// look at argument value type as it may be a list or another input object type
+			switch inobj := v.Value.Value.(type) {
+
+			case List_:
+				if reftype.Depth == 0 {
+					*err = append(*err, fmt.Errorf(`Field, %s, is not a LIST type but input data is  %s`, v.Name, v.AtPosition()))
+				}
+				// maxd records maximum depth of list(d=1) [] list of lists [[]](d=2) = [[][][][]] list of lists of lists (d=3) [[[]]] = [[[][][]],[[][][][]],[[]]]
+				d := 0
+				maxd := 0
+				inobj.ValidateListValues(reftype, &d, &maxd, err)
+				d--
+				if maxd != reftype.Depth {
+					*err = append(*err, fmt.Errorf(`Argument "%s", nested List type depth different reqired %d, got %d %s`, v.Name, reftype.Depth, maxd, v.AtPosition()))
+				}
+
+			case ObjectVals:
+				inobj.ValidateInputObjectValues(reftype, err)
+			}
+		}
+
+	}
+
 }
 
 // =================================================================
@@ -379,29 +464,41 @@ func (f *Object_) CheckIsInputType(err *[]error) {
 // Type       *Type_
 // DefaultVal *InputValue_
 func (f *Object_) CheckInputValueType(err *[]error) {
-	// for each field in the object check if it has any default values to check
 	for _, v := range f.FieldSet {
-		//  type Field_ struct {
+
+		// for each field in the object check if it has any default values to check
+		// type Input_ struct {                                       <== Input Object
 		// 	Desc string
 		// 	Name_
-		// 	ArgumentDefs InputValueDefs //[]*InputValueDef        <===== check this
+		// 	Directives_
+		// 	InputValueDefs // []*InputValueDef                          <== fields of input object
+		// }
+		// type Field_ struct {
+		// 	Desc string
+		// 	Name_
+		// 	ArgumentDefs InputValueDefs //[]*InputValueDef      		<== arguments in field in object
+		// 	// :
 		// 	Type *Type_
 		// 	Directives_
 		// }
-		// type InputValueDef struct {
+		// type InputValueDef struct {  								<== an ArgumentDef
 		// 	Desc string
 		// 	Name_
-		// 	Type       *Type_   	// ** argument type specification   <==== required type
-		// 	DefaultVal *InputValue_ // ** input value(s) type(s)        <==== instance data to check against required type
+		// 	Type       *Type_   	// ** argument type specification   	<==== required type for argument
+		// 	DefaultVal *InputValue_ // ** input value(s) type(s)        	<==== instance data to check against required type
 		// 	Directives_
 		// }
+		// type InputValue_ struct {
+		// 	Value ValueI //  IV:type|value = assert type to determine InputValue_'s type via dTString
+		// 	Loc   *Loc_
+		// }
 		// a.Type is required type -  check against a.DefaultVal.Value.isType()
-		for _, a := range v.ArgumentDefs { // aka InputValDef
-			// reqType = a.Type
-			//a.DefaultVal.Value.ValidateInputValues(a.Type, &d, err)
+		for _, a := range v.ArgumentDefs { // go thru each of the argument field objects [] {} scalar
+
 			if a.DefaultVal != nil {
 
 				switch defvalObj := a.DefaultVal.Value.(type) {
+
 				case List_: // [ "ads", "wer" ]
 					if a.Type.Depth == 0 { // required type is not a LIST
 						*err = append(*err, fmt.Errorf(`Argument "%s", type is not a list but default value is a list %s`, a.Name_, a.DefaultVal.AtPosition()))
@@ -409,49 +506,23 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 					}
 					var d int = 0
 					var maxd int
-					defvalObj.ValidateInputValues(a.Type, &d, &maxd, err)
+					defvalObj.ValidateListValues(a.Type, &d, &maxd, err) // a.Type is the list data type.
 					//
 					if maxd != a.Type.Depth {
-						*err = append(*err, fmt.Errorf(`Argument "%s", nested List type depth different reqired %d, got %d %s`, a.Name_, a.Type.Depth, d, a.DefaultVal.AtPosition()))
+						*err = append(*err, fmt.Errorf(`Argument "%s", nested List type depth different reqired %d, got %d %s`, a.Name_, a.Type.Depth, maxd, a.DefaultVal.AtPosition()))
 					}
 					//
-				case ObjectVals: // { x: "ads", y: 234 }
-					//  { name:value name:value ... }: []*ArgumentT : so ObjectVal is an ArgumentT: struct {Name_, Value *InputValue_} ie. {name:value}
-					// reqType get as an AST  i.e. Pet
-					objFields := make(map[NameValue_]bool)
-					if ivObj, ok := Fetch(a.Type.Name); !ok {
-						*err = append(*err, fmt.Errorf(`Cache fetch failed. %s not in cache `, a.Type.Name))
-					} else {
-						if obj, ok := ivObj.(*Input_); ok {
-							for _, v := range obj.InputValueDefs {
-								objFields[v.Name] = false
-							}
-						}
-					}
-					// check if default data has fields not in spec Type
-					for _, v := range defvalObj { //
-						if _, ok := objFields[v.Name]; ok {
-							objFields[v.Name] = true
-							//	v.Value.ValidateInputValues(a.Type, d, err) // list, objectval, scalar
-						}
-					}
-					for k, v := range objFields {
-						if v == false {
-							*err = append(*err, fmt.Errorf(`Argument "%s", has fields not in type  %s %s`, k, a.Type.isType(), a.AtPosition()))
-						}
-					}
+				case ObjectVals:
+					// { x: "ads", y: 234 }
+					defvalObj.ValidateInputObjectValues(a.Type, err)
 
 				default:
-					fmt.Println("DefaultVal type: ", a.DefaultVal.isType())
-					fmt.Println("Required type: ", a.Type.isType())
-					fmt.Printf("Constraint : %08b", a.Type.Constraint)
-					//	if a.Type.Depth > 0 { // required type is not a LIST
-					//	if a.DefaultVal.isType() == NULL && (a.Type.Constraint>>uint(depth-d)&1) == 1 { // show right most bit only
 					if a.DefaultVal.isType() == NULL {
-						if a.Type.Constraint>>uint(a.Type.Depth)&1 == 1 { // not null set
+						if a.Type.Constraint>>uint(a.Type.Depth)&1 == 1 { // not null constraint set
 							*err = append(*err, fmt.Errorf(`Value cannot be NULL %s`, a.DefaultVal.AtPosition()))
 						}
 					} else {
+						// check types match
 						if a.DefaultVal.isType() != a.Type.isType() {
 							*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, a.Type.isType(), a.DefaultVal.isType(), a.DefaultVal.AtPosition()))
 						}

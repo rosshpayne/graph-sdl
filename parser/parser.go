@@ -948,11 +948,11 @@ func (p *Parser) parseObjectArguments(argS []*ast.ArgumentT) []*ast.ArgumentT {
 		argS = append(argS, v)
 
 		if p.curToken.Type == token.RBRACE {
+			p.nextToken() // read over }
 			break
 		}
 		p.nextToken()
 	}
-
 	return argS
 }
 

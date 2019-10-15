@@ -20,7 +20,7 @@ const (
 	FLOAT     = "Float"  // 3.42
 	STRING    = "String" // contents between " or """
 	RAWSTRING = "RAWSTRING"
-	NULL      = "NULL"
+	NULL      = "null"
 	ENUM      = "enum"
 	LIST      = "list"
 	BOOLEAN   = "Boolean"

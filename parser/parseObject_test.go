@@ -802,7 +802,477 @@ type Person {
 	}
 }
 
-func TestFieldArgument7(t *testing.T) {
+func TestInputArgument1(t *testing.T) {
+
+	input := `input Measure {
+    height: Int
+    name: String
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: Measure! = {height: 8 name: "Ross" }): Float
+  posts: [Boolean!]!
+}`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	if len(errs) > 0 {
+		t.Errorf(`***  Expected no error got %d.`, len(errs))
+	}
+	for _, e := range errs {
+		fmt.Println("*** ", e.Error())
+	}
+}
+
+func TestInputArgument1a(t *testing.T) {
+
+	input := `input Family {
+		name: String
+		children: Int
+	}
+	input Measure {
+    height: Float
+    kids: Family
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: Measure! = {height: 8.2 kids: {name: "Payne" children: 3.2} }): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Argument "Family", has type Float should be  Int at line: 12 column: 71`
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) > len(expectedErr) {
+		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
+	}
+	// for _, e := range errs {
+	// 	fmt.Println("*** ", e.Error())
+	// }
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if v.Error() != expectedErr[i] {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+}
+
+func TestInputArgument1b(t *testing.T) {
+
+	input := `input Family {
+		name: String
+		Ages: [Int!]
+	}
+	input Measure {
+    height: Float
+    kids: Family
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: Measure! = {height: 8.2 kids: {name: "Payne" Ages: [12 14.4 15 null]} }): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [2]string
+	expectedErr[0] = `Required type "Int", got "Float" at line: 12 column: 71`
+	expectedErr[1] = `List cannot contain NULLs at line: 12 column: 79`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
+	}
+	// for _, e := range errs {
+	// 	fmt.Println("*** ", e.Error())
+	// }
+	for _, e := range expectedErr {
+		found := false
+		for _, n := range errs {
+			if n.Error() == e {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`***  Expected %s- not exists.`, e)
+		}
+	}
+}
+
+func TestInputArgument1c(t *testing.T) {
+
+	input := `input Family {
+		name: String
+		Ages: [Int!]
+	}
+	input Measure {
+    height: Float
+    kids: [Family]
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: Measure! = {height: 8.2 kids: {name: "Payne" Ages: [12 14.2 15 null]} }): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [2]string
+	expectedErr[0] = `Required type "Int", got "Float" at line: 12 column: 71`
+	expectedErr[1] = `List cannot contain NULLs at line: 12 column: 79`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
+	}
+	for _, e := range errs {
+		fmt.Println("*** ", e.Error())
+	}
+	for _, e := range expectedErr {
+		found := false
+		for _, n := range errs {
+			if n.Error() == e {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`***  Expected %s- not exists.`, e)
+		}
+	}
+}
+
+func TestInputArgument1d(t *testing.T) {
+
+	input := `input Family {
+		name: String
+		Ages: [Int!]
+	}
+	input Measure {
+    height: Float
+    kids: [Family]
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: Measure! = {height: 8.2 kids: [ {name: "Payne" Ages: [12 14 15 null]} {name2: "Smith" Age: [1 3.2 ]}  ]   }): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [3]string
+	expectedErr[0] = `List cannot contain NULLs at line: 12 column: 79`
+	expectedErr[1] = `field name2 does not exist in type Family  at line: 12 column: 87`
+	expectedErr[2] = `field Age does not exist in type Family  at line: 12 column: 102`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
+	}
+	// for _, e := range errs {
+	// 	fmt.Println("*** ", e.Error())
+	// }
+	for _, e := range expectedErr {
+		found := false
+		for _, n := range errs {
+			if n.Error() == e {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`***  Expected %s- not exists.`, e)
+		}
+	}
+}
+
+func TestInputArgument1e(t *testing.T) {
+
+	input := `input Family {
+		name: String
+		Ages: [Int!]
+	}
+	input Measure {
+    height: Float
+    kids: [Family]
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: Measure! = {height: 8.2 kids: [ {name: "Payne" Ages: [12 14 15 null]} {name2: "Smith" Age: [1 3]}  ]   }): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [3]string
+	expectedErr[0] = `List cannot contain NULLs at line: 12 column: 79`
+	expectedErr[1] = `field name2 does not exist in type Family  at line: 12 column: 87`
+	expectedErr[2] = `field Age does not exist in type Family  at line: 12 column: 102`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
+	}
+	// for _, e := range errs {
+	// 	fmt.Println("*** ", e.Error())
+	// }
+	for _, e := range expectedErr {
+		found := false
+		for _, n := range errs {
+			if n.Error() == e {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`***  Expected %s- not exists.`, e)
+		}
+	}
+}
+
+func TestInputArgument1f(t *testing.T) {
+
+	input := `input Family {
+		name: String
+		Ages: [Int!]
+	}
+	input Measure {
+    height: Float
+    kids: Family
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: Measure! = {height: 8.2 kids: [ {name: "Payne" Ages: [12 14 15 null]} {name2: "Smith" Age: [1 3]}  ]   }): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [5]string
+	expectedErr[0] = `Field, kids, is not a LIST type but input data is  at line: 12 column: 40`
+	expectedErr[1] = `List cannot contain NULLs at line: 12 column: 79`
+	expectedErr[2] = `field name2 does not exist in type Family  at line: 12 column: 87`
+	expectedErr[3] = `field Age does not exist in type Family  at line: 12 column: 102`
+	expectedErr[4] = `Argument "kids", nested List type depth different reqired 0, got 1 at line: 12 column: 40`
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
+	}
+	// for _, e := range errs {
+	// 	fmt.Println("*** ", e.Error())
+	// }
+	for _, e := range expectedErr {
+		found := false
+		for _, n := range errs {
+			if n.Error() == e {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`***  Expected %s- not exists.`, e)
+		}
+	}
+}
+
+func TestInputArgument1g(t *testing.T) {
+
+	input := `input Family {
+		name: String
+		Ages: [Int!]
+	}
+	input Measure {
+    height: Float
+    kids: [Family]
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: Measure! = {height: 8.2 kids: [ {name: "Payne" Ages: [12 14 15 null]} {name: "Smith" Ages: [[1 3][2 4]]}  ]   }): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [2]string
+	expectedErr[0] = `List cannot contain NULLs at line: 12 column: 79`
+	expectedErr[1] = `Argument "Ages", nested List type depth different reqired 1, got 2 at line: 12 column: 101`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
+	}
+	// for _, e := range errs {
+	// 	fmt.Println("*** ", e.Error())
+	// }
+	for _, e := range expectedErr {
+		found := false
+		for _, n := range errs {
+			if n.Error() == e {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`***  Expected %s- not exists.`, e)
+		}
+	}
+}
+
+func TestInputArgument2(t *testing.T) {
+
+	input := `input Measure {
+    height: Float
+    name: String
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [Measure!] = [{height: 8 name: "Ross" } {height: 897 name: "Jack" }]): Float
+  posts: [Boolean!]!
+}`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	if len(errs) > 0 {
+		t.Errorf(`***  Expected no error got %d.`, len(errs))
+	}
+	for _, e := range errs {
+		fmt.Println("*** ", e.Error())
+	}
+}
+
+func TestInputArgument2a(t *testing.T) {
+
+	input := `input Measure {
+    height: Float
+    name: String
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [Measure!] = [{hieght: 8 name: "Ross" } {height: 897 name2: "Jack" } null]): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [3]string
+	expectedErr[0] = `field hieght does not exist in type Measure  at line: 8 column: 31`
+	expectedErr[1] = `field name2 does not exist in type Measure  at line: 8 column: 69`
+	expectedErr[2] = `List cannot contain NULLs at line: 8 column: 85`
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
+	}
+	// for _, e := range errs {
+	// 	fmt.Println("*** ", e.Error())
+	// }
+	for _, e := range expectedErr {
+		found := false
+		for _, n := range errs {
+			if n.Error() == e {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`***  Expected %s- not exists.`, e)
+		}
+	}
+}
+
+func TestInputArgument3(t *testing.T) {
+
+	input := `input myObj {
+	address: String
+	slope: Boolean
+	}
+	
+	input Measure {
+    height: Float
+    metric: myObj
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [Measure!] = [{height: 8 metric: {address: "XX" slope: true} } {height: 897 metric: {address: "YYX" slope: false}  } null]): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = `List cannot contain NULLs at line: 13 column: 133`
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
+	}
+	// for _, e := range errs {
+	// 	fmt.Println("*** ", e.Error())
+	// }
+	for _, e := range expectedErr {
+		found := false
+		for _, n := range errs {
+			if n.Error() == e {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`***  Expected %s- not exists.`, e)
+		}
+	}
+}
+
+func TestInputObj4(t *testing.T) {
+
+	input := `type Measure {
+    height: Float
+    name: String
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [Measure] = [{height: 8 name: null } {height: 897 name: "Jack" } null]): Float
+  posts: [Boolean!]!
+}`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	if len(errs) > 0 {
+		t.Errorf(`***  Expected no error got %d.`, len(errs))
+	}
+	for _, e := range errs {
+		fmt.Println("*** ", e.Error())
+	}
+}
+
+func TestExtendField7(t *testing.T) {
 
 	input := `
 	
@@ -843,7 +1313,7 @@ isHiddenLocally : Boolean
 	}
 }
 
-func TestFieldArgument7a(t *testing.T) {
+func TestExtendField7a(t *testing.T) {
 
 	input := `
 	
