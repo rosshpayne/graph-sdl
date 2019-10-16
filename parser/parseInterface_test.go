@@ -295,7 +295,7 @@ func TestBadInterfaceKeyword(t *testing.T) {
 
 	input := `
 	interfacei NamedEntity6b {
-	  name: [[String!]!]!
+	  name: String!
 	}
 
 	interface ValuedEntity6b {
@@ -303,24 +303,23 @@ func TestBadInterfaceKeyword(t *testing.T) {
 	}
 
 	type Person6b implements NamedEntity6b {
-	  name: [[String!]!]!
+	  name:  String!
 	  age: Int
 	}
 
 	type Business6b implements NamedEntity6b & ValuedEntity6b {
-	  name: [[String!]]!
-	  value: Int
+	  name:  String!
 	  employeeCount: Int
 	}
 	`
 
 	var expectedErr [1]string
-	expectedErr[0] = `Object type "Business6a" does not implement interface "NamedEntity6a", missing "name"`
+	expectedErr[0] = `Parse aborted. "interfacei" is not a statement keyword at line: 2, column: 2`
 
 	l := lexer.New(input)
 	p := New(l)
-	_, errs := p.ParseDocument()
-	//fmt.Println(d.String())
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
 	if len(errs) != len(expectedErr) {
 		for _, v := range errs {
 			fmt.Println(v.Error())

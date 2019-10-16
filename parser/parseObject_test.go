@@ -55,7 +55,7 @@ func TestFieldInvalidDT(t *testing.T) {
 	}
 	for i, v := range errs {
 		if i < len(errs) {
-			if v.Error() != expectedErr[i] {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
 		} else {
@@ -112,7 +112,7 @@ type Person {
 	}
 	for i, v := range errs {
 		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
 		} else {
@@ -145,7 +145,7 @@ func TestCheckInputValueType1(t *testing.T) {
 	}
 	for i, v := range errs {
 		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
 		} else {
@@ -178,7 +178,7 @@ func TestCheckInputValueType2(t *testing.T) {
 	}
 	for i, v := range errs {
 		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
 		} else {
@@ -210,7 +210,7 @@ func TestCheckInputValueType3(t *testing.T) {
 	}
 	for i, v := range errs {
 		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
 		} else {
@@ -266,7 +266,7 @@ func TestCheckInputValueType5(t *testing.T) {
 	}
 	for i, v := range errs {
 		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
 		} else {
@@ -361,15 +361,15 @@ type Person {
 	p := New(l)
 	d, errs := p.ParseDocument()
 	fmt.Println(d.String())
-	if len(errs) > 1 {
-		t.Errorf(`***  Expected one error got %d.`, len(errs))
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
 	}
 	for _, e := range errs {
 		fmt.Println("*** ", e.Error())
 	}
 	for i, v := range errs {
 		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
 		} else {
@@ -461,7 +461,7 @@ type Person {
 	// }
 	for i, v := range errs {
 		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
 		} else {
@@ -499,7 +499,7 @@ type Person {
 	// }
 	for i, v := range errs {
 		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
 		} else {
@@ -537,7 +537,7 @@ type Person {
 	// }
 	for i, v := range errs {
 		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
 		} else {
@@ -574,7 +574,7 @@ type Person {
 	// }
 	for i, v := range errs {
 		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
 		} else {
@@ -611,7 +611,7 @@ type Person {
 	}
 	for i, v := range errs {
 		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
 		} else {
@@ -671,7 +671,7 @@ type Person {
 	}
 	for i, v := range errs {
 		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
 		} else {
@@ -733,7 +733,7 @@ type Person {
 	// }
 	for i, v := range errs {
 		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
 		} else {
@@ -759,7 +759,7 @@ type Person {
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
-	fmt.Println(d.String())
+	//fmt.Println(d.String())
 	for _, e := range errs {
 		fmt.Println("*** ", e.Error())
 	}
@@ -774,6 +774,11 @@ type Person {
 func TestFieldArgument6(t *testing.T) {
 
 	input := `
+	input Measure {
+    height: Float
+    weight: Int
+}
+
 enum Address {
 	NORTH
 	SOUTH
@@ -787,19 +792,24 @@ type Person {
   posts: [Boolean!]!
   addres: Address!
 }`
-
+	//	var str1 = `inputMeasure{height:Floatweight:Int}enumAddress{NORTHSOUTHEAST}typePerson{name:String!age:Int!inputX(info:[Measure]=[{height:123.2weight:12}{height:1423.2weight:132}]):Floatposts:[Boolean!]!addres:Address!}`
+	//	var str2 = `inputMeasure{height:Floatweight:Int}enumAddress{NORTHSOUTHEAST}typePerson{name:String!age:Int!inputX(info:[Measure]=[{height:123.2weight:12}{height:1423.2weight:132}]):Floatposts:[Boolean!]!addres:Address!}`
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
-	for _, e := range errs {
-		fmt.Println("*** ", e.Error())
+	if len(errs) > 0 {
+		t.Errorf(`Got %d expected 0 errors`, len(errs))
 	}
+	// for _, e := range errs {
+	// 	fmt.Println("*** ", e.Error())
+	// }
 	fmt.Println(d.String())
 	if compare(d.String(), input) {
 		fmt.Println(trimWS(d.String()))
 		fmt.Println(trimWS(input))
 		t.Errorf(`***  program.String() wrong.`)
 	}
+
 }
 
 func TestInputArgument1(t *testing.T) {
@@ -845,7 +855,7 @@ type Person {
 }`
 
 	var expectedErr [1]string
-	expectedErr[0] = `Argument "Family", has type Float should be  Int at line: 12 column: 71`
+	expectedErr[0] = `Argument type "Family", value has type Float should be Int at line: 12 column: 71`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -859,7 +869,7 @@ type Person {
 	// }
 	for i, v := range errs {
 		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
 		} else {
@@ -902,7 +912,7 @@ type Person {
 	for _, e := range expectedErr {
 		found := false
 		for _, n := range errs {
-			if n.Error() == e {
+			if trimWS(n.Error()) == trimWS(e) {
 				found = true
 			}
 		}
@@ -946,7 +956,7 @@ type Person {
 	for _, e := range expectedErr {
 		found := false
 		for _, n := range errs {
-			if n.Error() == e {
+			if trimWS(n.Error()) == trimWS(e) {
 				found = true
 			}
 		}
@@ -975,8 +985,8 @@ type Person {
 
 	var expectedErr [3]string
 	expectedErr[0] = `List cannot contain NULLs at line: 12 column: 79`
-	expectedErr[1] = `field name2 does not exist in type Family  at line: 12 column: 87`
-	expectedErr[2] = `field Age does not exist in type Family  at line: 12 column: 102`
+	expectedErr[1] = `field "name2" does not exist in type Family  at line: 12 column: 87`
+	expectedErr[2] = `field "Age" does not exist in type Family  at line: 12 column: 102`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -991,7 +1001,7 @@ type Person {
 	for _, e := range expectedErr {
 		found := false
 		for _, n := range errs {
-			if n.Error() == e {
+			if trimWS(n.Error()) == trimWS(e) {
 				found = true
 			}
 		}
@@ -1020,8 +1030,8 @@ type Person {
 
 	var expectedErr [3]string
 	expectedErr[0] = `List cannot contain NULLs at line: 12 column: 79`
-	expectedErr[1] = `field name2 does not exist in type Family  at line: 12 column: 87`
-	expectedErr[2] = `field Age does not exist in type Family  at line: 12 column: 102`
+	expectedErr[1] = `field "name2" does not exist in type Family  at line: 12 column: 87`
+	expectedErr[2] = `field "Age" does not exist in type Family  at line: 12 column: 102`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -1036,7 +1046,7 @@ type Person {
 	for _, e := range expectedErr {
 		found := false
 		for _, n := range errs {
-			if n.Error() == e {
+			if trimWS(n.Error()) == trimWS(e) {
 				found = true
 			}
 		}
@@ -1063,12 +1073,12 @@ type Person {
   posts: [Boolean!]!
 }`
 
-	var expectedErr [5]string
-	expectedErr[0] = `Field, kids, is not a LIST type but input data is  at line: 12 column: 40`
+	var expectedErr [4]string
+	expectedErr[0] = `Field, kids, is not a LIST type but input data is a LIST type, at line: 12 column: 40`
 	expectedErr[1] = `List cannot contain NULLs at line: 12 column: 79`
-	expectedErr[2] = `field name2 does not exist in type Family  at line: 12 column: 87`
-	expectedErr[3] = `field Age does not exist in type Family  at line: 12 column: 102`
-	expectedErr[4] = `Argument "kids", nested List type depth different reqired 0, got 1 at line: 12 column: 40`
+	expectedErr[2] = `field "name2" does not exist in type Family  at line: 12 column: 87`
+	expectedErr[3] = `field "Age" does not exist in type Family  at line: 12 column: 102`
+	//	expectedErr[4] = `Argument "kids", nested List type depth different reqired 0, got 1 at line: 12 column: 40`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -1083,7 +1093,7 @@ type Person {
 	for _, e := range expectedErr {
 		found := false
 		for _, n := range errs {
-			if n.Error() == e {
+			if trimWS(n.Error()) == trimWS(e) {
 				found = true
 			}
 		}
@@ -1127,7 +1137,7 @@ type Person {
 	for _, e := range expectedErr {
 		found := false
 		for _, n := range errs {
-			if n.Error() == e {
+			if trimWS(n.Error()) == trimWS(e) {
 				found = true
 			}
 		}
@@ -1150,35 +1160,9 @@ type Person {
   posts: [Boolean!]!
 }`
 
-	l := lexer.New(input)
-	p := New(l)
-	d, errs := p.ParseDocument()
-	fmt.Println(d.String())
-	if len(errs) > 0 {
-		t.Errorf(`***  Expected no error got %d.`, len(errs))
-	}
-	for _, e := range errs {
-		fmt.Println("*** ", e.Error())
-	}
-}
-
-func TestInputArgument2a(t *testing.T) {
-
-	input := `input Measure {
-    height: Float
-    name: String
-}
-type Person {
-  name: String!
-  age: Int!
-  inputX(info: [Measure!] = [{hieght: 8 name: "Ross" } {height: 897 name2: "Jack" } null]): Float
-  posts: [Boolean!]!
-}`
-
-	var expectedErr [3]string
-	expectedErr[0] = `field hieght does not exist in type Measure  at line: 8 column: 31`
-	expectedErr[1] = `field name2 does not exist in type Measure  at line: 8 column: 69`
-	expectedErr[2] = `List cannot contain NULLs at line: 8 column: 85`
+	var expectedErr [2]string
+	expectedErr[0] = `Argument type "Measure", value has type Int should be Float at line: 8 column: 39`
+	expectedErr[1] = `Argument type "Measure", value has type Int should be Float at line: 8 column: 65`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -1193,7 +1177,48 @@ type Person {
 	for _, e := range expectedErr {
 		found := false
 		for _, n := range errs {
-			if n.Error() == e {
+			if trimWS(n.Error()) == trimWS(e) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`***  Expected %s- not exists.`, e)
+		}
+	}
+}
+
+func TestInputArgument2a(t *testing.T) {
+
+	input := `input Measure {
+    height: Float
+    name: String
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [Measure!] = [{hieght: 8.1 name: "Ross" } {height: 897.4 name2: "Jack" } null]): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [3]string
+	expectedErr[0] = `field "hieght" does not exist in type Measure  at line: 8 column: 31`
+	expectedErr[1] = `field "name2" does not exist in type Measure  at line: 8 column: 73`
+	expectedErr[2] = `List cannot contain NULLs at line: 8 column: 89`
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
+	}
+	// for _, e := range errs {
+	// 	fmt.Println("*** ", e.Error())
+	// }
+	for _, e := range expectedErr {
+		found := false
+		for _, n := range errs {
+			if trimWS(n.Error()) == trimWS(e) {
 				found = true
 			}
 		}
@@ -1217,12 +1242,12 @@ func TestInputArgument3(t *testing.T) {
 type Person {
   name: String!
   age: Int!
-  inputX(info: [Measure!] = [{height: 8 metric: {address: "XX" slope: true} } {height: 897 metric: {address: "YYX" slope: false}  } null]): Float
+  inputX(info: [Measure!] = [{height: 8.1 metric: {address: "XX" slope: true} } {height: 897.2 metric: {address: "YYX" slope: false}  } null]): Float
   posts: [Boolean!]!
 }`
 
 	var expectedErr [1]string
-	expectedErr[0] = `List cannot contain NULLs at line: 13 column: 133`
+	expectedErr[0] = `List cannot contain NULLs at line: 13 column: 137`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -1237,7 +1262,7 @@ type Person {
 	for _, e := range expectedErr {
 		found := false
 		for _, n := range errs {
-			if n.Error() == e {
+			if trimWS(n.Error()) == trimWS(e) {
 				found = true
 			}
 		}
@@ -1260,15 +1285,29 @@ type Person {
   posts: [Boolean!]!
 }`
 
+	var expectedErr [1]string
+	expectedErr[0] = `Argument "info" type "Measure", is not an input type at line: 8 column: 17`
+
 	l := lexer.New(input)
 	p := New(l)
-	d, errs := p.ParseDocument()
-	fmt.Println(d.String())
-	if len(errs) > 0 {
-		t.Errorf(`***  Expected no error got %d.`, len(errs))
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
 	}
-	for _, e := range errs {
-		fmt.Println("*** ", e.Error())
+	// for _, e := range errs {
+	// 	fmt.Println("*** ", e.Error())
+	// }
+	for _, e := range expectedErr {
+		found := false
+		for _, n := range errs {
+			if trimWS(n.Error()) == trimWS(e) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`***  Expected %s- not exists.`, e)
+		}
 	}
 }
 
@@ -1360,7 +1399,7 @@ type Measure67 {
 `
 
 	var expectedErr [1]string
-	expectedErr[0] = `Field "form" type "MyInput6", is not an output type at line: 10 column: 11` //
+	expectedErr[0] = `Field "form" type "MyInput67", is not an output type at line: 10 column: 11` //
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
@@ -1370,7 +1409,7 @@ type Measure67 {
 	}
 	for i, v := range errs {
 		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
 		} else {
@@ -1395,7 +1434,7 @@ type Measure66 {
 `
 
 	var expectedErr [1]string
-	expectedErr[0] = `Field "form" type "Myobject66", is not an input type at line: 10 column: 15` //
+	expectedErr[0] = `Argument "x" type "Myobject66", is not an input type at line: 10 column: 15` //
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
@@ -1405,7 +1444,7 @@ type Measure66 {
 	}
 	for i, v := range errs {
 		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
 		} else {
@@ -1414,7 +1453,7 @@ type Measure66 {
 	}
 }
 
-func TestObjCheckInputObjVal1(t *testing.T) {
+func TestCheckObjectType1(t *testing.T) {
 
 	input := `
 	
@@ -1424,23 +1463,23 @@ type Pet {
 }
 type Measure66 {
     height: String
-    weight: Myobject66
+    weight: Int
     form (xarg : Pet = {x:77.3 y:22}) : Float
 }
 `
 
 	var expectedErr [1]string
-	expectedErr[0] = `Field "form" type "Myobject66", is not an input type at line: 10 column: 15` //
+	expectedErr[0] = `Argument "xarg" type "Pet", is not an input type at line: 10 column: 18` //
 	l := lexer.New(input)
 	p := New(l)
-	_, errs := p.ParseDocument()
-	//fmt.Println(d.String())
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
 	if len(errs) != len(expectedErr) {
-		t.Errorf(`Expected 1 error "... is not an output type", got none `)
+		t.Errorf(`Expected %d error, got %d `, len(expectedErr), len(errs))
 	}
 	for i, v := range errs {
 		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
 		} else {
@@ -1453,7 +1492,7 @@ func TestObjCheckInputObjVal2(t *testing.T) {
 
 	input := `
 	
-type Pet {
+input Pet {
   x: Float
   y: Int
 }
@@ -1465,7 +1504,7 @@ type Measure66 {
 `
 
 	var expectedErr [1]string
-	expectedErr[0] = `Field "form" type "Myobject66", is not an input type at line: 10 column: 15` //
+	expectedErr[0] = `Type "Myobject66" does not exist at line: 9 column: 13` //
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
@@ -1475,11 +1514,354 @@ type Measure66 {
 	}
 	for i, v := range errs {
 		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}
 		} else {
 			t.Errorf(`Not expected Error =[%q]`, v.Error())
 		}
+	}
+}
+
+func TestMandatoryFieldsMissing(t *testing.T) {
+
+	input := `
+	
+	input Pet {
+  x: Float
+  y: Int!
+}
+type Measure {
+    height: String
+    weight: Int
+    form (xarg : [Pet] = [{x:77.3 y:22} {x:33.9}]) : Float
+}
+`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Mandatory field "y" missing in type "Pet" at line: 10 column: 42` //
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`Expected 1 error, to %d`, len(errs))
+	}
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+}
+
+func TestManadtoryWrongDataType(t *testing.T) {
+
+	input := `
+	
+	input Pet {
+  x: Float
+  y: Int!
+}
+type Measure {
+    height: String
+    weight: Int
+    form (xarg : [Pet]! = [{x:77.3 y:22} {y:33.9}]) : Float
+}
+`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Argument type "Pet", value has type Float should be Int at line: 10 column: 45` //
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`Expected 1 error, to %d`, len(errs))
+	}
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+}
+
+func TestManadtoryWithEmptyListCheck(t *testing.T) {
+
+	input := `
+	
+	input Pet {
+  x: Float
+  y: [Int]!
+}
+type Measure {
+    height: String
+    weight: Int
+    form (xarg : [Pet]! = [{x:77.3 y:22} {y:33.9}]) : Float
+}
+`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Argument type "Pet", value has type Float should be Int at line: 10 column: 45` //
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`Expected 1 error, to %d`, len(errs))
+	}
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+}
+func TestManadtoryWithNonEmptyListCheck(t *testing.T) {
+
+	input := `
+	
+	input Pet {
+  x: Float
+  y: [Int!]
+}
+type Measure {
+    height: String
+    weight: Int
+    form (xarg : [Pet]! = [{x:77.3 y:22} {y:33.9}]) : Float
+}
+`
+
+	var expectedErr [3]string
+	expectedErr[0] = `Argument type "Pet", value should be a List type Int at line: 10 column: 38`    //
+	expectedErr[1] = `Argument type "Pet", value should be a List type Int at line: 10 column: 45`    //
+	expectedErr[2] = `Argument type "Pet", value has type Float should be Int at line: 10 column: 45` //
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`Expected 1 error, to %d`, len(errs))
+	}
+	for _, v := range errs {
+		fmt.Println(v.Error())
+	}
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+}
+func TestManadtoryListCheck(t *testing.T) {
+
+	input := `
+	
+	input Pet {
+  x: Float
+  y: [Int]!
+}
+type Measure {
+    height: String
+    weight: Int
+    form (xarg : [Pet]! = [{x:77.3 y:22} {x:1}]) : Float
+}
+`
+
+	var expectedErr [2]string
+	expectedErr[0] = `Argument type "Pet", value has type Int should be Float at line: 10 column: 45` //
+	expectedErr[1] = `Mandatory field "y" missing in type "Pet" at line: 10 column: 43 `              //
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`Expected 1 error, to %d`, len(errs))
+	}
+	// for _, v := range errs {
+	// 	fmt.Println(v.Error())
+	// }
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+}
+
+func TestNonMandatoryListCheck(t *testing.T) {
+
+	input := `
+	
+	input Pet {
+  x: Float
+  y: [Int]
+}
+type Measure {
+    height: String
+    weight: Int
+    form (xarg : [Pet]! = [{x:77.3 y:22} {x:1.1}]) : Float
+}
+`
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	if len(errs) != 0 {
+		t.Errorf(`Expected 1 error, to %d`, len(errs))
+	}
+	for _, v := range errs {
+		fmt.Println(v.Error())
+	}
+
+}
+
+func TestWrongDataType3a(t *testing.T) {
+
+	input := `
+	
+	input Pet {
+  x: Float
+  y: [Int]
+}
+type Measure {
+    height: String
+    weight: Int
+    form (xarg : [Pet]! = [{x:77.3 y:22} {y:33.9}]) : Float
+}
+`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Argument type "Pet", value has type Float should be Int at line: 10 column: 45` //
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`Expected 1 error, to %d`, len(errs))
+	}
+	for _, v := range errs {
+		fmt.Println(v.Error())
+	}
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+}
+
+func TestWrongDataType3b(t *testing.T) {
+
+	input := `
+	
+	input Pet {
+  x: Float
+  y: Int
+}
+type Measure {
+    height: String
+    weight: Int
+    form (xarg : [Pet]! = [{x:77.3 y:22} {y:[33.9]}]) : Float
+}
+`
+
+	var expectedErr [2]string
+	expectedErr[0] = `Field, y, is not a LIST type but input data is a LIST type, at line: 10 column: 43` //
+	expectedErr[1] = `Required type "Int", got "Float" at line: 10 column: 46`                            //
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`Expected 1 error, to %d`, len(errs))
+	}
+	for _, v := range errs {
+		fmt.Println(v.Error())
+	}
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+}
+
+func TestMandatoryNoDefault(t *testing.T) {
+
+	input := `
+	
+	input Pet {
+  x: Float
+  y: Int!
+}
+type Measure09 {
+    height: String
+    weight: Int
+    form (xarg : [Pet]!) : Float
+}
+`
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) != 0 {
+		t.Errorf(`Expected 0 error, to %d`, len(errs))
+	}
+}
+
+func TestMandatoryFieldsPresent(t *testing.T) {
+
+	input := `
+	
+	input Pet {
+  x: Float
+  y: Int!
+}
+type Measure {
+    height: String
+    weight: Int
+    form (xarg : [Pet] = [{x:77.3 y:22} { y:23}]) : Float
+}
+`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) != 0 {
+		t.Errorf(`Should be 0 errors, got %d`, len(errs))
+	}
+	// for _, e := range errs {
+	// 	fmt.Println("*** ", e.Error())
+	// }
+	if compare(d.String(), input) {
+		fmt.Println(trimWS(d.String()))
+		fmt.Println(trimWS(input))
+		t.Errorf(`***  program.String() wrong.`)
 	}
 }

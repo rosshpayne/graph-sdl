@@ -189,8 +189,6 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 			case *ast.Enum_:
 			case *ast.Interface_:
 			}
-			//v.CheckIsInputOutputValues()
-			//v.CheckIVTypeConsistency()
 
 			// pass validation - add type to repo
 		}
@@ -215,6 +213,9 @@ func (p *Parser) parseStatement() ast.TypeSystemDef {
 	stmtType := p.curToken.Literal
 	if f, ok := p.parseFns[p.curToken.Type]; ok {
 		return f(stmtType)
+	} else {
+		p.abort = true
+		p.addErr(fmt.Sprintf(`Parse aborted. "%s" is not a statement keyword`, p.curToken.Literal))
 	}
 	return nil
 }
