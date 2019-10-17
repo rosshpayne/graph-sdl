@@ -431,6 +431,7 @@ func (n *Name_) AssignName(s string, loc *Loc_, errS *[]error) {
 type Document struct {
 	Statements    []TypeSystemDef
 	StatementsMap map[NameValue_]TypeSystemDef
+	ErrorMap      map[NameValue_][]error
 }
 
 func (d Document) String() string {
@@ -448,7 +449,7 @@ func (d Document) String() string {
 type TypeSystemDef interface {
 	TypeSystemNode()
 	TypeName() NameValue_
-	CheckUnresolvedTypes(unresolved *[]Name_)
+	CheckUnresolvedTypes(unresolved UnresolvedMap)
 	String() string
 }
 

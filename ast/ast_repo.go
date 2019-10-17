@@ -18,6 +18,10 @@ type TypeRow struct {
 	Def  string
 }
 
+type PkRow struct {
+	PKey string
+}
+
 var typeCache_ typeCache
 var db *dynamodb.DynamoDB
 
@@ -39,9 +43,9 @@ func init() {
 
 // Fetch - when type is in cache it is said to be "resolved".
 //  unresolved types are therefore not in the typeCaches
-func Fetch(input NameValue_) (TypeSystemDef, bool) {
-	return CacheFetch(input)
-}
+// func Fetch(input NameValue_) (TypeSystemDef, bool) {
+// 	return CacheFetch(input)
+// }
 
 func CacheFetch(input NameValue_) (TypeSystemDef, bool) { // TODO: use TypeSystemDef instead of TypeSystemDef??
 	if x, ok := typeCache_[input]; !ok {
@@ -91,6 +95,24 @@ func dbPersist(input NameValue_, obj TypeSystemDef) error {
 	return nil
 }
 
+func DeleteType(input string) error {
+
+	//
+	typeDef := PkRow{PKey: input}
+	av, err := dynamodbattribute.MarshalMap(typeDef)
+	if err != nil {
+		return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+	}
+	_, err = db.DeleteItem(&dynamodb.DeleteItemInput{
+		TableName: aws.String("GraphTypes"),
+		Key:       av,
+	})
+	if err != nil {
+		return fmt.Errorf(`Error: failed to DeleteItem: "%s"  %s`, input, err.Error())
+	}
+	return nil
+}
+
 func ListCache() []TypeSystemDef {
 	l := make([]TypeSystemDef, len(typeCache_), len(typeCache_))
 	i := 0
@@ -108,7 +130,7 @@ func DBFetch(name NameValue_) (string, error) {
 	type pKey struct {
 		PKey string
 	}
-	fmt.Printf("name: [%s]\n", name.String())
+	fmt.Printf("DB Fetch name: [%s]\n", name.String())
 
 	errmsg := "Error in marshall of pKey "
 	pkey := pKey{PKey: name.String()}

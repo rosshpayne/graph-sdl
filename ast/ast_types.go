@@ -54,6 +54,8 @@ func (tf TypeFlag_) String() string {
 	return "NoTypeFound"
 }
 
+type UnresolvedMap map[Name_]*Type_
+
 const (
 	//  input value types
 	SCALAR TypeFlag_ = 1 << iota
@@ -361,10 +363,11 @@ func (o ObjectVals) ValidateInputObjectValues(ref *Type_, err *[]error) {
 // Slice of Name_
 type NameS []Name_
 
-func (f NameS) CheckUnresolvedTypes(unresolved *[]Name_) {
+func (f NameS) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 	for _, v := range f {
-		if _, ok := Fetch(v.Name); !ok {
-			*unresolved = append(*unresolved, v)
+		// check type exists in cache as it should if parsed earlier
+		if _, ok := CacheFetch(v.Name); !ok {
+			unresolved[v] = nil // no *Type for NameS
 		}
 	}
 }
@@ -414,23 +417,29 @@ func (f *Object_) CheckImplements(err *[]error) {
 						}
 					}
 				}
-				var s strings.Builder
-				for k, v := range satisfied {
+			}
+			//
+			// publish in repeatable order because maps cannot
+			//
+			var s strings.Builder
+			for _, ifn := range itf.FieldSet { // interface fields
+				if v, ok := satisfied[ifn.Name]; ok {
 					if !v {
 						s.WriteString(` "`)
-						s.WriteString(k.String())
+						s.WriteString(ifn.Name.String())
 						s.WriteString(`"`)
 					}
 				}
-				if len(s.String()) > 0 {
-					*err = append(*err, fmt.Errorf(`Object type "%s" does not implement interface "%s", missing%s`, f.Name_, itf.Name_, s))
-				}
 			}
+			if len(s.String()) > 0 {
+				*err = append(*err, fmt.Errorf(`Type "%s" does not implement interface "%s", missing %s`, f.Name_, itf.Name_, s.String()))
+			}
+
 		}
 	}
 }
 
-func (f *Object_) CheckUnresolvedTypes(unresolved *[]Name_) {
+func (f *Object_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 	f.FieldSet.CheckUnresolvedTypes(unresolved)
 	f.Implements.CheckUnresolvedTypes(unresolved)
 }
@@ -578,7 +587,7 @@ func (f *FieldSet) String() string {
 	return s.String()
 }
 
-func (fs *FieldSet) CheckUnresolvedTypes(unresolved *[]Name_) {
+func (fs *FieldSet) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 	for _, v := range *fs {
 		v.CheckUnresolvedTypes(unresolved)
 	}
@@ -622,13 +631,14 @@ func (a *Field_) Equals(b *Field_) bool {
 	return a.Name_.Equals(b.Name_) && a.Type.Equals(b.Type)
 }
 
-func (f *Field_) CheckUnresolvedTypes(unresolved *[]Name_) {
+func (f *Field_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 	if f.Type == nil {
 		log.Panic(fmt.Errorf("Severe Error - not expected: Field.Type is not assigned for [%s]", f.Name_.String()))
 	}
 	if !f.Type.isScalar() && f.Type.AST == nil {
+		// check in cache only at this stage. When control passes back to parser we can check DB and parse stmt then.
 		if obj, ok := CacheFetch(f.Type.Name); !ok {
-			*unresolved = append(*unresolved, f.Type.Name_)
+			unresolved[f.Type.Name_] = f.Type
 		} else {
 			f.Type.AST = obj
 		}
@@ -688,12 +698,13 @@ func (fa *InputValueDefs) String(encl [2]token.TokenType) string {
 	return s.String()
 }
 
-func (fa InputValueDefs) CheckUnresolvedTypes(unresolved *[]Name_) {
+func (fa InputValueDefs) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 
 	for _, v := range fa {
 		if !v.Type.isScalar() && v.Type.AST == nil {
 			if ast, ok := CacheFetch(v.Type.Name); !ok {
-				*unresolved = append(*unresolved, v.Type.Name_)
+				unresolved[v.Name_] = v.Type
+				//*unresolved = append(*unresolved, v.Type.Name_)
 			} else {
 				v.Type.AST = ast
 			}
@@ -761,8 +772,8 @@ type Enum_ struct {
 	Values []*EnumValue_
 }
 
-func (e *Enum_) TypeSystemNode()                          {}
-func (e *Enum_) CheckUnresolvedTypes(unresolved *[]Name_) {}
+func (e *Enum_) TypeSystemNode()                               {}
+func (e *Enum_) CheckUnresolvedTypes(unresolved UnresolvedMap) {}
 
 func (e *Enum_) TypeName() NameValue_ {
 	return e.Name
@@ -934,7 +945,7 @@ func (e *Scalar_) ValueNode()      {}
 func (i *Scalar_) TypeName() NameValue_ {
 	return i.Name
 }
-func (i *Scalar_) CheckUnresolvedTypes(unresolved *[]Name_) {}
+func (i *Scalar_) CheckUnresolvedTypes(unresolved UnresolvedMap) {}
 
 func (u *Scalar_) String() string {
 	var s strings.Builder

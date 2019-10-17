@@ -19,10 +19,10 @@ const (
 	cErrLimit = 8 // how many parse errors are permitted before processing stops
 )
 
-//var typeRepo ast.TypeRepo_
-var enumRepo ast.EnumRepo_
-
-//var enumValue ast.EnumRepo_
+var (
+	enumRepo      ast.EnumRepo_
+	typeNotExists map[ast.NameValue_]bool
+)
 
 type Parser struct {
 	l *lexer.Lexer
@@ -66,6 +66,9 @@ func init() {
 	//typeRepo = make(ast.TypeRepo_)
 	//	typeRepo[token.STRING] = ast.String_("")
 	enumRepo = make(ast.EnumRepo_)
+	typeNotExists = make(map[ast.NameValue_]bool)
+	//isUnresolvedType = make(map[ast.NameValue_]*ast.Loc_)
+	//isResolvedType = make(map[ast.NameValue_]ast.TypeSystemDef)
 }
 
 func (p *Parser) Loc() *ast.Loc_ {
@@ -81,7 +84,7 @@ func (p *Parser) printToken(s ...string) {
 	}
 }
 func (p *Parser) hasError() bool {
-	if len(p.perror) > 15 || p.abort {
+	if len(p.perror) > 7 || p.abort {
 		return true
 	}
 	return false
@@ -121,6 +124,7 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 	program := &ast.Document{}
 	program.Statements = []ast.TypeSystemDef{} // slice is initialised  with no elements - each element represents an interface value of type ast.TypeSystemDef
 	program.StatementsMap = make(map[ast.NameValue_]ast.TypeSystemDef)
+	program.ErrorMap = make(map[ast.NameValue_][]error)
 	// Build AST from GraphQL SDL script
 
 	for p.curToken.Type != token.EOF {
@@ -129,14 +133,13 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 			break
 		}
 		if stmt != nil {
-			// if no errors add to cache / DB
-			if len(p.perror) == 0 {
-				ast.Add2Cache(stmt.TypeName(), stmt)
-			}
+			ast.Add2Cache(stmt.TypeName(), stmt)
 			//
 			program.Statements = append(program.Statements, stmt)
 			name := stmt.TypeName()
 			program.StatementsMap[name] = stmt
+			program.ErrorMap[name] = p.perror
+			p.perror = nil
 		}
 		if p.extend {
 			p.extend = false
@@ -146,40 +149,24 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 	if p.hasError() {
 		return program, p.perror
 	}
-	// Validation - via multiple parses of AST
-
-	var validationFail bool
-	var stillUnresolved []ast.Name_
-	//
+	parseErrors := p.perror
+	p.perror = nil
+	// for _, v := range p.perror {
+	// 	fmt.Println("%%%%% ", v.Error())
+	// }
 	for _, v := range program.Statements {
-		var unresolved []ast.Name_
-		// returns slice of unresolved types from each statement in the document
-		v.CheckUnresolvedTypes(&unresolved)
-
-		// resolve unresolved types by checking in DB
-		for _, v_ := range unresolved {
-
-			if typeDef, err := ast.DBFetch(v_.Name); err != nil {
-				p.addErr(err.Error())
-				continue
-			} else {
-				if len(typeDef) == 0 {
-					// not resolved - no Type exists in repo (cache + DB)
-					stillUnresolved = append(stillUnresolved, v_)
-					validationFail = true
-				} else {
-					// resolved - generate AST and add type to cache
-					l := lexer.New(typeDef)
-					p := New(l)
-					p.ParseDocument() // TODO - is parseStatement workable
-					//p.parseStatement()
-				}
-			}
+		p.CheckUnresolvedTypes_(v)
+		if len(p.perror) > 0 {
+			program.ErrorMap[v.TypeName()] = p.perror
+			p.perror = nil
 		}
-		for _, v := range stillUnresolved {
-			p.addErr(fmt.Sprintf(`Unresolved type "%s" %s`, v.Name, v.AtPosition()))
-		}
-		if !validationFail {
+	}
+	// for k, v := range program.ErrorMap {
+	// 	fmt.Println("ErrorMap: ", k, v)
+	// }
+	for _, v := range program.Statements {
+		errS := program.ErrorMap[v.TypeName()]
+		if len(errS) == 0 {
 			switch x := v.(type) {
 			case *ast.Object_:
 				x.CheckIsOutputType(&p.perror)
@@ -189,13 +176,23 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 			case *ast.Enum_:
 			case *ast.Interface_:
 			}
-
-			// pass validation - add type to repo
 		}
+		errS = append(errS, p.perror...)
+		program.ErrorMap[v.TypeName()] = errS
+		p.perror = nil
 	}
-
-	if len(p.perror) == 0 {
-		for _, v := range program.Statements {
+	//
+	// Build error slice from statement errors
+	//
+	p.perror = parseErrors
+	for _, v := range program.Statements {
+		p.perror = append(p.perror, program.ErrorMap[v.TypeName()]...)
+	}
+	//
+	// persist statements to db
+	//
+	for _, v := range program.Statements {
+		if len(program.ErrorMap[v.TypeName()]) == 0 {
 			ast.Add(v.TypeName(), v)
 		}
 	}
@@ -208,9 +205,10 @@ func (p *Parser) parseStatement() ast.TypeSystemDef {
 	p.skipComment()
 	if p.curToken.Type == token.EXTEND {
 		p.extend = true
-		p.nextToken() // read over extend
+		p.nextToken("read over extend") // read over extend
 	}
 	stmtType := p.curToken.Literal
+	fmt.Println("stmtType: ", stmtType)
 	if f, ok := p.parseFns[p.curToken.Type]; ok {
 		return f(stmtType)
 	} else {
@@ -221,35 +219,65 @@ func (p *Parser) parseStatement() ast.TypeSystemDef {
 }
 
 // ====================  fetchAST  =============================
+var notExists map[ast.NameValue_]bool
 
-func (p *Parser) fetchAST(name string) ast.TypeSystemDef {
+func (p *Parser) fetchAST(name ast.Name_) ast.TypeSystemDef {
 	// search in cache, then database and parse database statement
 	//  to generate the type's AST and return it
 	var (
 		ast_ ast.TypeSystemDef
 		ok   bool
 	)
-	name_ := ast.NameValue_(name)
+	name_ := name.Name
+
 	if ast_, ok = ast.CacheFetch(name_); !ok {
-		if typeDef, err := ast.DBFetch(name_); err != nil {
-			p.addErr(err.Error())
-			p.abort = true
-			return nil
-		} else {
-			if len(typeDef) == 0 { // no type found in DB
-				p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, name, p.Loc()))
+		if !typeNotExists[name_] {
+			if typeDef, err := ast.DBFetch(name_); err != nil {
+				p.addErr(err.Error())
 				p.abort = true
 				return nil
 			} else {
-				// generate the AST
-				l := lexer.New(typeDef)
-				p2 := New(l)
-				ast_ := p2.parseStatement()
-				ast.Add2Cache(name_, ast_)
+				if len(typeDef) == 0 { // no type found in DB
+					typeNotExists[name_] = true
+					return nil
+				} else {
+					// generate the AST
+					l := lexer.New(typeDef)
+					p2 := New(l)
+					ast_ := p2.parseStatement()
+					ast.Add2Cache(name_, ast_)
+				}
 			}
+		} else {
+			return nil
 		}
 	}
 	return ast_
+}
+
+// ===================  CheckUnresolvedTypes_  ==========================
+
+func (p *Parser) CheckUnresolvedTypes_(v ast.TypeSystemDef) {
+	//type UnresolvedMap map[Name_]*Type_
+	//returns slice of unresolved types from each statement in the document
+	unresolved := make(ast.UnresolvedMap)
+	v.CheckUnresolvedTypes(unresolved)
+	// resolve unresolved types by checking in DB
+	for k, v_ := range unresolved {
+		// we can now search DB as parser can parseStatement to generate AST.
+		ast_ := p.fetchAST(k)
+		if ast_ != nil {
+			if v_ != nil {
+				v_.AST = ast_ // TODO check this uses pointers so the assignment is preserved
+			}
+		} else {
+			if v_ != nil {
+				p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, v_.Name, v_.AtPosition()))
+			} else {
+				p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, k, k.AtPosition()))
+			}
+		}
+	}
 }
 
 // ==================== Object Type  ============================
@@ -284,6 +312,9 @@ func (p *Parser) ParseObjectType(op string) ast.TypeSystemDef {
 				}
 				return inp
 			}
+		} else {
+			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
+			p.abort = true
 		}
 	}
 	return nil
@@ -322,6 +353,9 @@ func (p *Parser) ParseEnumType(op string) ast.TypeSystemDef {
 				}
 				return inp
 			}
+		} else {
+			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
+			p.abort = true
 		}
 	}
 	return nil
@@ -355,6 +389,9 @@ func (p *Parser) ParseInterfaceType(op string) ast.TypeSystemDef {
 				}
 				return inp
 			}
+		} else {
+			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
+			p.abort = true
 		}
 	}
 	return nil
@@ -391,6 +428,9 @@ func (p *Parser) ParseUnionType(op string) ast.TypeSystemDef {
 				}
 				return inp
 			}
+		} else {
+			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
+			p.abort = true
 		}
 	}
 	return nil
@@ -425,6 +465,9 @@ func (p *Parser) ParseInputValueType(op string) ast.TypeSystemDef {
 				}
 				return inp
 			}
+		} else {
+			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
+			p.abort = true
 		}
 	}
 	return nil
@@ -460,6 +503,9 @@ func (p *Parser) ParseScalarType(op string) ast.TypeSystemDef {
 				}
 				return inp
 			}
+		} else {
+			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
+			p.abort = true
 		}
 	}
 	return nil
@@ -520,27 +566,12 @@ func (p *Parser) parseExtendName() ast.TypeSystemDef {
 	} else {
 		p.addErr(fmt.Sprintf(`Expected name identifer got %s of "%s"`, p.curToken.Type, p.curToken.Literal))
 	}
-	if obj, ok := ast.Fetch(ast.NameValue_(extName)); !ok {
-		if typeDef, err := ast.DBFetch(ast.NameValue_(extName)); err != nil {
-			p.addErr(err.Error())
-		} else {
-			if len(typeDef) == 0 { // no type found in DB
-				p.addErr(fmt.Sprintf(`Cannot extend, type "%s" does not exist %s`, extName, p.Loc()))
-				p.abort = true
-			} else {
-				// generate the AST
-				l := lexer.New(typeDef)
-				p2 := New(l)
-				obj = p2.parseStatement()
-			}
-		}
+	name_ := ast.Name_{Name: ast.NameValue_(extName), Loc: p.Loc()}
+	obj := p.fetchAST(name_)
+	if obj != nil {
 		p.nextToken() // read over name
-		return obj
-	} else {
-		p.nextToken() // read over name
-		return obj
 	}
-
+	return obj
 }
 
 func (p *Parser) parseEnumValues(enum *ast.Enum_, optional ...bool) *Parser {
@@ -804,9 +835,10 @@ func (p *Parser) parseType(f ast.HasTypeI) *Parser {
 		}
 		nameLoc = p.Loc()
 		name = p.curToken.Literal // actual type name, Int, Float, Pet ...
+		name_ := ast.Name_{Name: ast.NameValue_(name), Loc: nameLoc}
 		// System ScalarTypes are defined by the Type_.Name_, Non-system Scalar and non-scalar are defined by the AST.
 		if !p.curToken.IsScalarType {
-			ast_ = p.fetchAST(string(name))
+			ast_ = p.fetchAST(name_)
 		}
 		p.nextToken() // read over IDENT
 		for bangs := 0; p.curToken.Type == token.RBRACKET || p.curToken.Type == token.BANG; {
@@ -834,8 +866,9 @@ func (p *Parser) parseType(f ast.HasTypeI) *Parser {
 		//if p.curToken.IsScalarType {
 		if p.curToken.Type == token.IDENT || p.curToken.IsScalarType {
 			name = p.curToken.Literal
+			name_ := ast.Name_{Name: ast.NameValue_(name), Loc: p.Loc()}
 			if !p.curToken.IsScalarType {
-				ast_ = p.fetchAST(string(name))
+				ast_ = p.fetchAST(name_)
 			}
 			if p.peekToken.Type == token.BANG {
 				bit = 1 << 0

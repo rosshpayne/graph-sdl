@@ -38,7 +38,7 @@ func TestInputDoesnotExist(t *testing.T) {
 extend input ExampleInputXYZ @ june (asdf:234) 
 `
 	var expectedErr [1]string
-	expectedErr[0] = `Cannot extend, type "ExampleInputXYZ" does not exist at line: 2 column: 14`
+	expectedErr[0] = `Type "ExampleInputXYZ" does not exist at line: 2 column: 14`
 
 	l := lexer.New(input)
 	p := New(l)
