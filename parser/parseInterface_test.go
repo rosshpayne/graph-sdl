@@ -268,13 +268,15 @@ type Person implements NamedEntity & ValuedEntity {
 	if len(errs) != len(expectedErr) {
 		t.Errorf(`Expected %d errors got %d`, len(expectedErr), len(errs))
 	}
-	for i, v := range errs {
-		if i < len(expectedErr) {
-			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
-				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+	for _, got := range errs {
+		var found bool
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
 			}
-		} else {
-			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+		if !found {
+			t.Errorf(`Not expected Error =[%q]`, got.Error())
 		}
 	}
 }

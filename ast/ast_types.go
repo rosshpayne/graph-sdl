@@ -596,9 +596,14 @@ func (fs *FieldSet) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 func (fs *FieldSet) AppendField(f_ *Field_) error {
 	for _, v := range *fs {
 		// check field (Name and Type) not already present
-		if v.Equals(f_) {
+		//if v.Equals(f_) { // TODO - where is it necessary to compare Name & Type
+		if v.Name.String() == f_.Name.String() {
 			loc := f_.Name_.Loc
-			return fmt.Errorf(`Duplicate Field name "%s" at line: %d, column: %d`, f_.Name_.String(), loc.Line, loc.Column)
+			if loc != nil {
+				return fmt.Errorf(`Duplicate Field name "%s" at line: %d, column: %d`, f_.Name_, loc.Line, loc.Column)
+			} else {
+				return fmt.Errorf(`Duplicate Field name "%s" at line: %d, column: %d`, f_.Name_)
+			}
 		}
 	}
 	*fs = append(*fs, f_)
@@ -627,9 +632,9 @@ func (f *Field_) AssignType(t *Type_) {
 	f.Type = t
 }
 
-func (a *Field_) Equals(b *Field_) bool {
-	return a.Name_.Equals(b.Name_) && a.Type.Equals(b.Type)
-}
+// func (a *Field_) Equals(b *Field_) bool {
+// 	return a.Name_.Equals(b.Name_) && a.Type.Equals(b.Type)
+// }
 
 func (f *Field_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 	if f.Type == nil {

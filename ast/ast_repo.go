@@ -61,6 +61,7 @@ func Add(input NameValue_, obj TypeSystemDef) {
 }
 
 func Add2Cache(input NameValue_, obj TypeSystemDef) {
+	fmt.Println("** Add2Cache ", input)
 	typeCache_[input] = obj
 }
 

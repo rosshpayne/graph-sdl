@@ -44,7 +44,7 @@ type __Person {
 		t.Errorf(`Wrong- should be one error got %d`, len(errs))
 	}
 	for _, v := range errs {
-		if v.Error() != expectedErr {
+		if trimWS(v.Error()) != trimWS(expectedErr) {
 			t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr)
 		}
 	}
@@ -328,26 +328,29 @@ type lines {
 	}
 `
 	var expectedErr [2]string
-	expectedErr[0] = `Type "Post_", not defined at line: 6 column: 11`
-	expectedErr[1] = `Type "Publication", not defined at line: 9 column: 14`
+	expectedErr[0] = `Type "Post_" does not exist at line: 6 column: 11`
+	expectedErr[1] = `Type "Publication" does not exist at line: 9 column: 14`
 
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	if len(errs) != 2 {
+	if len(errs) != len(expectedErr) {
 		for _, v := range errs {
 			fmt.Println(v.Error())
 		}
 		t.Errorf(fmt.Sprintf(`Not expected - should be 2 errors got %d`, len(errs)))
 	}
 	//fmt.Println(d.String())
-	for i, v := range errs {
-		if i < 2 {
-			if v.Error() != expectedErr[i] {
-				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+
+	for _, got := range errs {
+		var found bool
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
 			}
-		} else {
-			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+		if !found {
+			t.Errorf(`Not expected Error =[%q]`, got.Error())
 		}
 	}
 }
@@ -360,7 +363,7 @@ picture(size : Int =12918@NME(if:"""abc""") ) : Url@iff(abc:123)
 }`
 
 	var expectedErr [2]string
-	expectedErr[0] = `Type "Url", not defined at line: 3 column: 49`
+	expectedErr[0] = `Type "Url" does not exist at line: 3 column: 49`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -385,7 +388,7 @@ picture(size : Int =12918@NME(if:"""abc""") size2 : Boolean =true @NME34(ifx:fal
 }`
 
 	var expectedErr [2]string
-	expectedErr[0] = `Type "Url", not defined at line: 3 column: 88`
+	expectedErr[0] = `Type "Url" does not exist at line: 3 column: 88`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -410,7 +413,7 @@ picture(size : Int =12918@NME(if:"""abc""") size2 : Boolean  @NME34(ifx:false) @
 }`
 
 	var expectedErr [2]string
-	expectedErr[0] = `Type "Url", not defined at line: 3 column: 121`
+	expectedErr[0] = `Type "Url" does not exist at line: 3 column: 121`
 
 	l := lexer.New(input)
 	p := New(l)

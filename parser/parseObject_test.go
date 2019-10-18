@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/graph-sdl/ast"
 	"github.com/graph-sdl/lexer"
 )
 
@@ -1505,12 +1506,17 @@ type Measure66 {
 
 	var expectedErr [1]string
 	expectedErr[0] = `Type "Myobject66" does not exist at line: 9 column: 13` //
+
+	err := ast.DeleteType("Myobject66")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
 	//fmt.Println(d.String())
 	if len(errs) != len(expectedErr) {
-		t.Errorf(`Expected 1 error "... is not an output type", got none `)
+		t.Errorf(`Expected %d error %d`, len(expectedErr), len(errs))
 	}
 	for i, v := range errs {
 		if i < len(expectedErr) {

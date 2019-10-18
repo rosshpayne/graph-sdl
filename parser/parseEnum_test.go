@@ -17,22 +17,28 @@ type Person {
 }
 `
 	var expectedErr [1]string
-	expectedErr[0] = `Type "Str" does not exist at line: 3 column: 9`
+	expectedErr[0] = `Expected name identifer got ILLEGAL of "+" at line: 3, column: 12`
 
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	//fmt.Println(d.String())
 	if len(errs) != len(expectedErr) {
-		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
+		for _, v := range errs {
+			fmt.Println(v.Error())
+		}
+		t.Errorf(fmt.Sprintf(`Not expected - should be 2 errors got %d`, len(errs)))
 	}
-	for i, v := range errs {
-		if i < len(expectedErr) {
-			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
-				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+	//fmt.Println(d.String())
+
+	for _, got := range errs {
+		var found bool
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
 			}
-		} else {
-			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+		if !found {
+			t.Errorf(`Not expected Error =[%q]`, got.Error())
 		}
 	}
 }

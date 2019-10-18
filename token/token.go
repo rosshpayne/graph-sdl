@@ -3,11 +3,6 @@ package token
 type TokenType string
 type TokenCat string
 
-// type Token_ struct {
-// 	Type TokenType
-// 	Cat  TokenCat
-// }
-
 const (
 	IDENT TokenType = "IDENT"
 )
