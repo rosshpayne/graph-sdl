@@ -11,7 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 )
 
-type typeCache map[NameValue_]TypeSystemDef
+// cache returns the AST type for a given TypeName
+type typeCache map[NameValue_]TypeDefiner
 
 type TypeRow struct {
 	PKey string
@@ -43,34 +44,34 @@ func init() {
 
 // Fetch - when type is in cache it is said to be "resolved".
 //  unresolved types are therefore not in the typeCaches
-// func Fetch(input NameValue_) (TypeSystemDef, bool) {
+// func Fetch(input NameValue_) (TypeDefiner, bool) {
 // 	return CacheFetch(input)
 // }
 
-func CacheFetch(input NameValue_) (TypeSystemDef, bool) { // TODO: use TypeSystemDef instead of TypeSystemDef??
-	if x, ok := typeCache_[input]; !ok {
+func CacheFetch(input NameValue_) (TypeDefiner, bool) { // TODO: use TypeDefiner instead of TypeDefiner??
+	if ast, ok := typeCache_[input]; !ok {
 		return nil, false
 	} else {
-		return x, true
+		return ast, true
 	}
 }
 
-func Add(input NameValue_, obj TypeSystemDef) {
-	typeCache_[input] = obj
-	dbPersist(input, obj)
+func Persist(input NameValue_, ast TypeDefiner) {
+	// save GraphQL statement to Dynamodb
+	dbPersist(input, ast)
 }
 
-func Add2Cache(input NameValue_, obj TypeSystemDef) {
+func Add2Cache(input NameValue_, obj TypeDefiner) {
 	fmt.Println("** Add2Cache ", input)
 	typeCache_[input] = obj
 }
 
 func fetchInterface(input Name_) (*Interface_, bool, string) {
-	if itf, ok := typeCache_[input.Name]; ok {
-		if itf_, ok := itf.(*Interface_); !ok {
+	if ast, ok := typeCache_[input.Name]; ok {
+		if ast_, ok := ast.(*Interface_); !ok {
 			return nil, false, fmt.Sprintf(`Implements type "%s" is not an Interface %s`, input, input.AtPosition())
 		} else {
-			return itf_, true, ""
+			return ast_, true, ""
 		}
 	} else {
 		return nil, true, ""
@@ -78,10 +79,9 @@ func fetchInterface(input Name_) (*Interface_, bool, string) {
 
 }
 
-func dbPersist(input NameValue_, obj TypeSystemDef) error {
-
+func dbPersist(input NameValue_, ast TypeDefiner) error {
 	//
-	typeDef := TypeRow{PKey: input.String(), Def: obj.String()}
+	typeDef := TypeRow{PKey: input.String(), Def: ast.String()}
 	av, err := dynamodbattribute.MarshalMap(typeDef)
 	if err != nil {
 		return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -114,8 +114,8 @@ func DeleteType(input string) error {
 	return nil
 }
 
-func ListCache() []TypeSystemDef {
-	l := make([]TypeSystemDef, len(typeCache_), len(typeCache_))
+func ListCache() []TypeDefiner {
+	l := make([]TypeDefiner, len(typeCache_), len(typeCache_))
 	i := 0
 	for _, v := range typeCache_ {
 		l[i] = v

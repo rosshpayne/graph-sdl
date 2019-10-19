@@ -12,7 +12,7 @@ import (
 )
 
 type (
-	parseFn func(op string) ast.TypeSystemDef
+	parseFn func(op string) ast.TypeDefiner
 )
 
 const (
@@ -49,7 +49,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerFn(token.INTERFACE, p.ParseInterfaceType)
 	p.registerFn(token.UNION, p.ParseUnionType)
 	p.registerFn(token.INPUT, p.ParseInputValueType)
-	p.registerFn(token.SCALAR, p.ParseScalarType)
+	p.registerFn(token.SCALAR, p.ParseScalar)
 	// Read two tokens, to initialise curToken and peekToken
 	p.nextToken()
 	p.nextToken()
@@ -117,24 +117,25 @@ func (p *Parser) nextToken(s ...string) {
 
 func (p *Parser) ParseDocument() (*ast.Document, []error) {
 	program := &ast.Document{}
-	program.Statements = []ast.TypeSystemDef{} // slice is initialised  with no elements - each element represents an interface value of type ast.TypeSystemDef
-	program.StatementsMap = make(map[ast.NameValue_]ast.TypeSystemDef)
+	program.Statements = []ast.TypeDefiner{} // slice is initialised  with no elements - each element represents an interface value of type ast.TypeDefiner
+	program.StatementsMap = make(map[ast.NameValue_]ast.TypeDefiner)
 	program.ErrorMap = make(map[ast.NameValue_][]error)
 	//
 	// parse phase - 	build AST from GraphQL SDL script
 	//
 	for p.curToken.Type != token.EOF {
-		stmt := p.parseStatement()
+		StmtAST := p.parseStatement()
 		if p.hasError() {
 			break
 		}
 
-		if stmt != nil {
-			ast.Add2Cache(stmt.TypeName(), stmt)
+		if StmtAST != nil {
+			ast.Add2Cache(StmtAST.TypeName(), StmtAST)
 			//
-			program.Statements = append(program.Statements, stmt)
-			name := stmt.TypeName()
-			program.StatementsMap[name] = stmt
+			program.Statements = append(program.Statements, StmtAST)
+
+			name := StmtAST.TypeName()
+			program.StatementsMap[name] = StmtAST
 			program.ErrorMap[name] = p.perror
 			p.perror = nil
 		}
@@ -191,14 +192,14 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 	//
 	for _, v := range program.Statements {
 		if len(program.ErrorMap[v.TypeName()]) == 0 {
-			ast.Add(v.TypeName(), v)
+			ast.Persist(v.TypeName(), v)
 		}
 	}
 	return program, p.perror
 }
 
 // parseStatement takes predefined parser routine and applies it to a valid statement
-func (p *Parser) parseStatement() ast.TypeSystemDef {
+func (p *Parser) parseStatement() ast.TypeDefiner {
 	p.skipComment()
 	if p.curToken.Type == token.EXTEND {
 		p.extend = true
@@ -219,9 +220,9 @@ func (p *Parser) parseStatement() ast.TypeSystemDef {
 //  As each statement is parsed its types are added to the cache
 //  During validation phase each type is checked for existence using this func.
 //  if not in cache then looks at DB for types that have been predefined.
-func (p *Parser) fetchAST(name ast.Name_) ast.TypeSystemDef {
+func (p *Parser) fetchAST(name ast.Name_) ast.TypeDefiner {
 	var (
-		ast_ ast.TypeSystemDef
+		ast_ ast.TypeDefiner
 		ok   bool
 	)
 	name_ := name.Name
@@ -240,7 +241,7 @@ func (p *Parser) fetchAST(name ast.Name_) ast.TypeSystemDef {
 					// generate the AST
 					l := lexer.New(typeDef)
 					p2 := New(l)
-					ast_ := p2.parseStatement()
+					ast_ = p2.parseStatement()
 					ast.Add2Cache(name_, ast_)
 				}
 			}
@@ -254,18 +255,17 @@ func (p *Parser) fetchAST(name ast.Name_) ast.TypeSystemDef {
 // ===================  checkUnresolvedTypes_  ==========================
 // checkUnresolvedTypes_ is a validation check performed after parsing completed
 //  unresolved Types from parsed types are then checked in DB.
-func (p *Parser) checkUnresolvedTypes_(v ast.TypeSystemDef) {
-	//type UnresolvedMap map[Name_]*Type_
-	//returns slice of unresolved types from each statement in the document
+func (p *Parser) checkUnresolvedTypes_(v ast.TypeDefiner) {
+	//returns slice of unresolved types from the statement passed in
 	unresolved := make(ast.UnresolvedMap)
 	v.CheckUnresolvedTypes(unresolved)
 	// resolve unresolved types by checking in DB
-	for k, v_ := range unresolved {
+	for k, v_ := range unresolved { // unresolvedMap
 		// we can now search DB as parser can parseStatement to generate AST.
 		ast_ := p.fetchAST(k)
 		if ast_ != nil {
 			if v_ != nil {
-				v_.AST = ast_ // TODO check this uses pointers so the assignment is preserved
+				v_.AST = ast_
 			}
 		} else {
 			if v_ != nil {
@@ -285,7 +285,7 @@ var opt bool = true // is optional
 //		{FieldDefinition-list}
 //         FieldDefinition:
 //			Description-opt Name ArgumentsDefinition- opt : Type Directives-Con
-func (p *Parser) ParseObjectType(op string) ast.TypeSystemDef {
+func (p *Parser) ParseObjectType(op string) ast.TypeDefiner {
 	// Types: query, mutation, subscription
 	p.nextToken() // read over type
 	if !p.extend {
@@ -327,7 +327,7 @@ func (p *Parser) ParseObjectType(op string) ast.TypeSystemDef {
 //		{EnumValueDefinition-list}
 // EnumValueDefinition
 //		Description-opt EnumValue Directives-opt
-func (p *Parser) ParseEnumType(op string) ast.TypeSystemDef {
+func (p *Parser) ParseEnumType(op string) ast.TypeDefiner {
 	p.nextToken() // read type
 	if !p.extend {
 		obj := &ast.Enum_{}
@@ -363,7 +363,7 @@ func (p *Parser) ParseEnumType(op string) ast.TypeSystemDef {
 // ====================== Interface ===========================
 // InterfaceTypeDefinition
 //		Description-opt	interface	Name	Directives-opt	FieldsDefinition-opt
-func (p *Parser) ParseInterfaceType(op string) ast.TypeSystemDef {
+func (p *Parser) ParseInterfaceType(op string) ast.TypeDefiner {
 	p.nextToken() // read over interfcae keyword
 	if !p.extend {
 		obj := &ast.Interface_{}
@@ -402,7 +402,7 @@ func (p *Parser) ParseInterfaceType(op string) ast.TypeSystemDef {
 // UnionMemberTypes
 //		=|-opt	NamedType
 //		UnionMemberTypes | NamedType
-func (p *Parser) ParseUnionType(op string) ast.TypeSystemDef {
+func (p *Parser) ParseUnionType(op string) ast.TypeDefiner {
 	p.nextToken() // read over interfcae keyword
 	if !p.extend {
 		obj := &ast.Union_{}
@@ -438,7 +438,7 @@ func (p *Parser) ParseUnionType(op string) ast.TypeSystemDef {
 // ====================== Input ===============================
 // InputObjectTypeDefinition
 //		Description-opt	input	Name	DirectivesConst-opt	InputFieldsDefinition-opt
-func (p *Parser) ParseInputValueType(op string) ast.TypeSystemDef {
+func (p *Parser) ParseInputValueType(op string) ast.TypeDefiner {
 
 	p.nextToken() // read over input keyword
 	if !p.extend {
@@ -475,8 +475,8 @@ func (p *Parser) ParseInputValueType(op string) ast.TypeSystemDef {
 
 // ====================== Scalar_ ===============================
 // InputObjectTypeDefinition
-//		Description-opt	input	Name	DirectivesConst-opt	InputFieldsDefinition-opt
-func (p *Parser) ParseScalarType(op string) ast.TypeSystemDef {
+//		Description-opt	scalar	Name	DirectivesConst-opt
+func (p *Parser) ParseScalar(op string) ast.TypeDefiner {
 
 	p.nextToken() // read over input keyword
 	if !p.extend {
@@ -537,7 +537,7 @@ func (p *Parser) parseDescription() *Parser {
 
 // ==================== parseName ===============================
 // parseName is always mandatory
-func (p *Parser) parseName(f ast.NameI) *Parser {
+func (p *Parser) parseName(f ast.NameAssigner) *Parser {
 	// check if appropriate thing to do
 	if p.hasError() {
 		return p
@@ -556,8 +556,8 @@ func (p *Parser) parseName(f ast.NameI) *Parser {
 }
 
 // ==================== parseExtendName ===============================
-
-func (p *Parser) parseExtendName() ast.TypeSystemDef {
+// parseExtendName will consume the type name to be extended. Returns the type's AST.
+func (p *Parser) parseExtendName() ast.TypeDefiner {
 	if p.hasError() {
 		return nil
 	}
@@ -572,11 +572,11 @@ func (p *Parser) parseExtendName() ast.TypeSystemDef {
 		}
 	}
 	name_ := ast.Name_{Name: ast.NameValue_(extName), Loc: p.Loc()}
-	obj := p.fetchAST(name_)
-	if obj != nil {
+	ast := p.fetchAST(name_)
+	if ast != nil {
 		p.nextToken() // read over name
 	}
-	return obj
+	return ast
 }
 
 func (p *Parser) parseEnumValues(enum *ast.Enum_, optional ...bool) *Parser {
@@ -613,7 +613,7 @@ func (p *Parser) parseEnumValues(enum *ast.Enum_, optional ...bool) *Parser {
 	return p
 }
 
-//==============================================================================
+//========================= parseUnionMembers ====================================
 // UnionMemberTypes
 //		=|optNamedType
 //		UnionMemberTypes | NamedType
@@ -640,7 +640,7 @@ func (p *Parser) parseUnionMembers(u *ast.Union_, optional ...bool) *Parser {
 	return p
 }
 
-//==============================================================================
+//=========================== parseImplements =====================================
 
 // parseImplements
 // ImplementsInterfaces
@@ -670,6 +670,8 @@ func (p *Parser) parseImplements(o *ast.Object_, optional ...bool) *Parser {
 	return p
 }
 
+//============================ parseDirectives ========================================
+
 // Directives[Const]
 // 		Directive[?Const]list
 // Directive[Const] :
@@ -679,7 +681,7 @@ func (p *Parser) parseImplements(o *ast.Object_, optional ...bool) *Parser {
 //     friends @include(if: $withFriends) @ Size (aa:1 bb:2) @ Pack (filter: true) {
 //       name
 //     }
-func (p *Parser) parseDirectives(f ast.DirectiveI, optional ...bool) *Parser { // f is a iv initialised from concrete types *ast.Field,*OperationStmt,*FragementStmt. It will panic if they don't satisfy DirectiveI
+func (p *Parser) parseDirectives(f ast.DirectiveAppender, optional ...bool) *Parser { // f is a iv initialised from concrete types *ast.Field,*OperationStmt,*FragementStmt. It will panic if they don't satisfy DirectiveAppender
 
 	if p.hasError() {
 		return p
@@ -716,7 +718,7 @@ func (p *Parser) parseDirectives(f ast.DirectiveI, optional ...bool) *Parser { /
 // Argument[Const] :
 //		Name : Value [?Const]
 // only fields have arguments so not interface argument is necessary to support multiple types
-func (p *Parser) parseArguments(f ast.ArgumentI, optional ...bool) *Parser {
+func (p *Parser) parseArguments(f ast.ArgumentAppender, optional ...bool) *Parser {
 
 	if p.hasError() {
 		return p
@@ -766,10 +768,10 @@ func (p *Parser) parseInputValue(v *ast.ArgumentT) *Parser {
 	return p
 }
 
-//==============================================================================
+//======================== parseFields ==========================================
 // {FieldDefinition ...} :
 // .  Description-opt Name ArgumentsDefinition-opt : Type Directives-opt
-func (p *Parser) parseFields(f ast.FieldI, optional ...bool) *Parser {
+func (p *Parser) parseFields(f ast.FieldAppender, optional ...bool) *Parser {
 
 	if p.hasError() || p.curToken.Type != token.LBRACE {
 		if len(optional) == 0 {
@@ -799,7 +801,7 @@ func (p *Parser) parseDecription() *Parser {
 	return p
 }
 
-func (p *Parser) parseType(f ast.HasTypeI) *Parser {
+func (p *Parser) parseType(f ast.AssignTyper) *Parser {
 	if p.hasError() {
 		return p
 	}
@@ -817,7 +819,7 @@ func (p *Parser) parseType(f ast.HasTypeI) *Parser {
 	var (
 		bit  byte
 		name string
-		ast_ ast.TypeSystemDef
+		ast_ ast.TypeDefiner
 		//typedef ast.TypeFlag_ // token defines SCALAR types only. All other types will be populated in repoType map.
 		depth   int
 		nameLoc *ast.Loc_
@@ -913,7 +915,7 @@ func (p *Parser) parseType(f ast.HasTypeI) *Parser {
 //		{InputValueDefinition-list}
 // InputValueDefinition
 //		Description-opt	Name	:	Type	DefaultValue-opt	Directives-opt
-func (p *Parser) parseFieldArgumentDefs(f ast.FieldArgI) *Parser { // st is an iv initialised from passed in argument which is a *OperationStmt
+func (p *Parser) parseFieldArgumentDefs(f ast.FieldArgAppender) *Parser { // st is an iv initialised from passed in argument which is a *OperationStmt
 
 	if p.hasError() {
 		return p
@@ -922,7 +924,7 @@ func (p *Parser) parseFieldArgumentDefs(f ast.FieldArgI) *Parser { // st is an i
 	return p.parseInputValueDefs(f, encl)
 }
 
-func (p *Parser) parseInputFieldDefs(f ast.FieldArgI) *Parser {
+func (p *Parser) parseInputFieldDefs(f ast.FieldArgAppender) *Parser {
 
 	if p.hasError() {
 		return p
@@ -931,7 +933,7 @@ func (p *Parser) parseInputFieldDefs(f ast.FieldArgI) *Parser {
 	return p.parseInputValueDefs(f, encl)
 }
 
-func (p *Parser) parseInputValueDefs(f ast.FieldArgI, encl [2]token.TokenType) *Parser {
+func (p *Parser) parseInputValueDefs(f ast.FieldArgAppender, encl [2]token.TokenType) *Parser {
 
 	if p.curToken.Type == encl[0] {
 		p.nextToken() // read over ( or {

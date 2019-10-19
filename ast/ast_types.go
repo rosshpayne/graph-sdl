@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/graph-sdl/token"
 )
@@ -44,8 +45,6 @@ func (tf TypeFlag_) String() string {
 		return token.OBJECT
 	case INPUT: // aka INPUTOBJ
 		return token.INPUT
-	// case INPUTOBJ:
-	// 	return "INPUTOBJ
 	case LIST:
 		return token.LIST
 	case NULL:
@@ -75,37 +74,6 @@ const (
 	// error - not available
 	NA
 )
-
-// func isScalar(n TypeSystemDef) bool {
-// 	switch n.isType {
-// 	case SCALAR, INT, FLOAT, BOOLEAN, STRING, RAWSTRING: // TODO: add ID
-// 		return true
-// 	default:
-// 		return false
-// 	}
-// }
-
-// func fetchTypeFlag(n TypeI_) TypeFlag_ {
-// 	// output non-Scalar Go types
-// 	switch n.(type) {
-// 	case *Object_:
-// 		return OBJECT
-// 	case *Enum_:
-// 		return ENUM
-// 	case *Interface_:
-// 		return INTERFACE
-// 	case *Union_:
-// 		return UNION
-// 	default:
-// 		return NA
-// 	}
-// }
-
-type TypeI_ interface {
-	TypeSystemNode()
-	TypeName() NameValue_
-	String() string
-}
 
 // ============== maps =============================
 
@@ -155,10 +123,10 @@ func IsOutputType(t *Type_) bool {
 // ============================ Type_ ======================
 
 type Type_ struct {
-	Constraint byte          // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
-	AST        TypeSystemDef // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
-	Depth      int           // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
-	Name_                    // type name. inherit AssignName()
+	Constraint byte        // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
+	AST        TypeDefiner // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
+	Depth      int         // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
+	Name_                  // type name. inherit AssignName()
 }
 
 func (t Type_) String() string {
@@ -202,17 +170,17 @@ func (a *Type_) Equals(b *Type_) bool {
 
 // ==================== interfaces ======================
 
-type FieldI interface {
+type FieldAppender interface {
 	AppendField(f_ *Field_) error
 }
 
-type FieldArgI interface {
+type FieldArgAppender interface {
 	AppendField(f_ *InputValueDef, unresolved *[]error)
 }
 
 // ========= Argument ==========
 
-type ArgumentI interface {
+type ArgumentAppender interface {
 	String() string
 	AppendArgument(s *ArgumentT)
 }
@@ -363,11 +331,12 @@ func (o ObjectVals) ValidateInputObjectValues(ref *Type_, err *[]error) {
 // Slice of Name_
 type NameS []Name_
 
+// CheckUnresolvedTypes is typically promoted to type that embedds the NameS type.
 func (f NameS) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 	for _, v := range f {
-		// check type exists in cache as it should if parsed earlier
+		// check if the implement type is cached.
 		if _, ok := CacheFetch(v.Name); !ok {
-			unresolved[v] = nil // no *Type for NameS
+			unresolved[v] = nil
 		}
 	}
 }
@@ -465,12 +434,12 @@ func (f *Object_) CheckIsInputType(err *[]error) {
 }
 
 // type InputValue_ struct {
-// 	Value ValueI //  IV:type|value = assert type to determine InputValue_'s type
+// 	Value Valuer //  IV:type|value = assert type to determine InputValue_'s type
 // 	Loc   *Loc_
 // // }
 // type Type_ struct {
 // 	Constraint byte          // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
-// 	AST        TypeSystemDef // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
+// 	AST        TypeDefiner // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
 // 	Depth      int           // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
 // 	Name_                    // type name. inherit AssignName()
 // }
@@ -611,7 +580,7 @@ func (fs *FieldSet) AppendField(f_ *Field_) error {
 }
 
 // ===============================================================
-type HasTypeI interface {
+type AssignTyper interface {
 	AssignType(t *Type_)
 }
 
@@ -641,11 +610,12 @@ func (f *Field_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 		log.Panic(fmt.Errorf("Severe Error - not expected: Field.Type is not assigned for [%s]", f.Name_.String()))
 	}
 	if !f.Type.isScalar() && f.Type.AST == nil {
-		// check in cache only at this stage. When control passes back to parser we can check DB and parse stmt then.
-		if obj, ok := CacheFetch(f.Type.Name); !ok {
+		// check in cache only at this stage.
+		// When control passes back to parser we resolved the unresolved using the DB and parse stmt if found.
+		if ast, ok := CacheFetch(f.Type.Name); !ok {
 			unresolved[f.Type.Name_] = f.Type
 		} else {
-			f.Type.AST = obj
+			f.Type.AST = ast
 		}
 	}
 	//
@@ -942,15 +912,22 @@ type Scalar_ struct {
 	Desc string
 	Name_
 	Directives_
+	Data string
+	//
+	// scalar data validator types (may not be necessary)
+	//
+	TimeV   time.Time // any date-time
+	NumberV float64   // any number
+	IntV    int64     // any int
 }
 
-func (e *Scalar_) TypeSystemNode() {}
-func (e *Scalar_) ValueNode()      {}
+func (e *Scalar_) TypeSystemNode()                               {}
+func (e *Scalar_) ValueNode()                                    {}
+func (e *Scalar_) CheckUnresolvedTypes(unresolved UnresolvedMap) {}
 
 func (i *Scalar_) TypeName() NameValue_ {
 	return i.Name
 }
-func (i *Scalar_) CheckUnresolvedTypes(unresolved UnresolvedMap) {}
 
 func (u *Scalar_) String() string {
 	var s strings.Builder

@@ -10,9 +10,9 @@ import (
 	"github.com/graph-sdl/token"
 )
 
-// =================  ValueI =================================
+// =================  Valuer =================================
 
-type ValueI interface {
+type Valuer interface {
 	ValueNode()
 	String() string
 	//	Exists() bool
@@ -22,7 +22,7 @@ type ValueI interface {
 
 // input values used for "default values" in arguments in type and field arguments and input objecs.
 type InputValue_ struct {
-	Value ValueI //  IV:type|value = assert type to determine InputValue_'s type via dTString
+	Value Valuer //  IV:type|value = assert type to determine InputValue_'s type via dTString
 	Loc   *Loc_
 }
 
@@ -111,7 +111,9 @@ func (iv *InputValue_) isType() TypeFlag_ {
 // dataTypeString - prints the datatype of the type specification
 func (t *Type_) isType() TypeFlag_ {
 	switch t.Name.String() {
+	//
 	// system scalars
+	//
 	case token.INT:
 		return INT
 	case token.FLOAT:
@@ -125,7 +127,9 @@ func (t *Type_) isType() TypeFlag_ {
 	// case token.ID:
 	// 	return ID
 	default:
-		// user defined types
+		//
+		// non-standard defined types
+		//
 		if t.AST != nil {
 			switch t.AST.(type) {
 			case *Object_:
@@ -272,12 +276,12 @@ func (l List_) Exists() bool {
 // 	Directives_
 // }
 // type InputValue_ struct {
-// 	Value ValueI //  IV:type|value = assert type to determine InputValue_'s type
+// 	Value Valuer //  IV:type|value = assert type to determine InputValue_'s type
 // 	Loc   *Loc_
 // // }
 // type Type_ struct {
 // 	Constraint byte          // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
-// 	AST        TypeSystemDef // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
+// 	AST        TypeDefiner // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
 // 	Depth      int           // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
 // 	Name_                    // type name. inherit AssignName()
 // }
@@ -326,9 +330,9 @@ func (l List_) ValidateListValues(iv *Type_, d *int, maxd *int, err *[]error) {
 // 		Directive[?Const]list
 // Directive[Const] :
 // 		@ Name Arguments[?Const]opt ...
-// used as type for argument into parseFragment(f DirectiveI)
+// used as type for argument into parseFragment(f DirectiveAppender)
 //  called using .parseDirectives(stmt) . where stmt has embedded DirectiveT field as anonymous
-type DirectiveI interface {
+type DirectiveAppender interface {
 	AppendDirective(s *DirectiveT) error
 	//AssignLoc(loc *Loc_)
 }
@@ -380,7 +384,7 @@ func (l Loc_) String() string {
 
 // ============== NameI  ========================
 
-type NameI interface {
+type NameAssigner interface {
 	AssignName(name string, loc *Loc_, errS *[]error)
 }
 
@@ -429,8 +433,8 @@ func (n *Name_) AssignName(s string, loc *Loc_, errS *[]error) {
 // ======== Document ===================================
 
 type Document struct {
-	Statements    []TypeSystemDef
-	StatementsMap map[NameValue_]TypeSystemDef
+	Statements    []TypeDefiner
+	StatementsMap map[NameValue_]TypeDefiner
 	ErrorMap      map[NameValue_][]error
 }
 
@@ -446,15 +450,11 @@ func (d Document) String() string {
 
 // ======== type statements ==========
 
-type TypeSystemDef interface {
+type TypeDefiner interface {
 	TypeSystemNode()
 	TypeName() NameValue_
-	CheckUnresolvedTypes(unresolved UnresolvedMap)
+	CheckUnresolvedTypes(unresolved UnresolvedMap) // while not all Types contain nested types that need to be resolved e.g scalar must still include this method
 	String() string
-}
-
-type TypeExtDef interface {
-	TypeExtNode()
 }
 
 var tc = 2
