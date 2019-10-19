@@ -135,6 +135,9 @@ func DBFetch(name NameValue_) (string, error) {
 	}
 	fmt.Printf("DB Fetch name: [%s]\n", name.String())
 
+	if len(name) == 0 {
+		return "", fmt.Errorf("No DB search value provided")
+	}
 	errmsg := "Error in marshall of pKey "
 	pkey := pKey{PKey: name.String()}
 	av, err := dynamodbattribute.MarshalMap(&pkey)

@@ -110,10 +110,15 @@ func (iv *InputValue_) isType() TypeFlag_ {
 
 // dataTypeString - prints the datatype of the type specification
 func (t *Type_) isType() TypeFlag_ {
+	//
+	// Object types have nested types i.e. each field has a *Type attribute
+	//  the *Type.AST can itself be another object or a scalar (system or user defined)
+	// Scalars do not have a *Type attribute as they represent the leaf node in a tree of types.
+	//
 
 	switch t.Name.String() {
 	//
-	// system scalars - note scalars do not have types they are the type.
+	// system scalars
 	//
 	case token.INT:
 		return INT
@@ -125,6 +130,8 @@ func (t *Type_) isType() TypeFlag_ {
 		return BOOLEAN
 	case token.NULL:
 		return NULL
+	// case token.ID:
+	// 	return ID
 	default:
 		//
 		// non-standard defined types

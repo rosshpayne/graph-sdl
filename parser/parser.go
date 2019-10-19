@@ -151,7 +151,7 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 	holdErrors := p.perror
 	p.perror = nil
 	//
-	// validate phase - resolve types
+	// validate phase 1 - resolve types
 	//
 	for _, v := range program.Statements {
 		p.checkUnresolvedTypes_(v)
@@ -171,7 +171,7 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 		return program, p.perror
 	}
 	//
-	// validate phase -
+	// validate phase 2
 	//
 	holdErrors = p.perror
 	p.perror = nil
@@ -194,13 +194,6 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 		p.perror = nil
 	}
 	//
-	// Build perror from statement errors
-	//
-	for _, v := range program.Statements {
-		p.perror = append(p.perror, program.ErrorMap[v.TypeName()]...)
-		//program.ErrorMap[v.TypeName()] = nil
-	}
-	//
 	// persist error free statements to db
 	//
 	for _, v := range program.Statements {
@@ -208,7 +201,12 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 			ast.Persist(v.TypeName(), v)
 		}
 	}
-
+	//
+	// Build perror from statement errors
+	//
+	for _, v := range program.Statements {
+		p.perror = append(p.perror, program.ErrorMap[v.TypeName()]...)
+	}
 	return program, p.perror
 }
 
@@ -1030,7 +1028,7 @@ func (p *Parser) parseInputValue_(iv ...*ast.InputValueDef) *ast.InputValue_ {
 		if len(iv) != 0 {
 			iv := iv[0]
 			if _, ok := enumRepo[p.curToken.Literal+"|"+string(iv.Type.Name)]; !ok {
-				p.addErr(fmt.Sprintf("Value expected got %s of %s", p.curToken.Type, p.curToken.Literal))
+				p.addErr(fmt.Sprintf("Enum value, %s, not in %s", p.curToken.Literal, iv.Type.Name))
 				return &ast.InputValue_{}
 			}
 		} else {

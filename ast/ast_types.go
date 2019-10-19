@@ -128,7 +128,7 @@ type Type_ struct {
 	Constraint byte        // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
 	AST        TypeDefiner // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
 	Depth      int         // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
-	Name_                  // type name. inherit AssignName()
+	Name_                  // type name. inherit AssignName(). Use Name_ to access AST via cache lookup. ALternatively, use AST above.
 }
 
 func (t Type_) String() string {
@@ -702,14 +702,13 @@ type InputValueDef struct {
 	Directives_
 }
 
-func (fa *InputValueDef) checkUnresolvedType(unresolved *[]Name_) {
+func (fa *InputValueDef) checkUnresolvedType(unresolved *[]Name_) { //TODO - check this..should it use unresolvedMap?
 	if fa.Type == nil {
 		err := fmt.Errorf("Severe Error - not expected: InputValueDef.Type is not assigned for [%s]", fa.Name_.String())
 		log.Panic(err)
 	}
 	if !fa.Type.IsScalar() && fa.Type.AST == nil {
 		if ast, ok := CacheFetch(fa.Type.Name); !ok {
-			fmt.Println("APPEND to unresolved ", fa.Type.Name)
 			*unresolved = append(*unresolved, fa.Type.Name_)
 		} else {
 			fa.Type.AST = ast
