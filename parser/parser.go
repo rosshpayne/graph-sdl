@@ -148,10 +148,10 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 	if p.hasError() {
 		return program, p.perror
 	}
-	parseErrors := p.perror
+	holdErrors := p.perror
 	p.perror = nil
 	//
-	// validate phase - semantic checks
+	// validate phase - resolve types
 	//
 	for _, v := range program.Statements {
 		p.checkUnresolvedTypes_(v)
@@ -160,10 +160,23 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 			p.perror = nil
 		}
 	}
+	//
+	// Build perror from statement errors
+	//
+	p.perror = holdErrors
+	for _, v := range program.Statements {
+		p.perror = append(p.perror, program.ErrorMap[v.TypeName()]...)
+	}
 	if p.hasError() {
 		return program, p.perror
 	}
+	//
+	// validate phase -
+	//
+	holdErrors = p.perror
+	p.perror = nil
 	for _, v := range program.Statements {
+		// only proceed if zero errors for stmt
 		errS := program.ErrorMap[v.TypeName()]
 		if len(errS) == 0 {
 			switch x := v.(type) {
@@ -183,9 +196,9 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 	//
 	// Build perror from statement errors
 	//
-	p.perror = parseErrors
 	for _, v := range program.Statements {
 		p.perror = append(p.perror, program.ErrorMap[v.TypeName()]...)
+		//program.ErrorMap[v.TypeName()] = nil
 	}
 	//
 	// persist error free statements to db
@@ -195,6 +208,7 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 			ast.Persist(v.TypeName(), v)
 		}
 	}
+
 	return program, p.perror
 }
 
@@ -255,23 +269,32 @@ func (p *Parser) fetchAST(name ast.Name_) ast.TypeDefiner {
 // ===================  checkUnresolvedTypes_  ==========================
 // checkUnresolvedTypes_ is a validation check performed after parsing completed
 //  unresolved Types from parsed types are then checked in DB.
+//  check performed across nested types until all leaf finsihed or unresolved found
 func (p *Parser) checkUnresolvedTypes_(v ast.TypeDefiner) {
 	//returns slice of unresolved types from the statement passed in
 	unresolved := make(ast.UnresolvedMap)
 	v.CheckUnresolvedTypes(unresolved)
-	// resolve unresolved types by checking in DB
-	for k, v_ := range unresolved { // unresolvedMap
-		// we can now search DB as parser can parseStatement to generate AST.
-		ast_ := p.fetchAST(k)
+
+	//  unresolved should only contain non-scalar types known upto that point.
+	for tyName, ty := range unresolved { // unresolvedMap: [name]*Type
+
+		ast_ := p.fetchAST(tyName)
+		// type ENUM values will have nil *Type
 		if ast_ != nil {
-			if v_ != nil {
-				v_.AST = ast_
+			if ty != nil {
+				ty.AST = ast_
+				// if not scalar then check for unresolved types in nested type
+				if !ty.IsScalar() {
+					p.checkUnresolvedTypes_(ast_)
+				}
 			}
+
 		} else {
-			if v_ != nil {
-				p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, v_.Name, v_.AtPosition()))
+			// nil ast_ means not found in db
+			if ty != nil {
+				p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, ty.Name, ty.AtPosition()))
 			} else {
-				p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, k, k.AtPosition()))
+				p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, tyName, tyName.AtPosition()))
 			}
 		}
 	}

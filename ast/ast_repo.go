@@ -16,7 +16,7 @@ type typeCache map[NameValue_]TypeDefiner
 
 type TypeRow struct {
 	PKey string
-	Def  string
+	Stmt string
 }
 
 type PkRow struct {
@@ -58,6 +58,7 @@ func CacheFetch(input NameValue_) (TypeDefiner, bool) { // TODO: use TypeDefiner
 
 func Persist(input NameValue_, ast TypeDefiner) {
 	// save GraphQL statement to Dynamodb
+	fmt.Println("****** Persist: ", input)
 	dbPersist(input, ast)
 }
 
@@ -81,7 +82,8 @@ func fetchInterface(input Name_) (*Interface_, bool, string) {
 
 func dbPersist(input NameValue_, ast TypeDefiner) error {
 	//
-	typeDef := TypeRow{PKey: input.String(), Def: ast.String()}
+
+	typeDef := TypeRow{PKey: input.String(), Stmt: ast.String()}
 	av, err := dynamodbattribute.MarshalMap(typeDef)
 	if err != nil {
 		return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -178,5 +180,5 @@ func DBFetch(name NameValue_) (string, error) {
 		errmsg := "error in unmarshal "
 		return "", fmt.Errorf("%s. UnmarshalMaps:  %s", errmsg, err.Error())
 	}
-	return rec.Def, nil
+	return rec.Stmt, nil
 }

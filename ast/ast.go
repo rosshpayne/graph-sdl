@@ -45,36 +45,36 @@ func (iv *InputValue_) AtPosition() string {
 	return iv.Loc.String()
 }
 
-// dataTypeString - prints the datatype of the input value
-func (iv *InputValue_) dTString() string {
-	switch iv.Value.(type) {
-	case Int_:
-		return token.INT
-	case Float_:
-		return token.FLOAT
-	case Bool_:
-		return token.BOOLEAN
-	case *String_:
-		return token.STRING
-	case *RawString_:
-		return token.STRING
-	case *Scalar_:
-		return token.SCALAR
-	case *EnumValue_:
-		return token.ENUM
-	case *Object_:
-		return token.OBJECT
-	case *Input_:
-		return token.INPUT // input specification used as type in argument
-	case ObjectVals:
-		return token.INPUT // actual instance of input specification used as default value in argument
-	case List_:
-		return "xxList"
-	case Null_:
-		return token.NULL
-	}
-	return "NoTypeFound"
-}
+// // dataTypeString - prints the datatype of the input value
+// func (iv *InputValue_) dTString() string {
+// 	switch iv.Value.(type) {
+// 	case Int_:
+// 		return token.INT
+// 	case Float_:
+// 		return token.FLOAT
+// 	case Bool_:
+// 		return token.BOOLEAN
+// 	case *String_:
+// 		return token.STRING
+// 	case *RawString_:
+// 		return token.STRING
+// 	case *Scalar_:
+// 		return token.SCALAR
+// 	case *EnumValue_:
+// 		return token.ENUM
+// 	case *Object_:
+// 		return token.OBJECT
+// 	case *Input_:
+// 		return token.INPUT // input specification used as type in argument
+// 	case ObjectVals:
+// 		return token.INPUT // actual instance of input specification used as default value in argument
+// 	case List_:
+// 		return "xxList"
+// 	case Null_:
+// 		return token.NULL
+// 	}
+// 	return "xxNoTypeFound"
+// }
 
 // dataTypeString - prints the datatype of the input value
 
@@ -110,9 +110,10 @@ func (iv *InputValue_) isType() TypeFlag_ {
 
 // dataTypeString - prints the datatype of the type specification
 func (t *Type_) isType() TypeFlag_ {
+
 	switch t.Name.String() {
 	//
-	// system scalars
+	// system scalars - note scalars do not have types they are the type.
 	//
 	case token.INT:
 		return INT
@@ -124,8 +125,6 @@ func (t *Type_) isType() TypeFlag_ {
 		return BOOLEAN
 	case token.NULL:
 		return NULL
-	// case token.ID:
-	// 	return ID
 	default:
 		//
 		// non-standard defined types
@@ -144,23 +143,20 @@ func (t *Type_) isType() TypeFlag_ {
 				return UNION
 			case *Scalar_:
 				return SCALAR
-
 			}
+			//
 			return NA
 		}
 	}
 	return NA
 }
 
-func (t *Type_) isScalar() bool {
-
+func (t *Type_) IsScalar() bool {
 	switch t.isType() {
-	case INT, FLOAT, STRING, BOOLEAN:
+	case INT, FLOAT, STRING, BOOLEAN, SCALAR:
 		return true
 	default:
-		if _, ok := t.AST.(*Scalar_); ok {
-			return true
-		}
+		fmt.Println("Return FALSE")
 		return false
 	}
 

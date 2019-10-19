@@ -57,12 +57,13 @@ type UnresolvedMap map[Name_]*Type_
 
 const (
 	//  input value types
-	SCALAR TypeFlag_ = 1 << iota
+	_ TypeFlag_ = 1 << iota
 	INT
 	FLOAT
 	BOOLEAN
 	STRING
 	RAWSTRING
+	SCALAR
 	//
 	NULL
 	OBJECT
@@ -71,6 +72,7 @@ const (
 	LIST
 	INTERFACE
 	UNION
+
 	// error - not available
 	NA
 )
@@ -89,7 +91,7 @@ type EnumRepo_ map[string]struct{}
 
 func IsInputType(t *Type_) bool {
 	// determine inputType from t.Name
-	if t.isScalar() {
+	if t.IsScalar() {
 		return true
 	}
 	switch t.isType() {
@@ -109,11 +111,11 @@ func IsInputType(t *Type_) bool {
 //	Return false
 
 func IsOutputType(t *Type_) bool {
-	if t.isScalar() {
+	if t.IsScalar() {
 		return true
 	}
 	switch t.isType() {
-	case ENUM, OBJECT, INTERFACE, UNION:
+	case ENUM, OBJECT, INTERFACE, UNION, SCALAR:
 		return true
 	default:
 		return false
@@ -609,7 +611,7 @@ func (f *Field_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 	if f.Type == nil {
 		log.Panic(fmt.Errorf("Severe Error - not expected: Field.Type is not assigned for [%s]", f.Name_.String()))
 	}
-	if !f.Type.isScalar() && f.Type.AST == nil {
+	if !f.Type.IsScalar() && f.Type.AST == nil {
 		// check in cache only at this stage.
 		// When control passes back to parser we resolved the unresolved using the DB and parse stmt if found.
 		if ast, ok := CacheFetch(f.Type.Name); !ok {
@@ -676,7 +678,7 @@ func (fa *InputValueDefs) String(encl [2]token.TokenType) string {
 func (fa InputValueDefs) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 
 	for _, v := range fa {
-		if !v.Type.isScalar() && v.Type.AST == nil {
+		if !v.Type.IsScalar() && v.Type.AST == nil {
 			if ast, ok := CacheFetch(v.Type.Name); !ok {
 				unresolved[v.Name_] = v.Type
 				//*unresolved = append(*unresolved, v.Type.Name_)
@@ -705,8 +707,9 @@ func (fa *InputValueDef) checkUnresolvedType(unresolved *[]Name_) {
 		err := fmt.Errorf("Severe Error - not expected: InputValueDef.Type is not assigned for [%s]", fa.Name_.String())
 		log.Panic(err)
 	}
-	if !fa.Type.isScalar() && fa.Type.AST == nil {
+	if !fa.Type.IsScalar() && fa.Type.AST == nil {
 		if ast, ok := CacheFetch(fa.Type.Name); !ok {
+			fmt.Println("APPEND to unresolved ", fa.Type.Name)
 			*unresolved = append(*unresolved, fa.Type.Name_)
 		} else {
 			fa.Type.AST = ast

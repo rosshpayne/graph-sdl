@@ -29,6 +29,10 @@ type Person implements NamedEntity {
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
+	err = ast.DeleteType("NamedEntity")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
 	err = ast.DeleteType("Person")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
