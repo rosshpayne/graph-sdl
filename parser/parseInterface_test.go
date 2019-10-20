@@ -314,7 +314,7 @@ type Business implements NamedEntity & ValuedEntity & NamedEntity {
 	_, errs := p.ParseDocument()
 	//fmt.Println(d.String())
 	for i, v := range errs {
-		if i < 2 {
+		if i < 1 {
 			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
 				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
 			}

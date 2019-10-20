@@ -18,6 +18,7 @@ type Person {
 `
 	var expectedErr [1]string
 	expectedErr[0] = `Expected name identifer got ILLEGAL of "+" at line: 3, column: 12`
+	//expectedErr[1] = `Type "Str" does not exist at line: 3 column: 9`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -26,8 +27,11 @@ type Person {
 		for _, v := range errs {
 			fmt.Println(v.Error())
 		}
-		t.Errorf(fmt.Sprintf(`Not expected - should be 2 errors got %d`, len(errs)))
+		t.Errorf(fmt.Sprintf(`Not expected - should be %d errors got %d`, len(expectedErr), len(errs)))
 	}
+	// for _, v := range errs {
+	// 	fmt.Println("ErrXX: ", v.Error())
+	// }
 	//fmt.Println(d.String())
 
 	for _, got := range errs {
@@ -316,17 +320,31 @@ enum Direction {
 type Person {
 		address: [String]
 		name(arg1: Direction = SOUTH )
+		extra: Int
 	}
 `
+	var expectedErr [4]string
+	expectedErr[0] = `Colon expected got IDENT of extra at line: 11, column: 3`
+	expectedErr[1] = `Expected name identifer got : of ":" at line: 11, column: 8`
+	expectedErr[2] = `Colon expected got Int of Int at line: 11, column: 10`
+	expectedErr[3] = `Type "extra" does not exist at line: 11 column: 3`
+	//	expectedErr[4] = `Type "extra" does not exist at line: 11 column: 3`
 
 	l := lexer.New(input)
 	p := New(l)
-	d, errs := p.ParseDocument()
-	fmt.Println(d.String())
-	if len(errs) != 0 {
-		for _, v := range errs {
-			fmt.Println(v.Error())
-		}
-		t.Errorf(fmt.Sprintf(`Not expected - should be 0 errors got %d`, len(errs)))
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
 	}
+	for i, v := range errs {
+		if i < len(expectedErr) {
+			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
+				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+			}
+		} else {
+			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+	}
+
 }

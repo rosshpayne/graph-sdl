@@ -902,8 +902,8 @@ type Person {
 
 	l := lexer.New(input)
 	p := New(l)
-	d, errs := p.ParseDocument()
-	fmt.Println(d.String())
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
 	if len(errs) != len(expectedErr) {
 		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
 	}

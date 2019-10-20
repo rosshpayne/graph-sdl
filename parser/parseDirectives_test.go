@@ -42,14 +42,17 @@ extend input ExampleInputXYZ @ june (asdf:234)
 
 	l := lexer.New(input)
 	p := New(l)
-	_, errs := p.ParseDocument()
+	d, errs := p.ParseDocument()
+	for _, v := range errs {
+		fmt.Println("Err: ", v.Error())
+	}
 	if len(errs) != len(expectedErr) {
 		for _, v := range errs {
 			fmt.Println(v.Error())
 		}
 		t.Errorf(fmt.Sprintf(`Not expected - should be %d errors got %d`, len(expectedErr), len(errs)))
 	}
-	//fmt.Println(d.String())
+	fmt.Println("outut ", d.String())
 	for i, v := range errs {
 		if i < len(expectedErr) {
 			if v.Error() != expectedErr[i] {

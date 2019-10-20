@@ -30,9 +30,9 @@ type InputValue_ struct {
 
 func (iv *InputValue_) String() string {
 	switch iv.Value.(type) {
-	case *RawString_:
+	case RawString_:
 		return token.RAWSTRINGDEL + iv.Value.String() + token.RAWSTRINGDEL //+ "-" + iv.dTString()
-	case *String_:
+	case String_:
 		return token.STRINGDEL + iv.Value.String() + token.STRINGDEL //+ "-" + iv.dTString() + iv.Loc.String()
 	}
 	if iv.Value == nil { // interface is not populated with concrete value
@@ -86,9 +86,9 @@ func (iv *InputValue_) isType() TypeFlag_ {
 		return FLOAT
 	case Bool_:
 		return BOOLEAN
-	case *String_:
+	case String_:
 		return STRING
-	case *RawString_:
+	case RawString_:
 		return STRING
 	case *Scalar_:
 		return SCALAR
@@ -163,7 +163,6 @@ func (t *Type_) IsScalar() bool {
 	case INT, FLOAT, STRING, BOOLEAN, SCALAR:
 		return true
 	default:
-		fmt.Println("Return FALSE")
 		return false
 	}
 
@@ -199,16 +198,16 @@ func (f Float_) String() string {
 
 type String_ string
 
-func (s *String_) ValueNode() {}
-func (s *String_) String() string {
-	return string(*s)
+func (s String_) ValueNode() {}
+func (s String_) String() string {
+	return string(s)
 }
 
 type RawString_ string
 
-func (s *RawString_) ValueNode() {}
-func (s *RawString_) String() string {
-	return string(*s)
+func (s RawString_) ValueNode() {}
+func (s RawString_) String() string {
+	return string(s)
 }
 
 type Bool_ string //bool

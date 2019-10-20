@@ -115,70 +115,101 @@ func (p *Parser) nextToken(s ...string) {
 
 // ==================== Start =========================
 
-func (p *Parser) ParseDocument() (*ast.Document, []error) {
-	program := &ast.Document{}
+func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
+	var holderr []error
+	program = &ast.Document{}
 	program.Statements = []ast.TypeDefiner{} // slice is initialised  with no elements - each element represents an interface value of type ast.TypeDefiner
 	program.StatementsMap = make(map[ast.NameValue_]ast.TypeDefiner)
 	program.ErrorMap = make(map[ast.NameValue_][]error)
+	defer func() {
+		//
+		//p.perror = nil
+		fmt.Println(">> Defer....")
+		p.perror = append(p.perror, holderr...)
+		for _, v := range program.Statements {
+			p.perror = append(p.perror, program.ErrorMap[v.TypeName()]...)
+		}
+		// persist error free statements to db
+		for _, v := range program.Statements {
+			if len(program.ErrorMap[v.TypeName()]) == 0 {
+				ast.Persist(v.TypeName(), v)
+			}
+		}
+		errs = p.perror
+	}()
+
 	//
 	// parse phase - 	build AST from GraphQL SDL script
 	//
 	for p.curToken.Type != token.EOF {
 		StmtAST := p.parseStatement()
-		if p.hasError() {
-			break
+		for _, v := range p.perror {
+			fmt.Println("Error : ", v.Error())
 		}
-
+		// handle any abort error
+		if p.hasError() {
+			return program, p.perror
+		}
+		for _, v := range p.perror {
+			fmt.Println("Error x : ", v.Error())
+		}
 		if StmtAST != nil {
-			ast.Add2Cache(StmtAST.TypeName(), StmtAST)
-			//
 			program.Statements = append(program.Statements, StmtAST)
 
 			name := StmtAST.TypeName()
 			program.StatementsMap[name] = StmtAST
 			program.ErrorMap[name] = p.perror
+			if len(p.perror) == 0 {
+				ast.Add2Cache(StmtAST.TypeName(), StmtAST)
+			}
+			p.perror = nil
+
+		} else {
+			// for no statements hold errors
+			holderr = p.perror
 			p.perror = nil
 		}
 		if p.extend {
 			p.extend = false
 		}
-
 	}
-	// if error limit reached or abort set not worth while validating
-	if p.hasError() {
-		return program, p.perror
-	}
-	holdErrors := p.perror
-	p.perror = nil
+	//	p.perror = nil
 	//
 	// validate phase 1 - resolve types
 	//
 	for _, v := range program.Statements {
 		p.checkUnresolvedTypes_(v)
 		if len(p.perror) > 0 {
-			program.ErrorMap[v.TypeName()] = p.perror
+			program.ErrorMap[v.TypeName()] = append(program.ErrorMap[v.TypeName()], p.perror...)
 			p.perror = nil
 		}
 	}
+	// for _, v := range program.ErrorMap {
+	// 	for _, x := range v {
+	// 		fmt.Println("xErr: ", x.Error())
+	// 	}
+	// }
 	//
 	// Build perror from statement errors
 	//
-	p.perror = holdErrors
+	p.perror = nil
 	for _, v := range program.Statements {
 		p.perror = append(p.perror, program.ErrorMap[v.TypeName()]...)
 	}
+	for _, v := range p.perror {
+		fmt.Println("Error 2: ", v.Error())
+	}
 	if p.hasError() {
+		p.perror = nil
 		return program, p.perror
 	}
 	//
 	// validate phase 2
 	//
-	holdErrors = p.perror
 	p.perror = nil
 	for _, v := range program.Statements {
 		// only proceed if zero errors for stmt
-		errS := program.ErrorMap[v.TypeName()]
-		if len(errS) == 0 {
+		if len(program.ErrorMap[v.TypeName()]) == 0 {
 			switch x := v.(type) {
 			case *ast.Object_:
 				x.CheckIsOutputType(&p.perror)
@@ -189,33 +220,21 @@ func (p *Parser) ParseDocument() (*ast.Document, []error) {
 			case *ast.Interface_:
 			}
 		}
-		errS = append(errS, p.perror...)
-		program.ErrorMap[v.TypeName()] = errS
+		program.ErrorMap[v.TypeName()] = append(program.ErrorMap[v.TypeName()], p.perror...)
 		p.perror = nil
 	}
-	//
-	// persist error free statements to db
-	//
-	for _, v := range program.Statements {
-		if len(program.ErrorMap[v.TypeName()]) == 0 {
-			ast.Persist(v.TypeName(), v)
-		}
-	}
-	//
-	// Build perror from statement errors
-	//
-	for _, v := range program.Statements {
-		p.perror = append(p.perror, program.ErrorMap[v.TypeName()]...)
-	}
+	fmt.Println("Got here..")
 	return program, p.perror
 }
+
+// ================ parseStatement ==========================
 
 // parseStatement takes predefined parser routine and applies it to a valid statement
 func (p *Parser) parseStatement() ast.TypeDefiner {
 	p.skipComment()
 	if p.curToken.Type == token.EXTEND {
 		p.extend = true
-		p.nextToken() // read over extend
+		p.nextToken("read ver...") // read over extend
 	}
 	stmtType := p.curToken.Literal
 	if f, ok := p.parseFns[p.curToken.Type]; ok {
@@ -317,7 +336,7 @@ func (p *Parser) ParseObjectType(op string) ast.TypeDefiner {
 		return obj
 	} else {
 		// return original AST associated with the extend Name.
-		obj := p.parseExtendName()
+		obj, name := p.parseExtendName()
 		if obj != nil {
 			if inp, ok := obj.(*ast.Object_); !ok {
 				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
@@ -334,7 +353,7 @@ func (p *Parser) ParseObjectType(op string) ast.TypeDefiner {
 			}
 		} else {
 			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
-			p.abort = true
+			return &ast.Object_{Name_: name}
 		}
 	}
 	return nil
@@ -358,7 +377,7 @@ func (p *Parser) ParseEnumType(op string) ast.TypeDefiner {
 		return obj
 	} else {
 		// return original AST associated with the extend Name.
-		obj := p.parseExtendName()
+		obj, name := p.parseExtendName()
 		if obj != nil {
 			if inp, ok := obj.(*ast.Enum_); !ok {
 				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
@@ -375,7 +394,7 @@ func (p *Parser) ParseEnumType(op string) ast.TypeDefiner {
 			}
 		} else {
 			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
-			p.abort = true
+			return &ast.Enum_{Name_: name}
 		}
 	}
 	return nil
@@ -394,7 +413,7 @@ func (p *Parser) ParseInterfaceType(op string) ast.TypeDefiner {
 		return obj
 	} else {
 		// return original AST associated with the extend Name.
-		obj := p.parseExtendName()
+		obj, name := p.parseExtendName()
 		if obj != nil {
 			if inp, ok := obj.(*ast.Interface_); !ok {
 				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
@@ -411,7 +430,7 @@ func (p *Parser) ParseInterfaceType(op string) ast.TypeDefiner {
 			}
 		} else {
 			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
-			p.abort = true
+			return &ast.Interface_{Name_: name}
 		}
 	}
 	return nil
@@ -433,7 +452,7 @@ func (p *Parser) ParseUnionType(op string) ast.TypeDefiner {
 		return obj
 	} else {
 		// return original AST associated with the extend Name.
-		obj := p.parseExtendName()
+		obj, name := p.parseExtendName()
 		if obj != nil {
 			if inp, ok := obj.(*ast.Union_); !ok {
 				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
@@ -450,13 +469,13 @@ func (p *Parser) ParseUnionType(op string) ast.TypeDefiner {
 			}
 		} else {
 			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
-			p.abort = true
+			return &ast.Union_{Name_: name}
 		}
 	}
 	return nil
 }
 
-// ====================== Input ===============================
+//====================== Input ===============================
 // InputObjectTypeDefinition
 //		Description-opt	input	Name	DirectivesConst-opt	InputFieldsDefinition-opt
 func (p *Parser) ParseInputValueType(op string) ast.TypeDefiner {
@@ -470,7 +489,7 @@ func (p *Parser) ParseInputValueType(op string) ast.TypeDefiner {
 		return inp
 	} else {
 		// return original AST associated with the extend Name.
-		obj := p.parseExtendName()
+		obj, name := p.parseExtendName()
 		if obj != nil {
 			if inp, ok := obj.(*ast.Input_); !ok {
 				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
@@ -488,6 +507,7 @@ func (p *Parser) ParseInputValueType(op string) ast.TypeDefiner {
 		} else {
 			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
 			p.abort = true
+			return &ast.Input_{Name_: name}
 		}
 	}
 	return nil
@@ -508,7 +528,7 @@ func (p *Parser) ParseScalar(op string) ast.TypeDefiner {
 		return inp
 	} else {
 		// return original AST associated with the extend Name.
-		obj := p.parseExtendName()
+		obj, name := p.parseExtendName()
 		if obj != nil {
 			if inp, ok := obj.(*ast.Input_); !ok {
 				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
@@ -525,7 +545,7 @@ func (p *Parser) ParseScalar(op string) ast.TypeDefiner {
 			}
 		} else {
 			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
-			p.abort = true
+			return &ast.Scalar_{Name_: name}
 		}
 	}
 	return nil
@@ -578,10 +598,10 @@ func (p *Parser) parseName(f ast.NameAssigner) *Parser {
 
 // ==================== parseExtendName ===============================
 // parseExtendName will consume the type name to be extended. Returns the type's AST.
-func (p *Parser) parseExtendName() ast.TypeDefiner {
-	if p.hasError() {
-		return nil
-	}
+func (p *Parser) parseExtendName() (ast.TypeDefiner, ast.Name_) {
+	// if p.hasError() {
+	// 	return nil,
+	// }
 	var extName string
 	// does name entity exist
 	if p.curToken.Type == token.IDENT {
@@ -597,7 +617,7 @@ func (p *Parser) parseExtendName() ast.TypeDefiner {
 	if ast != nil {
 		p.nextToken() // read over name
 	}
-	return ast
+	return ast, name_
 }
 
 func (p *Parser) parseEnumValues(enum *ast.Enum_, optional ...bool) *Parser {
@@ -828,6 +848,8 @@ func (p *Parser) parseType(f ast.AssignTyper) *Parser {
 	}
 	if p.curToken.Type == token.COLON {
 		p.nextToken() // read over :
+	} else {
+		p.addErr(fmt.Sprintf("Colon expected got %s of %s", p.curToken.Type, p.curToken.Literal))
 	}
 	if !p.curToken.IsScalarType { // ie not a Int, Float, String, Boolean, ID, <namedType>
 		if !(p.curToken.Type == token.IDENT || p.curToken.Type == token.LBRACKET) {
@@ -868,7 +890,7 @@ func (p *Parser) parseType(f ast.AssignTyper) *Parser {
 		nameLoc = p.Loc()
 		name = p.curToken.Literal // actual type name, Int, Float, Pet ...
 		name_ := ast.Name_{Name: ast.NameValue_(name), Loc: nameLoc}
-		// System ScalarTypes are defined by the Type_.Name_, Non-system Scalar and non-scalar are defined by the AST.
+		//System ScalarTypes are defined by the Type_.Name_, Non-system Scalar and non-scalar are defined by the AST.
 		if !p.curToken.IsScalarType {
 			ast_ = p.fetchAST(name_)
 		}
@@ -893,9 +915,8 @@ func (p *Parser) parseType(f ast.AssignTyper) *Parser {
 			p.addErr("close ] does not match opening [ in type specification")
 			return p
 		}
+
 	default:
-		// typeName
-		//if p.curToken.IsScalarType {
 		if p.curToken.Type == token.IDENT || p.curToken.IsScalarType {
 			name = p.curToken.Literal
 			if p.peekToken.Type == token.BANG {
@@ -1122,11 +1143,11 @@ func (p *Parser) parseInputValue_(iv ...*ast.InputValueDef) *ast.InputValue_ {
 		return &iv
 	case token.STRING:
 		f := ast.String_(p.curToken.Literal)
-		iv := ast.InputValue_{Value: &f, Loc: p.Loc()}
+		iv := ast.InputValue_{Value: f, Loc: p.Loc()}
 		return &iv
 	case token.RAWSTRING:
 		f := ast.RawString_(p.curToken.Literal)
-		iv := ast.InputValue_{Value: &f, Loc: p.Loc()}
+		iv := ast.InputValue_{Value: f, Loc: p.Loc()}
 		return &iv
 	case token.TRUE, token.FALSE: //token.BOOLEAN:
 		b := ast.Bool_(p.curToken.Literal)
