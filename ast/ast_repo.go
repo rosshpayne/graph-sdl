@@ -12,7 +12,7 @@ import (
 )
 
 // cache returns the AST type for a given TypeName
-type typeCache map[NameValue_]TypeDefiner
+type typeCache map[NameValue_]GQLTypeProvider
 
 type TypeRow struct {
 	PKey string
@@ -44,11 +44,11 @@ func init() {
 
 // Fetch - when type is in cache it is said to be "resolved".
 //  unresolved types are therefore not in the typeCaches
-// func Fetch(input NameValue_) (TypeDefiner, bool) {
+// func Fetch(input NameValue_) (GQLTypeProvider, bool) {
 // 	return CacheFetch(input)
 // }
 
-func CacheFetch(input NameValue_) (TypeDefiner, bool) { // TODO: use TypeDefiner instead of TypeDefiner??
+func CacheFetch(input NameValue_) (GQLTypeProvider, bool) { // TODO: use GQLTypeProvider instead of GQLTypeProvider?
 	if ast, ok := typeCache_[input]; !ok {
 		return nil, false
 	} else {
@@ -56,13 +56,13 @@ func CacheFetch(input NameValue_) (TypeDefiner, bool) { // TODO: use TypeDefiner
 	}
 }
 
-func Persist(input NameValue_, ast TypeDefiner) {
+func Persist(input NameValue_, ast GQLTypeProvider) {
 	// save GraphQL statement to Dynamodb
 	fmt.Println("****** Persist: ", input)
 	dbPersist(input, ast)
 }
 
-func Add2Cache(input NameValue_, obj TypeDefiner) {
+func Add2Cache(input NameValue_, obj GQLTypeProvider) {
 	fmt.Println("** Add2Cache ", input)
 	typeCache_[input] = obj
 }
@@ -80,7 +80,7 @@ func fetchInterface(input Name_) (*Interface_, bool, string) {
 
 }
 
-func dbPersist(input NameValue_, ast TypeDefiner) error {
+func dbPersist(input NameValue_, ast GQLTypeProvider) error {
 	//
 
 	typeDef := TypeRow{PKey: input.String(), Stmt: ast.String()}
@@ -116,8 +116,8 @@ func DeleteType(input string) error {
 	return nil
 }
 
-func ListCache() []TypeDefiner {
-	l := make([]TypeDefiner, len(typeCache_), len(typeCache_))
+func ListCache() []GQLTypeProvider {
+	l := make([]GQLTypeProvider, len(typeCache_), len(typeCache_))
 	i := 0
 	for _, v := range typeCache_ {
 		l[i] = v

@@ -10,9 +10,10 @@ import (
 	"github.com/graph-sdl/token"
 )
 
-// =================  Valuer =================================
+// =================  InputValueProvider =================================
 
-type Valuer interface {
+//  InputValueProvider represents the Graph QL Input Value types (see parseInputValue:) &Int_, &Float_,...,&Enum_, &List_, &ObjectVals
+type InputValueProvider interface {
 	ValueNode()
 	String() string
 	//	Exists() bool
@@ -22,18 +23,23 @@ type Valuer interface {
 
 // input values used for "default values" in arguments in type and field arguments and input objecs.
 type InputValue_ struct {
-	Value Valuer //  IV:type|value = assert type to determine InputValue_'s type via dTString
+	Value InputValueProvider // Important: this is an Interface (embedded value|type), so the type of the input value is defined in the interface value.
 	Loc   *Loc_
 }
 
 //func (iv *InputValue_) InputValueNode() {}
 
 func (iv *InputValue_) String() string {
-	switch iv.Value.(type) {
+	switch x := iv.Value.(type) {
 	case RawString_:
 		return token.RAWSTRINGDEL + iv.Value.String() + token.RAWSTRINGDEL //+ "-" + iv.dTString()
 	case String_:
 		return token.STRINGDEL + iv.Value.String() + token.STRINGDEL //+ "-" + iv.dTString() + iv.Loc.String()
+	case *Scalar_:
+		switch x.Name {
+		case "Time":
+			return fmt.Sprintf("%q", x.TimeV.String())
+		}
 	}
 	if iv.Value == nil { // interface is not populated with concrete value
 		return ""
@@ -132,6 +138,8 @@ func (t *Type_) isType() TypeFlag_ {
 		return NULL
 	// case token.ID:
 	// 	return ID
+	// case token.Time: // could implement new scalar time at this level or embedded in Scalar_ like user defined scales would be.
+	// return TIME
 	default:
 		//
 		// non-standard defined types
@@ -144,6 +152,8 @@ func (t *Type_) isType() TypeFlag_ {
 				return INTERFACE
 			case *Enum_:
 				return ENUM
+			// case *EnumValue_:
+			// 	return ENUMVALUE
 			case *Input_:
 				return INPUT
 			case *Union_:
@@ -166,6 +176,10 @@ func (t *Type_) IsScalar() bool {
 		return false
 	}
 
+}
+
+func (t *Type_) IsType() string {
+	return t.isType().String()
 }
 
 // ================= Input Value scalar datatypes ===================
@@ -278,12 +292,12 @@ func (l List_) Exists() bool {
 // 	Directives_
 // }
 // type InputValue_ struct {
-// 	Value Valuer //  IV:type|value = assert type to determine InputValue_'s type
+// 	Value InputValueProvider //  IV:type|value = assert type to determine InputValue_'s type
 // 	Loc   *Loc_
 // // }
 // type Type_ struct {
 // 	Constraint byte          // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
-// 	AST        TypeDefiner // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
+// 	AST        GQLTypeProvider // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
 // 	Depth      int           // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
 // 	Name_                    // type name. inherit AssignName()
 // }
@@ -435,8 +449,8 @@ func (n *Name_) AssignName(s string, loc *Loc_, errS *[]error) {
 // ======== Document ===================================
 
 type Document struct {
-	Statements    []TypeDefiner
-	StatementsMap map[NameValue_]TypeDefiner
+	Statements    []GQLTypeProvider
+	StatementsMap map[NameValue_]GQLTypeProvider
 	ErrorMap      map[NameValue_][]error
 }
 
@@ -452,7 +466,8 @@ func (d Document) String() string {
 
 // ======== type statements ==========
 
-type TypeDefiner interface {
+// GQLTypeProvider reperesents all the GraphQL types, SCALAR (user defined), OBJECTS, UNIONS, INTERFACES, ENUMS, INPUTOBJECTS, LISTS
+type GQLTypeProvider interface {
 	TypeSystemNode()
 	TypeName() NameValue_
 	CheckUnresolvedTypes(unresolved UnresolvedMap) // while not all Types contain nested types that need to be resolved e.g scalar must still include this method

@@ -50,7 +50,7 @@ func (tf TypeFlag_) String() string {
 	case NULL:
 		return token.NULL
 	}
-	return "NoTypeFound"
+	return "NoTypeFound "
 }
 
 type UnresolvedMap map[Name_]*Type_
@@ -68,6 +68,7 @@ const (
 	NULL
 	OBJECT
 	ENUM
+	ENUMVALUE
 	INPUT
 	LIST
 	INTERFACE
@@ -78,8 +79,6 @@ const (
 )
 
 // ============== maps =============================
-
-type EnumRepo_ map[string]struct{}
 
 // IsInputType(type)
 //	 If type is a List type or Non‐Null type:
@@ -125,10 +124,10 @@ func IsOutputType(t *Type_) bool {
 // ============================ Type_ ======================
 
 type Type_ struct {
-	Constraint byte        // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
-	AST        TypeDefiner // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
-	Depth      int         // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
-	Name_                  // type name. inherit AssignName(). Use Name_ to access AST via cache lookup. ALternatively, use AST above.
+	Constraint byte            // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
+	AST        GQLTypeProvider // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
+	Depth      int             // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
+	Name_                      // type name. inherit AssignName(). Use Name_ to access AST via cache lookup. ALternatively, use AST above.
 }
 
 func (t Type_) String() string {
@@ -436,12 +435,12 @@ func (f *Object_) CheckIsInputType(err *[]error) {
 }
 
 // type InputValue_ struct {
-// 	Value Valuer //  IV:type|value = assert type to determine InputValue_'s type
+// 	Value InputValueProvider //  IV:type|value = assert type to determine InputValue_'s type
 // 	Loc   *Loc_
 // // }
 // type Type_ struct {
 // 	Constraint byte          // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
-// 	AST        TypeDefiner // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
+// 	AST        GQLTypeProvider // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
 // 	Depth      int           // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
 // 	Name_                    // type name. inherit AssignName()
 // }
@@ -473,14 +472,15 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 		// 	Directives_
 		// }
 		// type InputValue_ struct {
-		// 	Value ValueI //  IV:type|value = assert type to determine InputValue_'s type via dTString
+		// 	Value InputValueProvider
 		// 	Loc   *Loc_
 		// }
-		// a.Type is required type -  check against a.DefaultVal.Value.isType()
+		// a.Type is argument type -  check it against a.DefaultVal.Value.isType()
 		for _, a := range v.ArgumentDefs { // go thru each of the argument field objects [] {} scalar
 
 			if a.DefaultVal != nil {
 
+				// what type is the default value
 				switch defvalObj := a.DefaultVal.Value.(type) {
 
 				case List_: // [ "ads", "wer" ]
@@ -495,10 +495,21 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 					if maxd != a.Type.Depth {
 						*err = append(*err, fmt.Errorf(`Argument "%s", nested List type depth different reqired %d, got %d %s`, a.Name_, a.Type.Depth, maxd, a.DefaultVal.AtPosition()))
 					}
-					//
+
 				case ObjectVals:
 					// { x: "ads", y: 234 }
 					defvalObj.ValidateInputObjectValues(a.Type, err)
+
+				case *EnumValue_:
+					// EAST WEST NORHT SOUTH
+					if a.Type.isType() != ENUM {
+						*err = append(*err, fmt.Errorf(`"%s" is an enum like value but the argument type "%s" is not an Enum type %s`, defvalObj.Name, a.Type.Name_, a.DefaultVal.AtPosition()))
+					} else {
+						defvalObj.ValidateInputEnumValues(a.Type, err)
+					}
+
+				case *Scalar_:
+					// Handled in default. Default values are not originally held as String_ and then coerced to the relevant Scalar_ type.
 
 				default:
 					if a.DefaultVal.isType() == NULL {
@@ -507,7 +518,17 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 						}
 					} else {
 						// check types match
-						if a.DefaultVal.isType() != a.Type.isType() {
+						if a.Type.isType() == SCALAR {
+							// try coercing default value to the appropriate scalar
+							if s, ok := a.Type.AST.(ScalarProvider); ok { // assert interface supported - normal assert type (*Scalar_) would also work just as well because there is only 1 scalar type really
+								if civ, cerr := s.Coerce(a.DefaultVal.Value); cerr != nil {
+									*err = append(*err, cerr)
+								} else {
+									a.DefaultVal.Value = civ
+								}
+							}
+
+						} else if a.DefaultVal.isType() != a.Type.isType() {
 							*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, a.Type.isType(), a.DefaultVal.isType(), a.DefaultVal.AtPosition()))
 						}
 					}
@@ -680,7 +701,7 @@ func (fa InputValueDefs) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 	for _, v := range fa {
 		if !v.Type.IsScalar() && v.Type.AST == nil {
 			if ast, ok := CacheFetch(v.Type.Name); !ok {
-				unresolved[v.Name_] = v.Type
+				unresolved[v.Type.Name_] = v.Type
 				//*unresolved = append(*unresolved, v.Type.Name_)
 			} else {
 				v.Type.AST = ast
@@ -791,8 +812,34 @@ func (e *EnumValue_) AssignName(s string, l *Loc_, unresolved *[]error) {
 func (e *EnumValue_) String() string {
 	var s strings.Builder
 	s.WriteString(e.Name_.String())
-	s.WriteString(" " + e.Directives_.String())
+	if e.Directives != nil {
+		s.WriteString(" " + e.Directives_.String())
+	}
 	return s.String()
+}
+
+func (e *EnumValue_) ValidateInputEnumValues(a *Type_, err *[]error) {
+	// get Enum type and compare it against the instance value
+	if ast_, ok := CacheFetch(a.Name); ok {
+		switch enum_ := ast_.(type) {
+		case *Enum_:
+			found := false
+			for _, v := range enum_.Values {
+				if v.Name_.String() == e.Name_.String() {
+					found = true
+					break
+				}
+			}
+			if !found {
+				*err = append(*err, fmt.Errorf(` "%s" is not a member of type Enum %s %s`, e.Name_, a.Name, e.Name_.AtPosition()))
+			}
+		default:
+			*err = append(*err, fmt.Errorf(`Type "%s" is not an ENUM but argument value "%s" is an ENUM value `, a.Name, e.Name_, e.Name_.AtPosition()))
+		}
+
+	} else {
+		*err = append(*err, fmt.Errorf(`Enum type "%s" is not found in cache`, a.Name, e.Name_.AtPosition()))
+	}
 }
 
 // ======================  Schema =========================
@@ -907,12 +954,20 @@ func (u *Input_) String() string {
 	return s.String()
 }
 
+// ======================  ScalarProvider =========================
+
+type ScalarProvider interface {
+	GQLTypeProvider
+	Coerce(i InputValueProvider) (InputValueProvider, error)
+}
+
 // ======================  Scalar_ =========================
 // ScalarTypeDefinition:
 //		Description-opt	input	Name	DirectivesConst-opt	InputFieldsDefinition-opt
 type Scalar_ struct {
 	Desc string
-	Name_
+	Name string // no need to hold Location as its stored in InputValue, parent of this object
+	Loc  *Loc_
 	Directives_
 	Data string
 	//
@@ -928,13 +983,67 @@ func (e *Scalar_) ValueNode()                                    {}
 func (e *Scalar_) CheckUnresolvedTypes(unresolved UnresolvedMap) {}
 
 func (i *Scalar_) TypeName() NameValue_ {
-	return i.Name
+	return NameValue_(i.Name)
+}
+
+func (e *Scalar_) AssignName(s string, loc *Loc_, errS *[]error) {
+	validateName(s, errS, loc)
+	e.Name = s
+	e.Loc = loc
 }
 
 func (u *Scalar_) String() string {
 	var s strings.Builder
 	s.WriteString("\nscalar ")
-	s.WriteString(u.Name.String())
+	s.WriteString(u.Name)
 	s.WriteString(" " + u.Directives_.String())
 	return s.String()
+}
+
+// func (s *Scalar_) Print() string {
+// 	switch s.Name {
+// 	case "Time":
+// 		// print time
+// 		// print ?
+// 		return fmt.Errorf("%s must be a string to be coerced to Time", s.Name)
+// 	default:
+// 		return fmt.Errorf("%s is not a Scalar ", s.Name)
+// 	}
+// }
+
+func (s *Scalar_) Coerce(input InputValueProvider) (InputValueProvider, error) {
+
+	fmt.Printf(" %#v, s.Name  %s = \n", s, s.Name)
+	switch s.Name {
+
+	case "Time":
+		// coerce input to scalar Time
+		switch in := input.(type) {
+		case String_:
+			// try to convert string input value to a scalar (time) iv
+			const longForm = "Jan 2, 2006 at 3:04pm (MST)"
+			if t, err := time.Parse(longForm, in.String()); err != nil {
+				const shortForm = "2006-Jan-02"
+				if t, err = time.Parse(shortForm, in.String()); err != nil {
+					if t, err = time.Parse(time.RFC3339, in.String()); err != nil {
+						return nil, fmt.Errorf("Error in parsing of Time value ")
+					}
+				}
+			} else {
+				// convert input value from string to time
+
+				b := &Scalar_{Name: "Time", Data: in.String(), TimeV: t}
+				fmt.Printf("*** Cource input from String_ b %#v, s.Name  %s = \n", b, b.Name)
+				return b, nil
+			}
+		}
+		// if t_, ok := s.(RawString_); ok {
+		// 	// convert string to time
+		// 	return tc_, nil
+		// }
+		return nil, fmt.Errorf("%s must be a string to be coerced to Time", s.Name)
+
+	default:
+		return nil, fmt.Errorf("%s is not a Scalar ", s.Name)
+	}
 }

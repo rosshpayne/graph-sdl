@@ -8,6 +8,46 @@ import (
 	"github.com/graph-sdl/lexer"
 )
 
+func TestBadTypeName(t *testing.T) {
+
+	input := `
+type Person {
+  name: Str+ing!
+  address: String
+  Altitude: Float
+}
+`
+	var expectedErr [1]string
+	expectedErr[0] = `Expected name identifer got ILLEGAL of "+" at line: 3, column: 12`
+	//expectedErr[1] = `Type "Str" does not exist at line: 3 column: 9`
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	if len(errs) != len(expectedErr) {
+		for _, v := range errs {
+			fmt.Println(v.Error())
+		}
+		t.Errorf(fmt.Sprintf(`Not expected - should be %d errors got %d`, len(expectedErr), len(errs)))
+	}
+	// for _, v := range errs {
+	// 	fmt.Println("ErrXX: ", v.Error())
+	// }
+	//fmt.Println(d.String())
+
+	for _, got := range errs {
+		var found bool
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Not expected Error =[%q]`, got.Error())
+		}
+	}
+}
+
 func TestFieldArgument1(t *testing.T) {
 
 	input := `type Person {

@@ -12,7 +12,7 @@ import (
 )
 
 type (
-	parseFn func(op string) ast.TypeDefiner
+	parseFn func(op string) ast.GQLTypeProvider
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 )
 
 var (
-	enumRepo      ast.EnumRepo_
+	//	enumRepo      ast.EnumRepo_
 	typeNotExists map[ast.NameValue_]bool
 )
 
@@ -60,7 +60,7 @@ func New(l *lexer.Lexer) *Parser {
 // repository of all types defined in the graph
 
 func init() {
-	enumRepo = make(ast.EnumRepo_)
+	//	enumRepo = make(ast.EnumRepo_)
 	typeNotExists = make(map[ast.NameValue_]bool)
 }
 
@@ -118,13 +118,13 @@ func (p *Parser) nextToken(s ...string) {
 func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 	var holderr []error
 	program = &ast.Document{}
-	program.Statements = []ast.TypeDefiner{} // slice is initialised  with no elements - each element represents an interface value of type ast.TypeDefiner
-	program.StatementsMap = make(map[ast.NameValue_]ast.TypeDefiner)
+	program.Statements = []ast.GQLTypeProvider{} // slice is initialised  with no elements - each element represents an interface value of type ast.GQLTypeProvider
+	program.StatementsMap = make(map[ast.NameValue_]ast.GQLTypeProvider)
 	program.ErrorMap = make(map[ast.NameValue_][]error)
+
 	defer func() {
 		//
 		//p.perror = nil
-		fmt.Println(">> Defer....")
 		p.perror = append(p.perror, holderr...)
 		for _, v := range program.Statements {
 			p.perror = append(p.perror, program.ErrorMap[v.TypeName()]...)
@@ -132,6 +132,8 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 		// persist error free statements to db
 		for _, v := range program.Statements {
 			if len(program.ErrorMap[v.TypeName()]) == 0 {
+				// TODO - what if another type by that name exists
+				//  auto overrite or raise an error
 				ast.Persist(v.TypeName(), v)
 			}
 		}
@@ -143,15 +145,10 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 	//
 	for p.curToken.Type != token.EOF {
 		StmtAST := p.parseStatement()
-		for _, v := range p.perror {
-			fmt.Println("Error : ", v.Error())
-		}
+
 		// handle any abort error
 		if p.hasError() {
 			return program, p.perror
-		}
-		for _, v := range p.perror {
-			fmt.Println("Error x : ", v.Error())
 		}
 		if StmtAST != nil {
 			program.Statements = append(program.Statements, StmtAST)
@@ -173,7 +170,6 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 			p.extend = false
 		}
 	}
-	//	p.perror = nil
 	//
 	// validate phase 1 - resolve types
 	//
@@ -184,20 +180,12 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 			p.perror = nil
 		}
 	}
-	// for _, v := range program.ErrorMap {
-	// 	for _, x := range v {
-	// 		fmt.Println("xErr: ", x.Error())
-	// 	}
-	// }
 	//
-	// Build perror from statement errors
+	// Build perror from statement errors to use in hasError() counting
 	//
-	p.perror = nil
+	p.perror = holderr
 	for _, v := range program.Statements {
 		p.perror = append(p.perror, program.ErrorMap[v.TypeName()]...)
-	}
-	for _, v := range p.perror {
-		fmt.Println("Error 2: ", v.Error())
 	}
 	if p.hasError() {
 		p.perror = nil
@@ -223,14 +211,20 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 		program.ErrorMap[v.TypeName()] = append(program.ErrorMap[v.TypeName()], p.perror...)
 		p.perror = nil
 	}
-	fmt.Println("Got here..")
+
 	return program, p.perror
 }
+
+// for _, v := range program.ErrorMap {
+// 	for _, x := range v {
+// 		fmt.Println("xErr: ", x.Error())
+// 	}
+// }
 
 // ================ parseStatement ==========================
 
 // parseStatement takes predefined parser routine and applies it to a valid statement
-func (p *Parser) parseStatement() ast.TypeDefiner {
+func (p *Parser) parseStatement() ast.GQLTypeProvider {
 	p.skipComment()
 	if p.curToken.Type == token.EXTEND {
 		p.extend = true
@@ -251,9 +245,9 @@ func (p *Parser) parseStatement() ast.TypeDefiner {
 //  As each statement is parsed its types are added to the cache
 //  During validation phase each type is checked for existence using this func.
 //  if not in cache then looks at DB for types that have been predefined.
-func (p *Parser) fetchAST(name ast.Name_) ast.TypeDefiner {
+func (p *Parser) fetchAST(name ast.Name_) ast.GQLTypeProvider {
 	var (
-		ast_ ast.TypeDefiner
+		ast_ ast.GQLTypeProvider
 		ok   bool
 	)
 	name_ := name.Name
@@ -287,14 +281,13 @@ func (p *Parser) fetchAST(name ast.Name_) ast.TypeDefiner {
 // checkUnresolvedTypes_ is a validation check performed after parsing completed
 //  unresolved Types from parsed types are then checked in DB.
 //  check performed across nested types until all leaf finsihed or unresolved found
-func (p *Parser) checkUnresolvedTypes_(v ast.TypeDefiner) {
+func (p *Parser) checkUnresolvedTypes_(v ast.GQLTypeProvider) {
 	//returns slice of unresolved types from the statement passed in
 	unresolved := make(ast.UnresolvedMap)
 	v.CheckUnresolvedTypes(unresolved)
 
 	//  unresolved should only contain non-scalar types known upto that point.
 	for tyName, ty := range unresolved { // unresolvedMap: [name]*Type
-
 		ast_ := p.fetchAST(tyName)
 		// type ENUM values will have nil *Type
 		if ast_ != nil {
@@ -325,7 +318,7 @@ var opt bool = true // is optional
 //		{FieldDefinition-list}
 //         FieldDefinition:
 //			Description-opt Name ArgumentsDefinition- opt : Type Directives-Con
-func (p *Parser) ParseObjectType(op string) ast.TypeDefiner {
+func (p *Parser) ParseObjectType(op string) ast.GQLTypeProvider {
 	// Types: query, mutation, subscription
 	p.nextToken() // read over type
 	if !p.extend {
@@ -367,7 +360,7 @@ func (p *Parser) ParseObjectType(op string) ast.TypeDefiner {
 //		{EnumValueDefinition-list}
 // EnumValueDefinition
 //		Description-opt EnumValue Directives-opt
-func (p *Parser) ParseEnumType(op string) ast.TypeDefiner {
+func (p *Parser) ParseEnumType(op string) ast.GQLTypeProvider {
 	p.nextToken() // read type
 	if !p.extend {
 		obj := &ast.Enum_{}
@@ -403,7 +396,7 @@ func (p *Parser) ParseEnumType(op string) ast.TypeDefiner {
 // ====================== Interface ===========================
 // InterfaceTypeDefinition
 //		Description-opt	interface	Name	Directives-opt	FieldsDefinition-opt
-func (p *Parser) ParseInterfaceType(op string) ast.TypeDefiner {
+func (p *Parser) ParseInterfaceType(op string) ast.GQLTypeProvider {
 	p.nextToken() // read over interfcae keyword
 	if !p.extend {
 		obj := &ast.Interface_{}
@@ -442,7 +435,7 @@ func (p *Parser) ParseInterfaceType(op string) ast.TypeDefiner {
 // UnionMemberTypes
 //		=|-opt	NamedType
 //		UnionMemberTypes | NamedType
-func (p *Parser) ParseUnionType(op string) ast.TypeDefiner {
+func (p *Parser) ParseUnionType(op string) ast.GQLTypeProvider {
 	p.nextToken() // read over interfcae keyword
 	if !p.extend {
 		obj := &ast.Union_{}
@@ -478,7 +471,7 @@ func (p *Parser) ParseUnionType(op string) ast.TypeDefiner {
 //====================== Input ===============================
 // InputObjectTypeDefinition
 //		Description-opt	input	Name	DirectivesConst-opt	InputFieldsDefinition-opt
-func (p *Parser) ParseInputValueType(op string) ast.TypeDefiner {
+func (p *Parser) ParseInputValueType(op string) ast.GQLTypeProvider {
 
 	p.nextToken() // read over input keyword
 	if !p.extend {
@@ -517,7 +510,7 @@ func (p *Parser) ParseInputValueType(op string) ast.TypeDefiner {
 // ====================== Scalar_ ===============================
 // InputObjectTypeDefinition
 //		Description-opt	scalar	Name	DirectivesConst-opt
-func (p *Parser) ParseScalar(op string) ast.TypeDefiner {
+func (p *Parser) ParseScalar(op string) ast.GQLTypeProvider {
 
 	p.nextToken() // read over input keyword
 	if !p.extend {
@@ -545,7 +538,7 @@ func (p *Parser) ParseScalar(op string) ast.TypeDefiner {
 			}
 		} else {
 			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
-			return &ast.Scalar_{Name_: name}
+			return &ast.Scalar_{Name: name.String()}
 		}
 	}
 	return nil
@@ -598,7 +591,7 @@ func (p *Parser) parseName(f ast.NameAssigner) *Parser {
 
 // ==================== parseExtendName ===============================
 // parseExtendName will consume the type name to be extended. Returns the type's AST.
-func (p *Parser) parseExtendName() (ast.TypeDefiner, ast.Name_) {
+func (p *Parser) parseExtendName() (ast.GQLTypeProvider, ast.Name_) {
 	// if p.hasError() {
 	// 	return nil,
 	// }
@@ -647,7 +640,7 @@ func (p *Parser) parseEnumValues(enum *ast.Enum_, optional ...bool) *Parser {
 			}
 		}
 		enum.Values = append(enum.Values, ev)
-		enumRepo[string(ev.Name)+"|"+string(enum.Name)] = struct{}{}
+		//enumRepo[string(ev.Name)+"|"+string(enum.Name)] = struct{}{}
 
 	}
 	p.nextToken() // read over }
@@ -842,6 +835,8 @@ func (p *Parser) parseDecription() *Parser {
 	return p
 }
 
+// ===================== parseType ===========================
+
 func (p *Parser) parseType(f ast.AssignTyper) *Parser {
 	if p.hasError() {
 		return p
@@ -862,7 +857,7 @@ func (p *Parser) parseType(f ast.AssignTyper) *Parser {
 	var (
 		bit  byte
 		name string
-		ast_ ast.TypeDefiner
+		//	ast_ ast.GQLTypeProvider
 		//typedef ast.TypeFlag_ // token defines SCALAR types only. All other types will be populated in repoType map.
 		depth   int
 		nameLoc *ast.Loc_
@@ -889,11 +884,11 @@ func (p *Parser) parseType(f ast.AssignTyper) *Parser {
 		}
 		nameLoc = p.Loc()
 		name = p.curToken.Literal // actual type name, Int, Float, Pet ...
-		name_ := ast.Name_{Name: ast.NameValue_(name), Loc: nameLoc}
-		//System ScalarTypes are defined by the Type_.Name_, Non-system Scalar and non-scalar are defined by the AST.
-		if !p.curToken.IsScalarType {
-			ast_ = p.fetchAST(name_)
-		}
+		// name_ := ast.Name_{Name: ast.NameValue_(name), Loc: nameLoc}
+		// //System ScalarTypes are defined by the Type_.Name_, Non-system Scalar and non-scalar are defined by the AST.
+		// if !p.curToken.IsScalarType {
+		// 	ast_ = p.fetchAST(name_)
+		// }
 		p.nextToken() // read over IDENT
 		for bangs := 0; p.curToken.Type == token.RBRACKET || p.curToken.Type == token.BANG; {
 			if p.curToken.Type == token.BANG {
@@ -933,9 +928,9 @@ func (p *Parser) parseType(f ast.AssignTyper) *Parser {
 		return p
 	}
 	// name is the type name Int, Person, [name], ...
-	t := &ast.Type_{Constraint: bit, Depth: depth, AST: ast_}
+	t := &ast.Type_{Constraint: bit, Depth: depth} //, AST: ast_}
 	t.AssignName(name, nameLoc, &p.perror)
-	f.AssignType(t) // assign the name of the named type. Later pass of AST will confirm if the named type has been defined.
+	f.AssignType(t) // assign the name of the named type. Later type validation pass of AST will confirm if the named type exists.
 	return p
 
 }
@@ -962,7 +957,7 @@ func (p *Parser) parseFieldArgumentDefs(f ast.FieldArgAppender) *Parser { // st 
 	if p.hasError() {
 		return p
 	}
-	var encl [2]token.TokenType = [2]token.TokenType{token.LPAREN, token.RPAREN}
+	var encl [2]token.TokenType = [2]token.TokenType{token.LPAREN, token.RPAREN} // ()
 	return p.parseInputValueDefs(f, encl)
 }
 
@@ -971,7 +966,7 @@ func (p *Parser) parseInputFieldDefs(f ast.FieldArgAppender) *Parser {
 	if p.hasError() {
 		return p
 	}
-	var encl [2]token.TokenType = [2]token.TokenType{token.LBRACE, token.RBRACE}
+	var encl [2]token.TokenType = [2]token.TokenType{token.LBRACE, token.RBRACE} // {}
 	return p.parseInputValueDefs(f, encl)
 }
 
@@ -1013,7 +1008,8 @@ func (p *Parser) parseDefaultVal(v *ast.InputValueDef, optional ...bool) *Parser
 	if p.curToken.Type == token.ASSIGN {
 		//	p.nextToken() // read over Datatype
 		p.nextToken() // read over ASSIGN
-		v.DefaultVal = p.parseInputValue_(v)
+		//v.DefaultVal = p.parseInputValue_(v)
+		v.DefaultVal = p.parseInputValue_()
 		p.nextToken() // read over input value
 	}
 	return p
@@ -1043,23 +1039,8 @@ func (p *Parser) parseObjectArguments(argS []*ast.ArgumentT) []*ast.ArgumentT {
 //  parseInputValue_ expects an InputValue_ literal (true,false, 234, 23.22, "abc" or $variable in the next token.  The value is a type bool,int,flaot,string..
 //  if it is a variable then the variable value (which is an InputValue_ type) will be sourced
 //  TODO: currently called from parseArgument only. If this continues to be the case then add this func as anonymous func to it.
-func (p *Parser) parseInputValue_(iv ...*ast.InputValueDef) *ast.InputValue_ {
-	if p.curToken.Cat != token.VALUE {
-		// maybe its a enum value in ENUM type iv.Type_.Name
-		if len(iv) != 0 {
-			iv := iv[0]
-			if _, ok := enumRepo[p.curToken.Literal+"|"+string(iv.Type.Name)]; !ok {
-				p.addErr(fmt.Sprintf("Enum value, %s, not in %s", p.curToken.Literal, iv.Type.Name))
-				return &ast.InputValue_{}
-			}
-		} else {
-			p.addErr(fmt.Sprintf("Value expected got %s of %s", p.curToken.Type, p.curToken.Literal))
-			if p.curToken.Type == "ILLEGAL" {
-				p.abort = true
-			}
-			return &ast.InputValue_{}
-		}
-	}
+//func (p *Parser) parseInputValue_(iv ...*ast.InputValueDef) *ast.InputValue_ { //TODO remove iv argeument now redundant
+func (p *Parser) parseInputValue_() *ast.InputValue_ {
 	if p.curToken.Type == "ILLEGAL" {
 		p.addErr(fmt.Sprintf("Value expected got %s of %s", p.curToken.Type, p.curToken.Literal))
 		p.abort = true
@@ -1153,6 +1134,10 @@ func (p *Parser) parseInputValue_(iv ...*ast.InputValueDef) *ast.InputValue_ {
 		b := ast.Bool_(p.curToken.Literal)
 		iv := ast.InputValue_{Value: b, Loc: p.Loc()}
 		return &iv
+	// case token.Time:
+	// 	b := ast.Time_(p.curToken.Literal)
+	// 	iv := ast.InputValue_{Value: b, Loc: p.Loc()}
+	// 	return &iv
 	default:
 		// possible ENUM value
 		b := &ast.EnumValue_{}
