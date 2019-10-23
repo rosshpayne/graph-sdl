@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/graph-sdl/ast"
@@ -41,17 +40,26 @@ type Person implements NamedEntity {
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	if len(errs) != len(expectedErr) {
-		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
-	}
-	for i, v := range errs {
-		if i < len(expectedErr) {
-			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
-				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
 			}
-		} else {
-			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 }
@@ -72,29 +80,29 @@ type Person implements NamedEntity {
 	var expectedErr [1]string
 	expectedErr[0] = `Implements type "NamedEntity" is not an Interface at line: 6 column: 24`
 
-	err := ast.DeleteType("Person")
-	if err != nil {
-		t.Errorf(`Not expected Error =[%q]`, err.Error())
-	}
-	err = ast.DeleteType("NamedEntity")
-	if err != nil {
-		t.Errorf(`Not expected Error =[%q]`, err.Error())
-	}
-
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	if len(errs) != len(expectedErr) {
-		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
-	}
-	for i, v := range errs {
-		if i < len(expectedErr) {
-			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
-				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
 			}
-		} else {
-			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 }
@@ -135,17 +143,26 @@ type Person implements NamedEntity & ValuedEntity2 {
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	if len(errs) != len(expectedErr) {
-		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
-	}
-	for i, v := range errs {
-		if i < len(expectedErr) {
-			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
-				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
 			}
-		} else {
-			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 }
@@ -205,20 +222,26 @@ type Person implements NamedEntity & ValuedEntity {
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	// for _, v := range errs {
-	// 	fmt.Println(v.Error())
-	// }
-	if len(errs) != len(expectedErr) {
-		t.Errorf(`Expected %d errors got %d`, len(expectedErr), len(errs))
-	}
-	for i, v := range errs {
-		if i < len(expectedErr) {
-			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
-				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
 			}
-		} else {
-			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 }
@@ -265,22 +288,26 @@ type Person implements NamedEntity & ValuedEntity {
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	for _, v := range errs {
-		fmt.Println("***********", v.Error())
-	}
-	if len(errs) != len(expectedErr) {
-		t.Errorf(`Expected %d errors got %d`, len(expectedErr), len(errs))
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
 	}
 	for _, got := range errs {
-		var found bool
+		found := false
 		for _, exp := range expectedErr {
 			if trimWS(got.Error()) == trimWS(exp) {
 				found = true
 			}
 		}
 		if !found {
-			t.Errorf(`Not expected Error =[%q]`, got.Error())
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 }
@@ -312,16 +339,27 @@ type Business implements NamedEntity & ValuedEntity & NamedEntity {
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	for i, v := range errs {
-		if i < 1 {
-			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
-				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
 			}
-		} else {
-			t.Errorf(`Not expected Error =[%q]`, v.Error())
 		}
-		fmt.Println(v.Error())
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
 	}
 }
 
@@ -366,13 +404,18 @@ func TestImplements6(t *testing.T) {
 
 	l := lexer.New(input)
 	p := New(l)
-	_, errs := p.ParseDocument()
+	d, errs := p.ParseDocument()
 	//fmt.Println(d.String())
-	if len(errs) != 0 {
+	if len(errs) > 0 {
+		t.Errorf("Unexpected, should be 0 errors, got %d", len(errs))
 		for _, v := range errs {
-			fmt.Println(v.Error())
+			t.Errorf(`Unexpected error: %s`, v.Error())
 		}
-		t.Errorf(fmt.Sprintf(`Not expected - should be 0 errors got %d`, len(errs)))
+	}
+	if compare(d.String(), input) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
 	}
 
 }
@@ -423,21 +466,26 @@ func TestImplements6a(t *testing.T) {
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	if len(errs) != len(expectedErr) {
-		for _, v := range errs {
-			fmt.Println(v.Error())
-		}
-		t.Errorf(fmt.Sprintf(`Not expected - should be %d errors got %d`, len(expectedErr), len(errs)))
-	}
-
-	for i, v := range errs {
-		if i < len(expectedErr) {
-			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
-				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
 			}
-		} else {
-			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 }
@@ -469,22 +517,27 @@ func TestBadInterfaceKeyword(t *testing.T) {
 
 	l := lexer.New(input)
 	p := New(l)
-	d, errs := p.ParseDocument()
-	fmt.Println(d.String())
-	if len(errs) != len(expectedErr) {
-		for _, v := range errs {
-			fmt.Println(v.Error())
-		}
-		t.Errorf(fmt.Sprintf(`Not expected - should be %d errors got %d`, len(expectedErr), len(errs)))
-	}
-
-	for i, v := range errs {
-		if i < len(expectedErr) {
-			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
-				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+	_, errs := p.ParseDocument()
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
 			}
-		} else {
-			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 }
@@ -527,22 +580,21 @@ type Business implements NamedEntity & ValuedEntity {
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
+
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
-	if len(errs) != 0 {
-		t.Errorf(`Wrong- should be zero errors got %d`, len(errs))
+	//fmt.Println(d.String())
+	if len(errs) > 0 {
+		t.Errorf("Unexpected, should be 0 errors, got %d", len(errs))
 		for _, v := range errs {
-			t.Errorf(v.Error())
+			t.Errorf(`Unexpected error: %s`, v.Error())
 		}
 	}
-	//fmt.Println(d.String())
 	if compare(d.String(), input) {
-		fmt.Println(trimWS(d.String()))
-		fmt.Println(trimWS(input))
-		if len(trimWS(d.String())) != len(trimWS(input)) {
-			t.Errorf(`*************  program.String() wrong.`)
-		}
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
 	}
 }
 
@@ -595,21 +647,26 @@ type Business implements & NamedEntity & ValuedEntity {
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	if len(errs) != len(expectedErr) {
-		for _, v := range errs {
-			fmt.Println(v.Error())
-		}
-		t.Errorf(fmt.Sprintf(`Not expected - should be %d errors got %d`, len(expectedErr), len(errs)))
-	}
-
-	for i, v := range errs {
-		if i < len(expectedErr) {
-			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
-				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
 			}
-		} else {
-			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 }
@@ -675,21 +732,26 @@ type Business2 implements & NamedEntity & ValuedEntity {
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	if len(errs) != len(expectedErr) {
-		for _, v := range errs {
-			fmt.Println(v.Error())
-		}
-		t.Errorf(fmt.Sprintf(`Not expected - should be %d errors got %d`, len(expectedErr), len(errs)))
-	}
-
-	for i, v := range errs {
-		if i < len(expectedErr) {
-			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
-				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
 			}
-		} else {
-			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 }
@@ -752,24 +814,30 @@ type Business2 implements & NamedEntity & ValuedEntity {
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
+
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	if len(errs) != len(expectedErr) {
-		for _, v := range errs {
-			fmt.Println(v.Error())
-		}
-		t.Errorf(fmt.Sprintf(`Not expected - should be %d errors got %d`, len(expectedErr), len(errs)))
-	}
-
-	for i, v := range errs {
-		if i < len(expectedErr) {
-			if trimWS(v.Error()) != trimWS(expectedErr[i]) {
-				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
 			}
-		} else {
-			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 }

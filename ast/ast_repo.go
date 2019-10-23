@@ -11,16 +11,22 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 )
 
+const (
+	TableName string = "GraphQL"
+)
+
+type TypeRow struct {
+	PKey  string
+	SortK string
+	Stmt  string
+}
+
 // cache returns the AST type for a given TypeName
 type typeCache map[NameValue_]GQLTypeProvider
 
-type TypeRow struct {
-	PKey string
-	Stmt string
-}
-
 type PkRow struct {
-	PKey string
+	PKey  string
+	SortK string
 }
 
 var typeCache_ typeCache
@@ -58,7 +64,6 @@ func CacheFetch(input NameValue_) (GQLTypeProvider, bool) { // TODO: use GQLType
 
 func Persist(input NameValue_, ast GQLTypeProvider) {
 	// save GraphQL statement to Dynamodb
-	fmt.Println("****** Persist: ", input)
 	dbPersist(input, ast)
 }
 
@@ -80,16 +85,39 @@ func fetchInterface(input Name_) (*Interface_, bool, string) {
 
 }
 
-func dbPersist(input NameValue_, ast GQLTypeProvider) error {
+func dbPersist(pkey NameValue_, ast GQLTypeProvider) error {
 	//
 
-	typeDef := TypeRow{PKey: input.String(), Stmt: ast.String()}
+	typeDef := TypeRow{PKey: pkey.String(), SortK: "__", Stmt: ast.String()}
 	av, err := dynamodbattribute.MarshalMap(typeDef)
 	if err != nil {
 		return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
 	}
 	_, err = db.PutItem(&dynamodb.PutItemInput{
-		TableName: aws.String("GraphTypes"),
+		TableName: aws.String(TableName),
+		Item:      av,
+	})
+	if err != nil {
+		return fmt.Errorf("%s: %s", "Error: failed to PutItem ", err.Error())
+	}
+	return nil
+}
+
+func PersistImplements(pkey NameValue_, sortk NameValue_) error {
+	//
+	type ImplementRow struct {
+		PKey  string
+		SortK string
+		In    string
+	}
+	fmt.Println("PersistImplements: ", pkey.String(), sortk.String(), sortk.String())
+	typeDef := ImplementRow{PKey: pkey.String(), SortK: sortk.String(), In: sortk.String()}
+	av, err := dynamodbattribute.MarshalMap(typeDef)
+	if err != nil {
+		return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+	}
+	_, err = db.PutItem(&dynamodb.PutItemInput{
+		TableName: aws.String(TableName),
 		Item:      av,
 	})
 	if err != nil {
@@ -101,13 +129,13 @@ func dbPersist(input NameValue_, ast GQLTypeProvider) error {
 func DeleteType(input string) error {
 
 	//
-	typeDef := PkRow{PKey: input}
+	typeDef := PkRow{PKey: input, SortK: "__"}
 	av, err := dynamodbattribute.MarshalMap(typeDef)
 	if err != nil {
 		return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
 	}
 	_, err = db.DeleteItem(&dynamodb.DeleteItemInput{
-		TableName: aws.String("GraphTypes"),
+		TableName: aws.String(TableName),
 		Key:       av,
 	})
 	if err != nil {
@@ -130,23 +158,20 @@ func DBFetch(name NameValue_) (string, error) {
 	//
 	// query on recipe name to get RecipeId and  book name
 	//
-	type pKey struct {
-		PKey string
-	}
 	fmt.Printf("DB Fetch name: [%s]\n", name.String())
 
 	if len(name) == 0 {
 		return "", fmt.Errorf("No DB search value provided")
 	}
 	errmsg := "Error in marshall of pKey "
-	pkey := pKey{PKey: name.String()}
+	pkey := PkRow{PKey: name.String(), SortK: "__"}
 	av, err := dynamodbattribute.MarshalMap(&pkey)
 	if err != nil {
 		return "", fmt.Errorf("%s. MarshalMap: %s", errmsg, err.Error())
 	}
 	input := &dynamodb.GetItemInput{
 		Key:       av,
-		TableName: aws.String("GraphTypes"),
+		TableName: aws.String(TableName),
 	}
 	input = input.SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
 	//

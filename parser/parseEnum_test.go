@@ -7,13 +7,60 @@ import (
 	"github.com/graph-sdl/lexer"
 )
 
-func TestEnum1X(t *testing.T) {
+func TestEnumDuplicate(t *testing.T) {
 
 	input := `
 enum Direction {
   NORTH
+  SOUTH
   EAST
   SOUTH
+  WEST @deprecated @ dep (if: 99.34 fi:true cat: 23.323)
+}
+type Person {
+  name: String!
+  age: Int!
+  dir: [Direction]
+}
+`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Duplicate Enum Value [SOUTH] at line: 6 column: 3`
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
+	}
+	// for _, e := range errs {
+	// 	fmt.Println("*** ", e.Error())
+	// }
+	for _, e := range expectedErr {
+		found := false
+		for _, n := range errs {
+			if trimWS(n.Error()) == trimWS(e) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`***  Expected %s- not exists.`, e)
+		}
+	}
+
+}
+
+func TestEnumString(t *testing.T) {
+
+	// note: "SOUTH" will be interpreted as a comment, even though the intention is a enum value.
+	//  THis will not generate an errror as a result. No fix as its allowed by the spec (I believe)
+
+	input := `
+enum Direction {
+  NORTH
+  "SOUTH"
+  EAST
   WEST @deprecated @ dep (if: 99.34 fi:true cat: 23.323)
 }
 type Person {
@@ -26,15 +73,65 @@ type Person {
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
 	if len(errs) != 0 {
-		for _, v := range errs {
-			fmt.Println(v.Error())
-		}
-		t.Errorf(fmt.Sprintf(`Not expected - should be 0 errors got %d`, len(errs)))
+		t.Errorf(`***  Expected 0 error got %d.`, len(errs))
 	}
+	for _, e := range errs {
+		fmt.Println("*** ", e.Error())
+	}
+	// if compare(d.String(), input) {
+	// 	fmt.Println(trimWS(d.String()))
+	// 	fmt.Println(trimWS(input))
+	// 	t.Errorf(`***  program.String() wrong.`)
+	// }
 
 }
 
+func TestEnumNumber(t *testing.T) {
+
+	// note: "SOUTH" will be interpreted as a comment, even though the intention is a enum value.
+	//  THis will not generate an errror as a result. No fix as its allowed by the spec (I believe)
+
+	input := `
+enum Direction {
+  NORTH
+  23
+  EAST
+  WEST @deprecated @ dep (if: 99.34 fi:true cat: 23.323)
+}
+type Person {
+  name: String!
+  age: Int!
+  dir: [Direction]
+}
+`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Expected name identifer got Int of "23" at line: 4, column: 3`
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) != len(expectedErr) {
+		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
+	}
+	// for _, e := range errs {
+	// 	fmt.Println("*** ", e.Error())
+	// }
+	for _, e := range expectedErr {
+		found := false
+		for _, n := range errs {
+			if trimWS(n.Error()) == trimWS(e) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`***  Expected %s- not exists.`, e)
+		}
+	}
+}
 func TestBadEnumValue1(t *testing.T) {
 
 	input := `
@@ -142,7 +239,7 @@ func TestBadEnumValue2(t *testing.T) {
 	}
 }
 
-func TestEnumDuplicate(t *testing.T) {
+func TestEnumDuplicate2(t *testing.T) {
 
 	input := `
 enum Direction {

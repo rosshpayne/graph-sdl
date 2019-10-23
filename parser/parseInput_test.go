@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/graph-sdl/lexer"
@@ -25,18 +24,18 @@ func TestInput1(t *testing.T) {
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
-	fmt.Println(d.String())
-	for _, v := range errs {
-		fmt.Println(v.Error())
+	//fmt.Println(d.String())
+	if len(errs) > 0 {
+		t.Errorf("Unexpected, should be 0 errors, got %d", len(errs))
+		for _, v := range errs {
+			t.Errorf(`Unexpected error: %s`, v.Error())
+		}
 	}
 	if compare(d.String(), input) {
-		fmt.Println(trimWS(d.String()))
-		fmt.Println(trimWS(input))
-		t.Errorf(`*************  program.String() wrong.`)
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
 	}
-	// for v, o := range repo {
-	// 	fmt.Printf(" %s, %T\n", v, o)
-	// }
 }
 
 func TestInputDuplicate(t *testing.T) {
@@ -54,19 +53,32 @@ func TestInputDuplicate(t *testing.T) {
           y63: Float = 34 @ jun (asdf:"""asdflkjslkjd""")
 }
 `
-
-	expectedErr := `Duplicate input value name "y" at line: 6, column: 8`
+	var expectedErr [1]string
+	expectedErr[0] = `Duplicate input value name "y" at line: 6, column: 8`
 
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	if len(errs) != 1 {
-		t.Errorf(`Expect one error got %d`, len(errs))
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
 	}
-	//fmt.Println(d.String())
-	for _, v := range errs {
-		if v.Error() != expectedErr {
-			t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr)
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 }
@@ -85,19 +97,32 @@ func TestInputInvalidName(t *testing.T) {
           y63: Float = 34 @ jun (asdf:"""asdflkjslkjd""")
 }
 `
-
-	expectedErr := `identifer [__y3] cannot start with two underscores at line: 6, column: 7`
+	var expectedErr [1]string
+	expectedErr[0] = `identifer [__y3] cannot start with two underscores at line: 6, column: 7`
 
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	if len(errs) != 1 {
-		t.Errorf(`Expect one error got %d`, len(errs))
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
 	}
-	//fmt.Println(d.String())
-	for _, v := range errs {
-		if v.Error() != expectedErr {
-			t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr)
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 }

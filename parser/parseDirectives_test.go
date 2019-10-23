@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/graph-sdl/lexer"
@@ -15,21 +14,23 @@ input ExampleInputObjectDirective @ june (asdf:234) @ june2 (aesdf:234) @ june3 
   b: Int!@june(asdf:234) @ ju (asdf:234)
 }
 `
+
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
-	fmt.Println(d.String())
-	for _, v := range errs {
-		fmt.Println(v.Error())
+	//fmt.Println(d.String())
+	if len(errs) > 0 {
+		t.Errorf("Unexpected, should be 0 errors, got %d", len(errs))
+		for _, v := range errs {
+			t.Errorf(`Unexpected error: %s`, v.Error())
+		}
 	}
 	if compare(d.String(), input) {
-		fmt.Println(trimWS(d.String()))
-		fmt.Println(trimWS(input))
-		t.Errorf(`*************  program.String() wrong.`)
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
 	}
-	// for v, o := range repo {
-	// 	fmt.Printf(" %s, %T\n", v, o)
-	// }
+
 }
 
 func TestInputDoesnotExist(t *testing.T) {
@@ -42,24 +43,27 @@ extend input ExampleInputXYZ @ june (asdf:234)
 
 	l := lexer.New(input)
 	p := New(l)
-	d, errs := p.ParseDocument()
-	for _, v := range errs {
-		fmt.Println("Err: ", v.Error())
-	}
-	if len(errs) != len(expectedErr) {
-		for _, v := range errs {
-			fmt.Println(v.Error())
-		}
-		t.Errorf(fmt.Sprintf(`Not expected - should be %d errors got %d`, len(expectedErr), len(errs)))
-	}
-	fmt.Println("outut ", d.String())
-	for i, v := range errs {
-		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
-				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+	_, errs := p.ParseDocument()
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
 			}
-		} else {
-			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 }
@@ -76,20 +80,26 @@ extend input ExampleInputObjectDirective @ june (asdf:234)
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	if len(errs) != len(expectedErr) {
-		for _, v := range errs {
-			fmt.Println(v.Error())
-		}
-		t.Errorf(fmt.Sprintf(`Not expected - should be %d errors got %d`, len(expectedErr), len(errs)))
-	}
-	//fmt.Println(d.String())
-	for i, v := range errs {
-		if i < len(expectedErr) {
-			if v.Error() != expectedErr[i] {
-				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
 			}
-		} else {
-			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 }

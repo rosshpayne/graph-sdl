@@ -85,6 +85,7 @@ func (iv *InputValue_) AtPosition() string {
 // dataTypeString - prints the datatype of the input value
 
 func (iv *InputValue_) isType() TypeFlag_ {
+	// Union are not a valid input value
 	switch iv.Value.(type) {
 	case Int_:
 		return INT
@@ -100,6 +101,7 @@ func (iv *InputValue_) isType() TypeFlag_ {
 		return SCALAR
 	case *EnumValue_:
 		return ENUM
+		//	case *Union_: // Union is not a valid input value
 	case *Object_:
 		return OBJECT
 	case *Input_:
@@ -152,8 +154,8 @@ func (t *Type_) isType() TypeFlag_ {
 				return INTERFACE
 			case *Enum_:
 				return ENUM
-			// case *EnumValue_:
-			// 	return ENUMVALUE
+			case *EnumValue_:
+				return ENUMVALUE
 			case *Input_:
 				return INPUT
 			case *Union_:
@@ -299,11 +301,12 @@ func (l List_) Exists() bool {
 // 	Constraint byte          // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
 // 	AST        GQLTypeProvider // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
 // 	Depth      int           // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
-// 	Name_                    // type name. inherit AssignName()
+// 	Name_                    // type name. inherit()
 // }
 
 func (l List_) ValidateListValues(iv *Type_, d *int, maxd *int, err *[]error) {
 	reqType := iv.isType() // INT, FLOAT, OBJECT, PET, MEASURE etc            note: OBJECT is for specification of a type, OBJECTVAL is an object literal for input purposes
+	reqDepth := iv.Depth
 	//
 	// for each element in the LIST
 	///
@@ -323,10 +326,16 @@ func (l List_) ValidateListValues(iv *Type_, d *int, maxd *int, err *[]error) {
 		case ObjectVals:
 			// default values in input object form { name:value name:value ... }: []*ArgumentT type ArgumentT: struct {Name_, Value *InputValue_}
 			// reqType is the type of the input object  - which defines the name and associated type for each item in the { }
+			if *d != reqDepth {
+				*err = append(*err, fmt.Errorf(`Value "%s" is not at required depth of %d %s`, v, reqDepth, v.AtPosition()))
+			}
 			in.ValidateInputObjectValues(iv, err)
 
 		default:
 			// check the item - this is matched against the type specification for the list ie. [type]
+			if *d != reqDepth {
+				*err = append(*err, fmt.Errorf(`Value "%s" is not at required depth of %d %s`, v, reqDepth, v.AtPosition()))
+			}
 			if t := v.isType(); t != reqType {
 				if v.isType() == NULL {
 					if iv.Constraint>>uint(iv.Depth-*d)&1 == 1 { // is not-null constraint set
@@ -457,9 +466,9 @@ type Document struct {
 func (d Document) String() string {
 	var s strings.Builder
 	tc = 2
-
-	for _, iv := range d.StatementsMap {
+	for _, iv := range d.Statements {
 		s.WriteString(iv.String())
+		s.WriteString("\n")
 	}
 	return s.String()
 }

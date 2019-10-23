@@ -481,7 +481,7 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 			if a.DefaultVal != nil {
 
 				// what type is the default value
-				switch defvalObj := a.DefaultVal.Value.(type) {
+				switch defval := a.DefaultVal.Value.(type) {
 
 				case List_: // [ "ads", "wer" ]
 					if a.Type.Depth == 0 { // required type is not a LIST
@@ -490,7 +490,7 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 					}
 					var d int = 0
 					var maxd int
-					defvalObj.ValidateListValues(a.Type, &d, &maxd, err) // a.Type is the data type of the list items
+					defval.ValidateListValues(a.Type, &d, &maxd, err) // a.Type is the data type of the list items
 					//
 					if maxd != a.Type.Depth {
 						*err = append(*err, fmt.Errorf(`Argument "%s", nested List type depth different reqired %d, got %d %s`, a.Name_, a.Type.Depth, maxd, a.DefaultVal.AtPosition()))
@@ -498,28 +498,64 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 
 				case ObjectVals:
 					// { x: "ads", y: 234 }
-					defvalObj.ValidateInputObjectValues(a.Type, err)
+					defval.ValidateInputObjectValues(a.Type, err)
 
 				case *EnumValue_:
 					// EAST WEST NORHT SOUTH
 					if a.Type.isType() != ENUM {
-						*err = append(*err, fmt.Errorf(`"%s" is an enum like value but the argument type "%s" is not an Enum type %s`, defvalObj.Name, a.Type.Name_, a.DefaultVal.AtPosition()))
+						*err = append(*err, fmt.Errorf(`"%s" is an enum like value but the argument type "%s" is not an Enum type %s`, defval.Name, a.Type.Name_, a.DefaultVal.AtPosition()))
 					} else {
-						defvalObj.ValidateInputEnumValues(a.Type, err)
+						defval.CheckEnumValue(a.Type, err)
 					}
 
 				case *Scalar_:
 					// Handled in default. Default values are not originally held as String_ and then coerced to the relevant Scalar_ type.
 
 				default:
+					fmt.Printf("name: %s\n", a.Type.Name_)
+					fmt.Printf("constrint: %08b\n", a.Type.Constraint)
+					fmt.Printf("depth: %d\n", a.Type.Depth)
 					if a.DefaultVal.isType() == NULL {
-						if a.Type.Constraint>>uint(a.Type.Depth)&1 == 1 { // not null constraint set
+						// coerce to a list of appropriate depth
+						if a.Type.Depth > 0 {
+							// coerce value to List of correct depth
+							// type List_ []*InputValue_
+
+							// 	type InputValueDef struct {
+							// Desc string
+							// Name_
+							// Type       *Type_
+							// DefaultVal *InputValue_
+
+							// type InputValue_ struct {
+							// 	Value InputValueProvider // List_, ObjectVals, Int_, Float, EnumVal_, Null_
+							// 	Loc   *Loc_
+							// }
+							var coerce func(i *InputValue_, depth int) *InputValue_
+							// type List_ []*InputValue_
+
+							coerce = func(i *InputValue_, depth int) *InputValue_ {
+								if depth == 0 {
+									return i
+								}
+								// var vallist List_
+								// vallist = append(vallist, i)
+								vallist := make(List_, 1, 1)
+								vallist[0] = i
+								vi := &InputValue_{Value: vallist, Loc: i.Loc}
+								depth--
+								return coerce(vi, depth)
+							}
+							a.DefaultVal = coerce(a.DefaultVal, a.Type.Depth)
+						}
+						if a.Type.Constraint>>uint(0)&1 == 1 { // not null constraint set
 							*err = append(*err, fmt.Errorf(`Value cannot be NULL %s`, a.DefaultVal.AtPosition()))
 						}
+
 					} else {
 						// check types match
 						if a.Type.isType() == SCALAR {
-							// try coercing default value to the appropriate scalar
+							// try coercing default value to the appropriate scalar e.g. string to Time
 							if s, ok := a.Type.AST.(ScalarProvider); ok { // assert interface supported - normal assert type (*Scalar_) would also work just as well because there is only 1 scalar type really
 								if civ, cerr := s.Coerce(a.DefaultVal.Value); cerr != nil {
 									*err = append(*err, cerr)
@@ -803,12 +839,15 @@ type EnumValue_ struct {
 	Directives_
 }
 
-func (e *EnumValue_) ValueNode() {} // instane of InputValue_
-
+func (e *EnumValue_) ValueNode()                                    {} // instane of InputValue_
+func (e *EnumValue_) TypeSystemNode()                               {}
+func (e *EnumValue_) CheckUnresolvedTypes(unresolved UnresolvedMap) {}
 func (e *EnumValue_) AssignName(s string, l *Loc_, unresolved *[]error) {
 	e.Name_.AssignName(s, l, unresolved)
 }
-
+func (e *EnumValue_) TypeName() NameValue_ {
+	return e.Name
+}
 func (e *EnumValue_) String() string {
 	var s strings.Builder
 	s.WriteString(e.Name_.String())
@@ -818,7 +857,8 @@ func (e *EnumValue_) String() string {
 	return s.String()
 }
 
-func (e *EnumValue_) ValidateInputEnumValues(a *Type_, err *[]error) {
+// CheckUnresolvedTypes checks the ENUM value (as Argument in Field object) is a member of the ENUM Type.
+func (e *EnumValue_) CheckEnumValue(a *Type_, err *[]error) {
 	// get Enum type and compare it against the instance value
 	if ast_, ok := CacheFetch(a.Name); ok {
 		switch enum_ := ast_.(type) {

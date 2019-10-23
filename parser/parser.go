@@ -135,6 +135,14 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 				// TODO - what if another type by that name exists
 				//  auto overrite or raise an error
 				ast.Persist(v.TypeName(), v)
+				//
+				// persist interface-ƒimplements as additional records
+				if obj, ok := v.(*ast.Object_); ok {
+					for _, imp := range obj.Implements {
+						ast.PersistImplements(imp.Name, v.TypeName())
+					}
+				}
+				//TODO - handle implements into GSI
 			}
 		}
 		errs = p.perror
@@ -144,20 +152,20 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 	// parse phase - 	build AST from GraphQL SDL script
 	//
 	for p.curToken.Type != token.EOF {
-		StmtAST := p.parseStatement()
+		stmtAST := p.parseStatement()
 
 		// handle any abort error
 		if p.hasError() {
 			return program, p.perror
 		}
-		if StmtAST != nil {
-			program.Statements = append(program.Statements, StmtAST)
+		if stmtAST != nil {
+			program.Statements = append(program.Statements, stmtAST)
 
-			name := StmtAST.TypeName()
-			program.StatementsMap[name] = StmtAST
+			name := stmtAST.TypeName()
+			program.StatementsMap[name] = stmtAST
 			program.ErrorMap[name] = p.perror
 			if len(p.perror) == 0 {
-				ast.Add2Cache(StmtAST.TypeName(), StmtAST)
+				ast.Add2Cache(stmtAST.TypeName(), stmtAST)
 			}
 			p.perror = nil
 
@@ -206,6 +214,9 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 				x.CheckImplements(&p.perror) // check implements are interfaces
 			case *ast.Enum_:
 			case *ast.Interface_:
+			case *ast.Union_:
+				p.CheckUnionMembers(x)
+
 			}
 		}
 		program.ErrorMap[v.TypeName()] = append(program.ErrorMap[v.TypeName()], p.perror...)
@@ -228,7 +239,7 @@ func (p *Parser) parseStatement() ast.GQLTypeProvider {
 	p.skipComment()
 	if p.curToken.Type == token.EXTEND {
 		p.extend = true
-		p.nextToken("read ver...") // read over extend
+		p.nextToken() // read over extend
 	}
 	stmtType := p.curToken.Literal
 	if f, ok := p.parseFns[p.curToken.Type]; ok {
@@ -305,6 +316,22 @@ func (p *Parser) checkUnresolvedTypes_(v ast.GQLTypeProvider) {
 				p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, ty.Name, ty.AtPosition()))
 			} else {
 				p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, tyName, tyName.AtPosition()))
+			}
+		}
+	}
+}
+
+// ===================== CheckUnionMembers ================
+
+func (p *Parser) CheckUnionMembers(x *ast.Union_) {
+	//
+	for _, m := range x.NameS {
+		ast_ := p.fetchAST(m)
+		if ast_ == nil {
+			p.addErr(fmt.Sprintf(`Union member "%s" does not exist %s`, m, m.AtPosition()))
+		} else {
+			if _, ok := ast_.(*ast.Object_); !ok {
+				p.addErr(fmt.Sprintf(`Union member "%s" must be an object type %s`, m, m.AtPosition()))
 			}
 		}
 	}
@@ -576,6 +603,7 @@ func (p *Parser) parseName(f ast.NameAssigner) *Parser {
 	if p.hasError() {
 		return p
 	}
+
 	if p.curToken.Type == token.IDENT {
 		f.AssignName(p.curToken.Literal, p.Loc(), &p.perror)
 	} else {
@@ -726,6 +754,7 @@ func (p *Parser) parseDirectives(f ast.DirectiveAppender, optional ...bool) *Par
 		}
 		return p
 	}
+
 	for p.curToken.Type == token.ATSIGN {
 		p.nextToken() // read over @
 		a := []*ast.ArgumentT{}
