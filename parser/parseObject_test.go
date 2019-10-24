@@ -309,35 +309,10 @@ func TestCheckInputValueType4(t *testing.T) {
   posts: [Boolean!]!
 }`
 
-	l := lexer.New(input)
-	p := New(l)
-	d, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	if len(errs) > 0 {
-		t.Errorf("Unexpected, should be 0 errors, got %d", len(errs))
-		for _, v := range errs {
-			t.Errorf(`Unexpected error: %s`, v.Error())
-		}
-	}
-	if compare(d.String(), input) {
-		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
-		t.Errorf("Expected: [%s] \n", trimWS(input))
-		t.Errorf(`Unexpected: program.String() wrong. `)
-	}
-
-}
-
-func TestCheckInputValueType5(t *testing.T) {
-
-	input := `type Person88 {
-  name: String!
-  age: Int!
-  inputX(age:[[String]] = ["abc","def"  "adf" ]): Float
-  posts: [Boolean!]!
-}`
-
-	var expectedErr [1]string
-	expectedErr[0] = `Argument "age", nested List type depth different reqired 2, got 1 at line: 4 column: 47` //
+	var expectedErr [3]string
+	expectedErr[0] = `Value "xyss" is not at required nesting of 2 at line: 4 column: 28`
+	expectedErr[1] = `Value "cat" is not at required nesting of 2 at line: 4 column: 35`
+	expectedErr[2] = `Value "xyz" is not at required nesting of 2 at line: 4 column: 61`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -364,6 +339,7 @@ func TestCheckInputValueType5(t *testing.T) {
 			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
+
 }
 
 func TestFieldArgument2(t *testing.T) {
@@ -603,6 +579,8 @@ type Person {
   posts: [Boolean!]!
 }`
 
+	// string input coerced to [String]
+	expectedDoc := `typeMeasure{height:Floatweight:Int}typePerson{name:String!age:Int!inputX(info:[String]=["""abc\ndefasj\nasdf"""]):Floatposts:[Boolean!]!}`
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
@@ -613,9 +591,9 @@ type Person {
 			t.Errorf(`Unexpected error: %s`, v.Error())
 		}
 	}
-	if compare(d.String(), input) {
+	if compare(d.String(), expectedDoc) {
 		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
-		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf("Expected: [%s] \n", trimWS(expectedDoc))
 		t.Errorf(`Unexpected: program.String() wrong. `)
 	}
 }
@@ -651,37 +629,6 @@ type Person {
 	}
 }
 
-func TestFieldArgxListDiffDepth(t *testing.T) {
-
-	input := `
-type Measure {
-    height: Float
-    weight: Int
-}
-type Person {
-  name: String!
-  age: Int!
-  inputX(info: [[Int]] = [ 1 2 3] ): Float
-  posts: [Boolean!]!
-}`
-
-	l := lexer.New(input)
-	p := New(l)
-	d, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	if len(errs) > 0 {
-		t.Errorf("Unexpected, should be 0 errors, got %d", len(errs))
-		for _, v := range errs {
-			t.Errorf(`Unexpected error: %s`, v.Error())
-		}
-	}
-	if compare(d.String(), input) {
-		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
-		t.Errorf("Expected: [%s] \n", trimWS(input))
-		t.Errorf(`Unexpected: program.String() wrong. `)
-	}
-}
-
 func TestFieldArgx2ListDiffDepth(t *testing.T) {
 
 	input := `
@@ -697,7 +644,7 @@ type Person {
 }`
 
 	var expectedErr [1]string
-	expectedErr[0] = `Value "3" is not at required depth of 2 at line: 9 column: 34`
+	expectedErr[0] = `Value 3 is not at required nesting of 2 at line: 9 column: 34`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -740,20 +687,33 @@ type Person {
   posts: [Boolean!]!
 }`
 
+	var expectedErr [1]string
+	expectedErr[0] = `Value {height:22.4 weight:7 }  is not at required nesting of 2 at line: 9 column: 105`
+
 	l := lexer.New(input)
 	p := New(l)
-	d, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	if len(errs) > 0 {
-		t.Errorf("Unexpected, should be 0 errors, got %d", len(errs))
-		for _, v := range errs {
-			t.Errorf(`Unexpected error: %s`, v.Error())
+	_, errs := p.ParseDocument()
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
 		}
 	}
-	if compare(d.String(), input) {
-		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
-		t.Errorf("Expected: [%s] \n", trimWS(input))
-		t.Errorf(`Unexpected: program.String() wrong. `)
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
 	}
 }
 
@@ -1540,6 +1500,52 @@ type Person {
 	}
 }
 
+func TestFieldArgumentNullCheckValid(t *testing.T) {
+
+	input := `type Measure {
+    height: Float
+    weight: Int
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [[String]]! = [["abc"] ["defasj" "asdf" "asdf" null ] ["abc" null] null ]): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = ``
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+}
+
 func TestFieldArgumentNullCheck2(t *testing.T) {
 
 	input := `type Measure {
@@ -1554,12 +1560,15 @@ type Person {
 }`
 
 	var expectedErr [1]string
-	expectedErr[0] = `List cannot contain NULLs at line: 8 column: 84`
+	expectedErr[0] = ``
 
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
 	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
 		found := false
 		for _, err := range errs {
 			if trimWS(err.Error()) == trimWS(ex) {
@@ -1597,7 +1606,7 @@ type Person {
 }`
 
 	var expectedErr [1]string
-	expectedErr[0] = `List cannot contain NULLs at line: 8 column: 84`
+	expectedErr[0] = `Value cannot be NULL at line: 8 column: 27`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -1625,6 +1634,7 @@ type Person {
 		}
 	}
 }
+
 func TestFieldArgumentNullCheckInt(t *testing.T) {
 
 	input := `type Measure {
@@ -1753,20 +1763,36 @@ type Person {
   inputX(info: [[[String]]]! = [[["abc" "asdf"] ["defasj" "asdf" "asdf" null ] ["abc" null] null ] ["acb" "dfw" ] "wew"]): Float
   posts: [Boolean!]!
 }`
+
+	var expectedErr [3]string
+	expectedErr[0] = `Value "acb" is not at required nesting of 3 at line: 8 column: 101`
+	expectedErr[1] = `Value "dfw" is not at required nesting of 3 at line: 8 column: 107`
+	expectedErr[2] = `Value "wew" is not at required nesting of 3 at line: 8 column: 115`
+
 	l := lexer.New(input)
 	p := New(l)
-	d, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	if len(errs) > 0 {
-		t.Errorf("Unexpected, should be 0 errors, got %d", len(errs))
-		for _, v := range errs {
-			t.Errorf(`Unexpected error: %s`, v.Error())
+	_, errs := p.ParseDocument()
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
 		}
 	}
-	if compare(d.String(), input) {
-		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
-		t.Errorf("Expected: [%s] \n", trimWS(input))
-		t.Errorf(`Unexpected: program.String() wrong. `)
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
 	}
 }
 
@@ -2172,16 +2198,23 @@ type Person {
   posts: [Boolean!]!
 }`
 
-	var expectedErr [4]string
+	//parseObject_test.go:2230: Unexpected Error = ["Value {name:\"Payne\" Ages:[12 14 15 null ]  }  is not at required nesting of 0 at line: 12 column: 84"]
+	//parseObject_test.go:2230: Unexpected Error = ["Value {name2:\"Smith\" Age:[1 3 ]  }  is not at required nesting of 0 at line: 12 column: 112"]
+
+	var expectedErr [6]string
 	expectedErr[0] = `Field, kids, is not a LIST type but input data is a LIST type, at line: 12 column: 40`
 	expectedErr[1] = `List cannot contain NULLs at line: 12 column: 79`
 	expectedErr[2] = `field "name2" does not exist in type Family  at line: 12 column: 87`
 	expectedErr[3] = `field "Age" does not exist in type Family  at line: 12 column: 102`
-	//	expectedErr[4] = `Argument "kids", nested List type depth different reqired 0, got 1 at line: 12 column: 40`
+	expectedErr[4] = `Value {name:"Payne" Ages:[12 14 15 null ]  }  is not at required nesting of 0 at line: 12 column: 84`
+	expectedErr[5] = `Value {name2:"Smith" Age:[1 3 ]  }  is not at required nesting of 0 at line: 12 column: 112`
 
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
+	for _, v := range errs {
+		fmt.Println(v.Error())
+	}
 	for _, ex := range expectedErr {
 		found := false
 		for _, err := range errs {
@@ -2223,9 +2256,13 @@ type Person {
   posts: [Boolean!]!
 }`
 
-	var expectedErr [2]string
+	var expectedErr [6]string
 	expectedErr[0] = `List cannot contain NULLs at line: 12 column: 79`
 	expectedErr[1] = `Argument "Ages", nested List type depth different reqired 1, got 2 at line: 12 column: 101`
+	expectedErr[2] = `Value 1 is not at required nesting of 1 at line: 12 column: 109`
+	expectedErr[3] = `Value 3 is not at required nesting of 1 at line: 12 column: 111`
+	expectedErr[4] = `Value 2 is not at required nesting of 1 at line: 12 column: 114`
+	expectedErr[5] = `Value 4 is not at required nesting of 1 at line: 12 column: 116`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -2684,6 +2721,11 @@ type Measure66 {
 }
 `
 
+	err := ast.DeleteType("Myobject66")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+
 	var expectedErr [1]string
 	expectedErr[0] = `Type "Myobject66" does not exist at line: 9 column: 13` //
 
@@ -3027,9 +3069,11 @@ type Measure {
 }
 `
 
-	var expectedErr [2]string
+	var expectedErr [3]string
 	expectedErr[0] = `Field, y, is not a LIST type but input data is a LIST type, at line: 10 column: 43` //
-	expectedErr[1] = `Required type "Int", got "Float" at line: 10 column: 46`                            //
+	expectedErr[1] = `Required type "Int", got "Float" at line: 10 column: 46`
+	expectedErr[2] = `Value 33.9 is not at required nesting of 0 at line: 10 column: 46`
+
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()

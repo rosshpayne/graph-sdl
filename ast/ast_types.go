@@ -508,52 +508,40 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 						defval.CheckEnumValue(a.Type, err)
 					}
 
-				// case *Scalar_:
-				// 	// Handled in default. Default values are not originally held as String_ and then coerced to the relevant Scalar_ type.
-				// coerce value to List of correct depth
-				// type List_ []*InputValue_
-
-				// 	type InputValueDef struct {
-				// Desc string
-				// Name_
-				// Type       *Type_
-				// DefaultVal *InputValue_
-
-				// type InputValue_ struct {
-				// 	Value InputValueProvider // List_, ObjectVals, Int_, Float, EnumVal_, Null_
-				// 	Loc   *Loc_
-				// }
 				default:
+					// single instance data
 					fmt.Printf("name: %s\n", a.Type.Name_)
 					fmt.Printf("constrint: %08b\n", a.Type.Constraint)
 					fmt.Printf("depth: %d\n", a.Type.Depth)
-					// save type before potential coercing
+					fmt.Println("defType ", a.DefaultVal.isType(), a.DefaultVal.IsScalar())
+					fmt.Println("refType ", a.Type.isType())
+
+					// save default type before potential coercing
 					defType := a.DefaultVal.isType()
-					fmt.Println("defType ", defType, a.DefaultVal.IsScalar())
 
 					if a.DefaultVal.isType() == NULL {
 						// test case FieldArgListInt3_6 [int]!  null  - value cannot be null
 						if a.Type.Constraint>>uint(a.Type.Depth)&1 == 1 {
 							*err = append(*err, fmt.Errorf(`Value cannot be NULL %s`, a.DefaultVal.AtPosition()))
 						}
-					}
-					if a.DefaultVal.IsScalar() {
+					} else if a.Type.isType() == SCALAR { //a.DefaultVal.IsScalar() {
 						// can the input value be coerced e.g. from string to Time
 						// try coercing default value to the appropriate scalar e.g. string to Time
 						if s, ok := a.Type.AST.(ScalarProvider); ok { // assert interface supported - normal assert type (*Scalar_) would also work just as well because there is only 1 scalar type really
 							if civ, cerr := s.Coerce(a.DefaultVal.Value); cerr != nil {
 								*err = append(*err, cerr)
+								return
 							} else {
 								a.DefaultVal.Value = civ
+								defType = a.DefaultVal.isType()
 							}
 						}
 						// coerce to a list of appropriate depth. Current value is not a list as this is case default - see other cases.
-						fmt.Println("here...")
 						if a.Type.Depth > 0 {
-							var coerce func(i *InputValue_, depth int) *InputValue_
+							var coerce2list func(i *InputValue_, depth int) *InputValue_
 							// type List_ []*InputValue_
 
-							coerce = func(i *InputValue_, depth int) *InputValue_ {
+							coerce2list = func(i *InputValue_, depth int) *InputValue_ {
 								if depth == 0 {
 									return i
 								}
@@ -561,15 +549,32 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 								vallist[0] = i
 								vi := &InputValue_{Value: vallist, Loc: i.Loc}
 								depth--
-								return coerce(vi, depth)
+								return coerce2list(vi, depth)
 							}
+							a.DefaultVal = coerce2list(a.DefaultVal, a.Type.Depth)
+						}
+					} else {
+						// coerce to a list of appropriate depth. Current value is not a list as this is case default - see other cases.
+						if a.Type.Depth > 0 {
+							var coerce2list func(i *InputValue_, depth int) *InputValue_
+							// type List_ []*InputValue_
 
-							a.DefaultVal = coerce(a.DefaultVal, a.Type.Depth)
+							coerce2list = func(i *InputValue_, depth int) *InputValue_ {
+								if depth == 0 {
+									return i
+								}
+								vallist := make(List_, 1, 1)
+								vallist[0] = i
+								vi := &InputValue_{Value: vallist, Loc: i.Loc}
+								depth--
+								return coerce2list(vi, depth)
+							}
+							a.DefaultVal = coerce2list(a.DefaultVal, a.Type.Depth)
 						}
 					}
 
 					if defType != NULL && defType != a.Type.isType() {
-						*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, a.Type.isType(), a.DefaultVal.isType(), a.DefaultVal.AtPosition()))
+						*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, a.Type.isType(), defType, a.DefaultVal.AtPosition()))
 					}
 				}
 			}

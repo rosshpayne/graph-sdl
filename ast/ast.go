@@ -344,7 +344,7 @@ func (l List_) ValidateListValues(iv *Type_, d *int, maxd *int, err *[]error) {
 
 		default:
 			// check the item - this is matched against the type specification for the list ie. [type]
-			if *d != reqDepth {
+			if *d != reqDepth && v.isType() != NULL {
 				*err = append(*err, fmt.Errorf(`Value %s is not at required nesting of %d %s`, v, reqDepth, v.AtPosition()))
 			}
 			if t := v.isType(); t != reqType {
