@@ -757,7 +757,7 @@ type Person {
 	}
 }
 
-func TestFieldArgx4ListCoerceNull(t *testing.T) {
+func TestFieldArgListDiffDepthInt(t *testing.T) {
 
 	input := `
 type Measure {
@@ -767,26 +767,15 @@ type Measure {
 type Person {
   name: String!
   age: Int!
-  inputX(info: [[Int!]] = null ): Float
+  inputX(info: [[Int]] =  2 ): Float
   posts: [Boolean!]!
 }`
 
-	expectedDoc := `type Measure {
-height : Float
-weight : Int
-}
-
-type Person {
-name : String!
-age : Int!
-inputX(info : [[Int]] =[[null]] ) : Float
-posts : [Boolean!]!
-}`
-
+	expectedDoc := `typeMeasure{height:Floatweight:Int}typePerson{name:String!age:Int!inputX(info:[[Int]]=[[2]]):Floatposts:[Boolean!]!}`
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
-	fmt.Println(d.String())
+	//fmt.Println(d.String())
 	if len(errs) > 0 {
 		t.Errorf("Unexpected, should be 0 errors, got %d", len(errs))
 		for _, v := range errs {
@@ -800,7 +789,7 @@ posts : [Boolean!]!
 	}
 }
 
-func TestFieldArgListDiffDepth2(t *testing.T) {
+func TestFieldArgListDiffDepthInt2(t *testing.T) {
 
 	input := `
 type Measure {
@@ -810,10 +799,11 @@ type Measure {
 type Person {
   name: String!
   age: Int!
-  inputX(info: [[int]] = 1 ): Float
+  inputX(info: [Int] =  2 ): Float
   posts: [Boolean!]!
 }`
 
+	expectedDoc := `typeMeasure{height:Floatweight:Int}typePerson{name:String!age:Int!inputX(info:[Int]=[2]):Floatposts:[Boolean!]!}`
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
@@ -822,6 +812,517 @@ type Person {
 		t.Errorf("Unexpected, should be 0 errors, got %d", len(errs))
 		for _, v := range errs {
 			t.Errorf(`Unexpected error: %s`, v.Error())
+		}
+	}
+	if compare(d.String(), expectedDoc) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(expectedDoc))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
+func TestFieldArgListInt3_1(t *testing.T) { // first entry in table in spec 3.12.1
+
+	input := `
+
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [Int] =  [1 2 3] ): Float
+  posts: [Boolean!]!
+}`
+
+	expectedDoc := `typePerson{name:String!age:Int!inputX(info:[Int]=[1 2 3]):Floatposts:[Boolean!]!}`
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) > 0 {
+		t.Errorf("Unexpected, should be 0 errors, got %d", len(errs))
+		for _, v := range errs {
+			t.Errorf(`Unexpected error: %s`, v.Error())
+		}
+	}
+	if compare(d.String(), expectedDoc) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(expectedDoc))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
+func TestFieldArgListInt3_2(t *testing.T) { // first entry in table in spec 3.12.1
+
+	input := `
+
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [Int] = null ): Float
+  posts: [Boolean!]!
+}`
+
+	expectedDoc := `typePerson{name:String!age:Int!inputX(info:[Int]=null):Floatposts:[Boolean!]!}`
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) > 0 {
+		t.Errorf("Unexpected, should be 0 errors, got %d", len(errs))
+		for _, v := range errs {
+			t.Errorf(`Unexpected error: %s`, v.Error())
+		}
+	}
+	if compare(d.String(), expectedDoc) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(expectedDoc))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
+func TestFieldArgListInt3_3(t *testing.T) { // first entry in table in spec 3.12.1
+
+	input := `
+
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [Int] = [1, 2, null] ): Float
+  posts: [Boolean!]!
+}`
+
+	expectedDoc := `typePerson{name:String!age:Int!inputX(info:[Int]=[1,2,null]):Floatposts:[Boolean!]!}`
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) > 0 {
+		t.Errorf("Unexpected, should be 0 errors, got %d", len(errs))
+		for _, v := range errs {
+			t.Errorf(`Unexpected error: %s`, v.Error())
+		}
+	}
+	if compare(d.String(), expectedDoc) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(expectedDoc))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
+// 3_4 [1, 2, Error]
+
+func TestFieldArgListInt3_5(t *testing.T) { // first entry in table in spec 3.12.1
+
+	input := `
+
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [Int]! = [1, 2, 3, 4] ): Float
+  posts: [Boolean!]!
+}`
+
+	expectedDoc := `typePerson{name:String!age:Int!inputX(info:[Int]!=[1,2,3,4]):Floatposts:[Boolean!]!}`
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	//fmt.Println(d.String())
+	if len(errs) > 0 {
+		t.Errorf("Unexpected, should be 0 errors, got %d", len(errs))
+		for _, v := range errs {
+			t.Errorf(`Unexpected error: %s`, v.Error())
+		}
+	}
+	if compare(d.String(), expectedDoc) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(expectedDoc))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
+func TestFieldArgListInt3_6(t *testing.T) { // first entry in table in spec 3.12.1
+
+	input := `
+
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [Int]! = null ): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Value cannot be NULL at line: 6 column: 25`
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+}
+
+func TestFieldArgListInt3_7(t *testing.T) { // first entry in table in spec 3.12.1
+
+	input := `
+
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [Int]! = [1, 2, null] ): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = ``
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println("[", d.String(), "]")
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+
+	if compare(d.String(), input) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
+//TODO 3_8 [Int]!	[1, 2, Error]
+
+func TestFieldArgListInt3_9(t *testing.T) { // first entry in table in spec 3.12.1
+
+	input := `
+
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [Int!] = [1, 2, 3] ): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = ``
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println("[", d.String(), "]")
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+
+	if compare(d.String(), input) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
+func TestFieldArgListInt3_10(t *testing.T) { // first entry in table in spec 3.12.1
+
+	input := `
+
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [Int!] = null ): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = ``
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println("[", d.String(), "]")
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+
+	if compare(d.String(), input) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
+func TestFieldArgListInt3_11(t *testing.T) { // first entry in table in spec 3.12.1
+
+	input := `
+
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [Int!] = [1, 2, null] ): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = `List cannot contain NULLs at line: 6 column: 32`
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+}
+
+//TODO [Int!]	[1, 2, Error]
+
+func TestFieldArgListInt3_13(t *testing.T) { // first entry in table in spec 3.12.1
+
+	input := `
+
+type Person {
+  name: String!
+  age: Int!
+  inputX(info:[Int!]! =	[1, 2, 3] ): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = ``
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+	if compare(d.String(), input) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
+func TestFieldArgListInt3_14(t *testing.T) { // first entry in table in spec 3.12.1
+
+	input := `
+
+type Person {
+  name: String!
+  age: Int!
+  inputX(info:[Int!]! = null ): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Value cannot be NULL at line: 6 column: 25`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+	if compare(d.String(), input) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
+func TestFieldArgListInt3_15(t *testing.T) { // first entry in table in spec 3.12.1
+
+	input := `
+
+type Person {
+  name: String!
+  age: Int!
+  inputX(info:[Int!]! =	[1, 2, null]): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = `List cannot contain NULLs at line: 6 column: 32`
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 	if compare(d.String(), input) {
@@ -841,10 +1342,11 @@ type Measure {
 type Person {
   name: String!
   age: Int!
-  inputX(info: [[int]] =  null ): Float
+  inputX(info: [[Int]] =  null ): Float
   posts: [Boolean!]!
 }`
 
+	expectedDoc := `typeMeasure{height:Floatweight:Int}typePerson{name:String!age:Int!inputX(info:[[Int]]=null):Floatposts:[Boolean!]!}`
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
@@ -855,9 +1357,9 @@ type Person {
 			t.Errorf(`Unexpected error: %s`, v.Error())
 		}
 	}
-	if compare(d.String(), input) {
+	if compare(d.String(), expectedDoc) {
 		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
-		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf("Expected: [%s] \n", trimWS(expectedDoc))
 		t.Errorf(`Unexpected: program.String() wrong. `)
 	}
 }
@@ -935,6 +1437,9 @@ type Person {
 		if !found {
 			t.Errorf(`Expected Error = [%q]`, ex)
 		}
+	}
+	for _, e := range errs {
+		fmt.Println("Error: ", e.Error())
 	}
 	for _, got := range errs {
 		found := false
@@ -1036,6 +1541,134 @@ type Person {
 }
 
 func TestFieldArgumentNullCheck2(t *testing.T) {
+
+	input := `type Measure {
+    height: Float
+    weight: Int
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [Int!] =  null ): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = `List cannot contain NULLs at line: 8 column: 84`
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+}
+
+func TestFieldArgumentNullCheck2a(t *testing.T) {
+
+	input := `type Measure {
+    height: Float
+    weight: Int
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [Int!]! =  null ): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = `List cannot contain NULLs at line: 8 column: 84`
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+}
+func TestFieldArgumentNullCheckInt(t *testing.T) {
+
+	input := `type Measure {
+    height: Float
+    weight: Int
+}
+type Person {
+  name: String!
+  age: Int!
+  inputX(info: [[String]!]! = [["abc"] ["defasj" "asdf" "asdf" ] ["abc" null] "XYZ" ]): Float
+  posts: [Boolean!]!
+}`
+
+	var expectedErr [1]string
+	expectedErr[0] = `Value "XYZ" is not at required nesting of 2 at line: 8 column: 79`
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+}
+
+func TestFieldArgumentNullCheck3a(t *testing.T) {
 
 	input := `type Measure {
     height: Float

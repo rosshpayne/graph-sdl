@@ -116,6 +116,17 @@ func (iv *InputValue_) isType() TypeFlag_ {
 	return NA
 }
 
+func (iv *InputValue_) IsScalar() bool {
+	// Union are not a valid input value
+	switch iv.Value.(type) {
+	case Int_, Bool_, Float_, RawString_:
+		return true
+	case *Scalar_:
+		return true
+	}
+	return false
+}
+
 // dataTypeString - prints the datatype of the type specification
 func (t *Type_) isType() TypeFlag_ {
 	//
@@ -327,14 +338,14 @@ func (l List_) ValidateListValues(iv *Type_, d *int, maxd *int, err *[]error) {
 			// default values in input object form { name:value name:value ... }: []*ArgumentT type ArgumentT: struct {Name_, Value *InputValue_}
 			// reqType is the type of the input object  - which defines the name and associated type for each item in the { }
 			if *d != reqDepth {
-				*err = append(*err, fmt.Errorf(`Value "%s" is not at required depth of %d %s`, v, reqDepth, v.AtPosition()))
+				*err = append(*err, fmt.Errorf(`Value %s is not at required nesting of %d %s`, v, reqDepth, v.AtPosition()))
 			}
 			in.ValidateInputObjectValues(iv, err)
 
 		default:
 			// check the item - this is matched against the type specification for the list ie. [type]
 			if *d != reqDepth {
-				*err = append(*err, fmt.Errorf(`Value "%s" is not at required depth of %d %s`, v, reqDepth, v.AtPosition()))
+				*err = append(*err, fmt.Errorf(`Value %s is not at required nesting of %d %s`, v, reqDepth, v.AtPosition()))
 			}
 			if t := v.isType(); t != reqType {
 				if v.isType() == NULL {

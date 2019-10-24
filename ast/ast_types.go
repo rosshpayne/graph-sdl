@@ -508,29 +508,48 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 						defval.CheckEnumValue(a.Type, err)
 					}
 
-				case *Scalar_:
-					// Handled in default. Default values are not originally held as String_ and then coerced to the relevant Scalar_ type.
+				// case *Scalar_:
+				// 	// Handled in default. Default values are not originally held as String_ and then coerced to the relevant Scalar_ type.
+				// coerce value to List of correct depth
+				// type List_ []*InputValue_
 
+				// 	type InputValueDef struct {
+				// Desc string
+				// Name_
+				// Type       *Type_
+				// DefaultVal *InputValue_
+
+				// type InputValue_ struct {
+				// 	Value InputValueProvider // List_, ObjectVals, Int_, Float, EnumVal_, Null_
+				// 	Loc   *Loc_
+				// }
 				default:
 					fmt.Printf("name: %s\n", a.Type.Name_)
 					fmt.Printf("constrint: %08b\n", a.Type.Constraint)
 					fmt.Printf("depth: %d\n", a.Type.Depth)
+					// save type before potential coercing
+					defType := a.DefaultVal.isType()
+					fmt.Println("defType ", defType, a.DefaultVal.IsScalar())
+
 					if a.DefaultVal.isType() == NULL {
-						// coerce to a list of appropriate depth
+						// test case FieldArgListInt3_6 [int]!  null  - value cannot be null
+						if a.Type.Constraint>>uint(a.Type.Depth)&1 == 1 {
+							*err = append(*err, fmt.Errorf(`Value cannot be NULL %s`, a.DefaultVal.AtPosition()))
+						}
+					}
+					if a.DefaultVal.IsScalar() {
+						// can the input value be coerced e.g. from string to Time
+						// try coercing default value to the appropriate scalar e.g. string to Time
+						if s, ok := a.Type.AST.(ScalarProvider); ok { // assert interface supported - normal assert type (*Scalar_) would also work just as well because there is only 1 scalar type really
+							if civ, cerr := s.Coerce(a.DefaultVal.Value); cerr != nil {
+								*err = append(*err, cerr)
+							} else {
+								a.DefaultVal.Value = civ
+							}
+						}
+						// coerce to a list of appropriate depth. Current value is not a list as this is case default - see other cases.
+						fmt.Println("here...")
 						if a.Type.Depth > 0 {
-							// coerce value to List of correct depth
-							// type List_ []*InputValue_
-
-							// 	type InputValueDef struct {
-							// Desc string
-							// Name_
-							// Type       *Type_
-							// DefaultVal *InputValue_
-
-							// type InputValue_ struct {
-							// 	Value InputValueProvider // List_, ObjectVals, Int_, Float, EnumVal_, Null_
-							// 	Loc   *Loc_
-							// }
 							var coerce func(i *InputValue_, depth int) *InputValue_
 							// type List_ []*InputValue_
 
@@ -538,35 +557,19 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 								if depth == 0 {
 									return i
 								}
-								// var vallist List_
-								// vallist = append(vallist, i)
 								vallist := make(List_, 1, 1)
 								vallist[0] = i
 								vi := &InputValue_{Value: vallist, Loc: i.Loc}
 								depth--
 								return coerce(vi, depth)
 							}
+
 							a.DefaultVal = coerce(a.DefaultVal, a.Type.Depth)
 						}
-						if a.Type.Constraint>>uint(0)&1 == 1 { // not null constraint set
-							*err = append(*err, fmt.Errorf(`Value cannot be NULL %s`, a.DefaultVal.AtPosition()))
-						}
+					}
 
-					} else {
-						// check types match
-						if a.Type.isType() == SCALAR {
-							// try coercing default value to the appropriate scalar e.g. string to Time
-							if s, ok := a.Type.AST.(ScalarProvider); ok { // assert interface supported - normal assert type (*Scalar_) would also work just as well because there is only 1 scalar type really
-								if civ, cerr := s.Coerce(a.DefaultVal.Value); cerr != nil {
-									*err = append(*err, cerr)
-								} else {
-									a.DefaultVal.Value = civ
-								}
-							}
-
-						} else if a.DefaultVal.isType() != a.Type.isType() {
-							*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, a.Type.isType(), a.DefaultVal.isType(), a.DefaultVal.AtPosition()))
-						}
+					if defType != NULL && defType != a.Type.isType() {
+						*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, a.Type.isType(), a.DefaultVal.isType(), a.DefaultVal.AtPosition()))
 					}
 				}
 			}
