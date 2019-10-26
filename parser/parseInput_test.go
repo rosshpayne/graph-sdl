@@ -8,7 +8,10 @@ import (
 
 func TestInput1(t *testing.T) {
 
-	input := `input Point2D  @ june (asdf:234){
+	input := `
+	directive @jun on | FIELD_DEFINITION | ARGUMENT_DEFINITION
+	
+	input Point2D  @ june (asdf:234){
   x: Float = 123.23 @ jun (asdf:234)
   y: Float = 34 @ jun (asdf:"""asdflkjslkjd""")
    y1: Float = 34 @ jun (asdf:"""asdflkjslkjd""")

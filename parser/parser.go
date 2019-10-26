@@ -11,32 +11,35 @@ import (
 	"github.com/graph-sdl/token"
 )
 
-type (
-	parseFn func(op string) ast.GQLTypeProvider
+const (
+	cErrLimit  = 8 // how many parse errors are permitted before processing stops
+	Executable = 'E'
+	TypeSystem = 'T'
 )
 
-const (
-	cErrLimit = 8 // how many parse errors are permitted before processing stops
+type (
+	parseFn func(op string) ast.GQLTypeProvider
+
+	Parser struct {
+		l *lexer.Lexer
+
+		extend bool
+
+		abort bool
+
+		curToken  token.Token
+		peekToken token.Token
+
+		parseFns map[token.TokenType]parseFn
+		perror   []error
+	}
 )
 
 var (
 	//	enumRepo      ast.EnumRepo_
-	typeNotExists map[ast.NameValue_]bool
+	typeNotExists     map[ast.NameValue_]bool
+	directiveLocation map[string]byte
 )
-
-type Parser struct {
-	l *lexer.Lexer
-
-	extend bool
-
-	abort bool
-
-	curToken  token.Token
-	peekToken token.Token
-
-	parseFns map[token.TokenType]parseFn
-	perror   []error
-}
 
 func New(l *lexer.Lexer) *Parser {
 	p := &Parser{
@@ -50,6 +53,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerFn(token.UNION, p.ParseUnionType)
 	p.registerFn(token.INPUT, p.ParseInputValueType)
 	p.registerFn(token.SCALAR, p.ParseScalar)
+	p.registerFn(token.DIRECTIVE, p.ParseDirective)
 	// Read two tokens, to initialise curToken and peekToken
 	p.nextToken()
 	p.nextToken()
@@ -62,6 +66,28 @@ func New(l *lexer.Lexer) *Parser {
 func init() {
 	//	enumRepo = make(ast.EnumRepo_)
 	typeNotExists = make(map[ast.NameValue_]bool)
+	directiveLocation = map[string]byte{
+		//	Executable DirectiveLocation
+		"QUERY":               Executable,
+		"MUTATION":            Executable,
+		"SUBSCRIPTION":        Executable,
+		"FIELD":               Executable,
+		"FRAGMENT_DEFINITION": Executable,
+		"FRAGMENT_SPREAD":     Executable,
+		"INLINE_FRAGMENT":     Executable,
+		//	TypeSystem DirectiveLocation
+		"SCHEMA":                 TypeSystem,
+		"SCALAR":                 TypeSystem,
+		"OBJECT":                 TypeSystem,
+		"FIELD_DEFINITION":       TypeSystem,
+		"ARGUMENT_DEFINITION":    TypeSystem,
+		"INTERFACE":              TypeSystem,
+		"UNION":                  TypeSystem,
+		"ENUM":                   TypeSystem,
+		"ENUM_VALUE":             TypeSystem,
+		"INPUT_OBJECT":           TypeSystem,
+		"INPUT_FIELD_DEFINITION": TypeSystem,
+	}
 }
 
 func (p *Parser) Loc() *ast.Loc_ {
@@ -135,14 +161,6 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 				// TODO - what if another type by that name exists
 				//  auto overrite or raise an error
 				ast.Persist(v.TypeName(), v)
-				//
-				// persist interface-ƒimplements as additional records
-				if obj, ok := v.(*ast.Object_); ok {
-					for _, imp := range obj.Implements {
-						ast.PersistImplements(imp.Name, v.TypeName())
-					}
-				}
-				//TODO - handle implements into GSI
 			}
 		}
 		errs = p.perror
@@ -207,6 +225,8 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 		// only proceed if zero errors for stmt
 		if len(program.ErrorMap[v.TypeName()]) == 0 {
 			switch x := v.(type) {
+			case *ast.Input_:
+				x.CheckIsInputType(&p.perror)
 			case *ast.Object_:
 				x.CheckIsOutputType(&p.perror)
 				x.CheckIsInputType(&p.perror)
@@ -216,7 +236,10 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 			case *ast.Interface_:
 			case *ast.Union_:
 				p.CheckUnionMembers(x)
-
+			case *ast.Directive_:
+				x.CheckIsInputType(&p.perror)
+				x.CheckInputValueType(&p.perror)
+				p.CheckForSelfReference(v.TypeName(), x)
 			}
 		}
 		program.ErrorMap[v.TypeName()] = append(program.ErrorMap[v.TypeName()], p.perror...)
@@ -317,6 +340,48 @@ func (p *Parser) checkUnresolvedTypes_(v ast.GQLTypeProvider) {
 			} else {
 				p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, tyName, tyName.AtPosition()))
 			}
+		}
+	}
+}
+
+//  ===================== CheckDirectives ================
+
+func (p *Parser) CheckForSelfReference(directive ast.NameValue_, x *ast.Directive_) {
+	// search for directives in the current stmt making sure it doesn't find itself
+
+	refCheck := func(dirName ast.NameValue_, x ast.GQLTypeProvider) {
+		x.CheckDirectiveRef(dirName, &p.perror)
+	}
+	// ArgumentDefs InputValueDefs // []*InputValueDef ->
+	// Type       *Type_
+	// DefaultVal *InputValue_
+	// Directives_ // Directives []*DirectiveT  // @Name_ (	Arguments_ )  //  []*ArgumentT // 	Name_ : Value *InputValue_
+	// type Directive_ struct {
+	// 	Desc         string
+	// 	Name_        // no need to hold Location as its stored in InputValue, parent of this object
+	// 	ArgumentDefs InputValueDefs // []*InputValDef
+	// 	Location     []string
+	// }
+	// type InputValueDef struct {
+	// 	Desc string
+	// 	Name_
+	// 	Type       *Type_                   <=== more directives inside ast
+	// 	DefaultVal *InputValue_
+	// 	Directives_							<=== more directives 1
+	// type Type_ struct {
+	// Constraint byte            // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
+	// AST        GQLTypeProvider // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
+	// Depth      int             // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
+	// Name_                      // type name. inherit AssignName(). Use Name_ to access AST via cache lookup. ALternatively, use AST above.
+
+	for _, v := range x.ArgumentDefs {
+		for _, dir := range v.Directives {
+			if directive.String() == dir.Name_.String() {
+				p.addErr(fmt.Sprintf(`Directive "%s" that references itself, is not permitted %s`, directive, dir.Name_.AtPosition()))
+			}
+		}
+		if v.Type.AST != nil {
+			refCheck(directive, v.Type.AST)
 		}
 	}
 }
@@ -572,12 +637,52 @@ func (p *Parser) ParseScalar(op string) ast.GQLTypeProvider {
 
 }
 
+// ====================== Directive_ ===============================
+// DirectiveDefinition
+//	Descriptiono-pt directive @ Name ArgumentsDefinition-opt  on  DirectiveLocations
+// DirectiveLocations
+//   | optDirectiveLocation
+// DirectiveLocations | DirectiveLocation
+// DirectiveLocation
+//      ExecutableDirectiveLocation
+//      TypeSystemDirectiveLocation
+func (p *Parser) ParseDirective(op string) ast.GQLTypeProvider {
+
+	p.nextToken() // read over input keyword
+
+	inp := &ast.Directive_{}
+
+	p.parseAt().parseName(inp).parseFieldArgumentDefs(inp).parseOn().parseDirectiveLocations(inp)
+
+	return inp
+}
+
 // =============================================================
 
 func (p *Parser) skipComment() {
 	if p.curToken.Type == token.STRING {
 		p.nextToken() // read over comment string
 	}
+}
+
+func (p *Parser) parseAt() *Parser {
+	if p.curToken.Type == token.ATSIGN {
+		p.nextToken() // read over @
+	} else {
+		p.addErr(fmt.Sprintf("Expected @ got %s of %s ", p.curToken.Type, p.curToken.Literal))
+		p.abort = true
+	}
+	return p
+}
+
+func (p *Parser) parseOn() *Parser {
+	if p.curToken.Type == token.ON {
+		p.nextToken() // read over ON
+	} else {
+		p.addErr(fmt.Sprintf("Expected @ got %s of %s ", p.curToken.Type, p.curToken.Literal))
+		p.abort = true
+	}
+	return p
 }
 
 func (p *Parser) readDescription() string {
@@ -675,6 +780,24 @@ func (p *Parser) parseEnumValues(enum *ast.Enum_, optional ...bool) *Parser {
 	return p
 }
 
+//========================= parseDirectiveLocations ====================================
+
+func (p *Parser) parseDirectiveLocations(d *ast.Directive_) *Parser {
+
+	for ; p.curToken.Type == token.BAR || p.curToken.Type == token.IDENT; p.nextToken() {
+		if p.curToken.Type == token.BAR && p.peekToken.Type != token.IDENT {
+			p.addErr(fmt.Sprintf("expected directive location identifer, got %s, %s", p.curToken.Type, p.curToken.Literal))
+		} else if p.curToken.Type == token.IDENT {
+			if _, ok := directiveLocation[p.curToken.Literal]; !ok {
+				p.addErr(fmt.Sprintf("Invalid directive location %s", p.curToken.Literal))
+			} else {
+				d.Location = append(d.Location, p.curToken.Literal)
+			}
+		}
+	}
+	return p
+}
+
 //========================= parseUnionMembers ====================================
 // UnionMemberTypes
 //		=|optNamedType
@@ -686,7 +809,7 @@ func (p *Parser) parseUnionMembers(u *ast.Union_, optional ...bool) *Parser {
 	}
 	for p.nextToken(); p.curToken.Type == token.BAR || p.curToken.Type == token.IDENT; p.nextToken() {
 		if p.curToken.Type == token.BAR && p.peekToken.Type != token.IDENT {
-			p.addErr(fmt.Sprintf("expected Union identifer, got %s, %s", p.curToken.Type, p.curToken.Literal))
+			p.addErr(fmt.Sprintf("expected Union  member  identifer, got %s, %s", p.curToken.Type, p.curToken.Literal))
 		} else if p.curToken.Type == token.IDENT {
 			var memberName ast.Name_
 			memberName.AssignName(p.curToken.Literal, p.Loc(), &p.perror) // appends to perror if invalid name
@@ -987,7 +1110,7 @@ func (p *Parser) parseFieldArgumentDefs(f ast.FieldArgAppender) *Parser { // st 
 		return p
 	}
 	var encl [2]token.TokenType = [2]token.TokenType{token.LPAREN, token.RPAREN} // ()
-	return p.parseInputValueDefs(f, encl)
+	return p.parseArgumentDefs(f, encl)
 }
 
 func (p *Parser) parseInputFieldDefs(f ast.FieldArgAppender) *Parser {
@@ -996,10 +1119,10 @@ func (p *Parser) parseInputFieldDefs(f ast.FieldArgAppender) *Parser {
 		return p
 	}
 	var encl [2]token.TokenType = [2]token.TokenType{token.LBRACE, token.RBRACE} // {}
-	return p.parseInputValueDefs(f, encl)
+	return p.parseArgumentDefs(f, encl)
 }
 
-func (p *Parser) parseInputValueDefs(f ast.FieldArgAppender, encl [2]token.TokenType) *Parser {
+func (p *Parser) parseArgumentDefs(f ast.FieldArgAppender, encl [2]token.TokenType) *Parser {
 
 	if p.curToken.Type == encl[0] {
 		p.nextToken() // read over ( or {

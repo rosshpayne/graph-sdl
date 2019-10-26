@@ -368,6 +368,16 @@ func (o *Object_) TypeName() NameValue_ {
 	return o.Name
 }
 
+func (o *Object_) CheckDirectiveRef(dirName NameValue_, err *[]error) {
+
+	o.Directives_.CheckDirectiveRef(dirName, err)
+
+	for _, v := range o.FieldSet {
+		v.CheckDirectiveRef(dirName, err)
+	}
+
+}
+
 func (f *Object_) CheckImplements(err *[]error) {
 	for _, v := range f.Implements {
 		// check name represents a interface type in repo
@@ -409,9 +419,10 @@ func (f *Object_) CheckImplements(err *[]error) {
 	}
 }
 
-func (f *Object_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
-	f.FieldSet.CheckUnresolvedTypes(unresolved)
-	f.Implements.CheckUnresolvedTypes(unresolved)
+func (o *Object_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
+	o.FieldSet.CheckUnresolvedTypes(unresolved)
+	o.Implements.CheckUnresolvedTypes(unresolved)
+	o.Directives_.CheckUnresolvedTypes(unresolved)
 }
 
 func (f *Object_) CheckIsOutputType(err *[]error) {
@@ -524,6 +535,7 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 						if a.Type.Constraint>>uint(a.Type.Depth)&1 == 1 {
 							*err = append(*err, fmt.Errorf(`Value cannot be NULL %s`, a.DefaultVal.AtPosition()))
 						}
+
 					} else if a.Type.isType() == SCALAR { //a.DefaultVal.IsScalar() {
 						// can the input value be coerced e.g. from string to Time
 						// try coercing default value to the appropriate scalar e.g. string to Time
@@ -536,7 +548,7 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 								defType = a.DefaultVal.isType()
 							}
 						}
-						// coerce to a list of appropriate depth. Current value is not a list as this is case default - see other cases.
+						// coerce to a list of appropriate depth. Current value is not a list as this is switch case default - see other cases.
 						if a.Type.Depth > 0 {
 							var coerce2list func(i *InputValue_, depth int) *InputValue_
 							// type List_ []*InputValue_
@@ -553,6 +565,7 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 							}
 							a.DefaultVal = coerce2list(a.DefaultVal, a.Type.Depth)
 						}
+
 					} else {
 						// coerce to a list of appropriate depth. Current value is not a list as this is case default - see other cases.
 						if a.Type.Depth > 0 {
@@ -676,17 +689,20 @@ func (f *Field_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 	if f.Type == nil {
 		log.Panic(fmt.Errorf("Severe Error - not expected: Field.Type is not assigned for [%s]", f.Name_.String()))
 	}
-	if !f.Type.IsScalar() && f.Type.AST == nil {
-		// check in cache only at this stage.
-		// When control passes back to parser we resolved the unresolved using the DB and parse stmt if found.
-		if ast, ok := CacheFetch(f.Type.Name); !ok {
-			unresolved[f.Type.Name_] = f.Type
-		} else {
-			f.Type.AST = ast
+	if !f.Type.IsScalar() {
+		if f.Type.AST == nil {
+			// check in cache only at this stage.
+			// When control passes back to parser we resolved the unresolved using the DB and parse stmt if found.
+			if ast, ok := CacheFetch(f.Type.Name); !ok {
+				unresolved[f.Type.Name_] = f.Type
+			} else {
+				f.Type.AST = ast
+			}
 		}
 	}
 	//
 	f.ArgumentDefs.CheckUnresolvedTypes(unresolved)
+	f.Directives_.CheckUnresolvedTypes(unresolved)
 }
 
 // use following method to override the promoted methods from Name_ and Directives_ fields. Forces use of Name_ method.
@@ -707,6 +723,22 @@ func (f *Field_) String() string {
 
 func (f *Field_) AppendField(f_ *InputValueDef, unresolved *[]error) {
 	f.ArgumentDefs.AppendField(f_, unresolved)
+}
+
+func (f *Field_) CheckDirectiveRef(dir NameValue_, err *[]error) {
+
+	refCheck := func(dirName NameValue_, x GQLTypeProvider) {
+		x.CheckDirectiveRef(dirName, err)
+	}
+
+	f.ArgumentDefs.CheckDirectiveRef(dir, err)
+
+	f.Directives_.CheckDirectiveRef(dir, err)
+
+	if !f.Type.IsScalar() && f.Type.AST != nil {
+		refCheck(dir, f.Type.AST)
+	}
+
 }
 
 // ==================== ArgumentDefs ================================
@@ -743,14 +775,23 @@ func (fa *InputValueDefs) String(encl [2]token.TokenType) string {
 func (fa InputValueDefs) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 
 	for _, v := range fa {
-		if !v.Type.IsScalar() && v.Type.AST == nil {
-			if ast, ok := CacheFetch(v.Type.Name); !ok {
-				unresolved[v.Type.Name_] = v.Type
-				//*unresolved = append(*unresolved, v.Type.Name_)
-			} else {
-				v.Type.AST = ast
-			}
+		fmt.Println("CheckUnresolvedTypes for ", v.Name_)
+		v.CheckUnresolvedTypes(unresolved)
+	}
+}
+
+func (fa InputValueDefs) CheckDirectiveRef(dirName NameValue_, err *[]error) {
+	for _, v := range fa {
+		v.CheckDirectiveRef(dirName, err)
+	}
+}
+
+func (fa InputValueDefs) CheckIsInputType(err *[]error) {
+	for _, p := range fa {
+		if !IsInputType(p.Type) {
+			*err = append(*err, fmt.Errorf(`Argument "%s" type "%s", is not an input type %s`, p.Name_, p.Type.Name, p.Type.Name_.AtPosition()))
 		}
+		//	_ := p.DefaultVal.isType() // e.g. scalar, int | List
 	}
 }
 
@@ -767,18 +808,30 @@ type InputValueDef struct {
 	Directives_
 }
 
-func (fa *InputValueDef) checkUnresolvedType(unresolved *[]Name_) { //TODO - check this..should it use unresolvedMap?
+func (fa *InputValueDef) CheckUnresolvedTypes(unresolved UnresolvedMap) { //TODO - check this..should it use unresolvedMap?
 	if fa.Type == nil {
 		err := fmt.Errorf("Severe Error - not expected: InputValueDef.Type is not assigned for [%s]", fa.Name_.String())
 		log.Panic(err)
 	}
 	if !fa.Type.IsScalar() && fa.Type.AST == nil {
-		if ast, ok := CacheFetch(fa.Type.Name); !ok {
-			*unresolved = append(*unresolved, fa.Type.Name_)
-		} else {
-			fa.Type.AST = ast
-		}
+		unresolved[fa.Type.Name_] = fa.Type
 	}
+	fa.Directives_.CheckUnresolvedTypes(unresolved)
+}
+
+func (fa *InputValueDef) CheckDirectiveRef(dir NameValue_, err *[]error) {
+
+	refCheck := func(dirName NameValue_, x GQLTypeProvider) {
+		fmt.Println("inputValueDef refcheck for ", dirName, x.TypeName())
+		x.CheckDirectiveRef(dirName, err)
+	}
+
+	fa.Directives_.CheckDirectiveRef(dir, err)
+
+	if !fa.Type.IsScalar() && fa.Type.AST != nil {
+		refCheck(dir, fa.Type.AST)
+	}
+
 }
 
 func (fa *InputValueDef) AssignName(input string, loc *Loc_, unresolved *[]error) {
@@ -814,8 +867,13 @@ type Enum_ struct {
 	Values []*EnumValue_
 }
 
-func (e *Enum_) TypeSystemNode()                               {}
-func (e *Enum_) CheckUnresolvedTypes(unresolved UnresolvedMap) {}
+func (e *Enum_) TypeSystemNode() {}
+func (e *Enum_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
+	e.Directives_.CheckUnresolvedTypes(unresolved)
+	for _, v := range e.Values {
+		v.CheckUnresolvedTypes(unresolved)
+	}
+}
 
 func (e *Enum_) TypeName() NameValue_ {
 	return e.Name
@@ -847,9 +905,11 @@ type EnumValue_ struct {
 	Directives_
 }
 
-func (e *EnumValue_) ValueNode()                                    {} // instane of InputValue_
-func (e *EnumValue_) TypeSystemNode()                               {}
-func (e *EnumValue_) CheckUnresolvedTypes(unresolved UnresolvedMap) {}
+func (e *EnumValue_) ValueNode()      {} // instane of InputValue_
+func (e *EnumValue_) TypeSystemNode() {}
+func (e *EnumValue_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
+	e.Directives_.CheckUnresolvedTypes(unresolved)
+}
 func (e *EnumValue_) AssignName(s string, l *Loc_, unresolved *[]error) {
 	e.Name_.AssignName(s, l, unresolved)
 }
@@ -910,7 +970,10 @@ type Interface_ struct {
 }
 
 func (i *Interface_) TypeSystemNode() {}
-
+func (i *Interface_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
+	i.Directives_.CheckUnresolvedTypes(unresolved)
+	i.FieldSet.CheckUnresolvedTypes(unresolved)
+}
 func (i *Interface_) TypeName() NameValue_ {
 	return i.Name
 }
@@ -941,6 +1004,10 @@ type Union_ struct {
 }
 
 func (u *Union_) TypeSystemNode() {}
+func (u *Union_) CheckUnresolvedTypes(unresolved UnresolvedMap) { // TODO check this is being executed
+	u.Directives_.CheckUnresolvedTypes(unresolved)
+}
+
 func (u *Union_) TypeName() NameValue_ {
 	return u.Name
 }
@@ -986,10 +1053,19 @@ type Input_ struct {
 }
 
 func (e *Input_) TypeSystemNode() {}
-func (e *Input_) ValueNode()      {}
+func (e *Input_) CheckUnresolvedTypes(unresolved UnresolvedMap) { // TODO check this is being executed
+	e.Directives_.CheckUnresolvedTypes(unresolved)
+	e.InputValueDefs.CheckUnresolvedTypes(unresolved)
+}
+func (e *Input_) ValueNode() {}
 
 func (i *Input_) TypeName() NameValue_ {
 	return i.Name
+}
+
+func (i *Input_) CheckDirectiveRef(dir NameValue_, err *[]error) {
+	i.Directives_.CheckDirectiveRef(dir, err)
+	i.InputValueDefs.CheckDirectiveRef(dir, err)
 }
 
 func (u *Input_) String() string {
@@ -1026,10 +1102,11 @@ type Scalar_ struct {
 	IntV    int64     // any int
 }
 
-func (e *Scalar_) TypeSystemNode()                               {}
-func (e *Scalar_) ValueNode()                                    {}
-func (e *Scalar_) CheckUnresolvedTypes(unresolved UnresolvedMap) {}
-
+func (e *Scalar_) TypeSystemNode() {}
+func (e *Scalar_) ValueNode()      {}
+func (e *Scalar_) CheckUnresolvedTypes(unresolved UnresolvedMap) { // TODO check this is being executed
+	e.Directives_.CheckUnresolvedTypes(unresolved)
+}
 func (i *Scalar_) TypeName() NameValue_ {
 	return NameValue_(i.Name)
 }
@@ -1093,5 +1170,174 @@ func (s *Scalar_) Coerce(input InputValueProvider) (InputValueProvider, error) {
 
 	default:
 		return nil, fmt.Errorf("%s is not a Scalar ", s.Name)
+	}
+}
+
+// ======================  Directive_ =========================
+// ScalarTypeDefinition:
+//		Description-opt	input	Name	DirectivesConst-opt	InputFieldsDefinition-opt
+
+type Directive_ struct {
+	Desc         string
+	Name_        // no need to hold Location as its stored in InputValue, parent of this object
+	ArgumentDefs InputValueDefs
+	Location     []string
+}
+
+func (d *Directive_) TypeSystemNode() {}
+func (d *Directive_) ValueNode()      {}
+func (d *Directive_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
+	d.ArgumentDefs.CheckUnresolvedTypes(unresolved)
+}
+func (d *Directive_) CheckDirectiveRef(dir NameValue_, err *[]error) {
+	for _, v := range d.ArgumentDefs {
+		v.CheckDirectiveRef(dir, err)
+	}
+}
+func (d *Directive_) TypeName() NameValue_ {
+	return d.Name
+}
+
+func (i *Directive_) AssignName(input string, loc *Loc_, err *[]error) {
+	i.Name_.AssignName(input, loc, err)
+}
+
+func (d *Directive_) String() string {
+	var (
+		s    strings.Builder
+		encl [2]token.TokenType = [2]token.TokenType{token.LPAREN, token.RPAREN}
+	)
+	s.WriteString("\ndirective @")
+	s.WriteString(d.Name.String())
+	s.WriteString(d.ArgumentDefs.String(encl))
+	if len(d.Location) > 0 {
+
+		s.WriteString(" on ")
+		for _, v := range d.Location {
+			s.WriteString("| ")
+			s.WriteString(v)
+		}
+	}
+	return s.String()
+}
+
+func (d *Directive_) CheckIsInputType(err *[]error) {
+	for _, p := range d.ArgumentDefs {
+		if !IsInputType(p.Type) {
+			*err = append(*err, fmt.Errorf(`Argument "%s" type "%s", is not an input type %s`, p.Name_, p.Type.Name, p.Type.Name_.AtPosition()))
+		}
+		//	_ := p.DefaultVal.isType() // e.g. scalar, int | List
+	}
+}
+
+func (d *Directive_) AppendField(f_ *InputValueDef, err *[]error) {
+	d.ArgumentDefs.AppendField(f_, err)
+}
+
+func (d *Directive_) CheckInputValueType(err *[]error) { // TODO try merging wih *Object_ version
+	for _, a := range d.ArgumentDefs { // go thru each of the argument field objects [] {} scalar
+
+		if a.DefaultVal != nil {
+
+			// what type is the default value
+			switch defval := a.DefaultVal.Value.(type) {
+
+			case List_: // [ "ads", "wer" ]
+				if a.Type.Depth == 0 { // required type is not a LIST
+					*err = append(*err, fmt.Errorf(`Argument "%s", type is not a list but default value is a list %s`, a.Name_, a.DefaultVal.AtPosition()))
+					return
+				}
+				var d int = 0
+				var maxd int
+				defval.ValidateListValues(a.Type, &d, &maxd, err) // a.Type is the data type of the list items
+				//
+				if maxd != a.Type.Depth {
+					*err = append(*err, fmt.Errorf(`Argument "%s", nested List type depth different reqired %d, got %d %s`, a.Name_, a.Type.Depth, maxd, a.DefaultVal.AtPosition()))
+				}
+
+			case ObjectVals:
+				// { x: "ads", y: 234 }
+				defval.ValidateInputObjectValues(a.Type, err)
+
+			case *EnumValue_:
+				// EAST WEST NORHT SOUTH
+				if a.Type.isType() != ENUM {
+					*err = append(*err, fmt.Errorf(`"%s" is an enum like value but the argument type "%s" is not an Enum type %s`, defval.Name, a.Type.Name_, a.DefaultVal.AtPosition()))
+				} else {
+					defval.CheckEnumValue(a.Type, err)
+				}
+
+			default:
+				// single instance data
+				fmt.Printf("name: %s\n", a.Type.Name_)
+				fmt.Printf("constrint: %08b\n", a.Type.Constraint)
+				fmt.Printf("depth: %d\n", a.Type.Depth)
+				fmt.Println("defType ", a.DefaultVal.isType(), a.DefaultVal.IsScalar())
+				fmt.Println("refType ", a.Type.isType())
+
+				// save default type before potential coercing
+				defType := a.DefaultVal.isType()
+
+				if a.DefaultVal.isType() == NULL {
+					// test case FieldArgListInt3_6 [int]!  null  - value cannot be null
+					if a.Type.Constraint>>uint(a.Type.Depth)&1 == 1 {
+						*err = append(*err, fmt.Errorf(`Value cannot be NULL %s`, a.DefaultVal.AtPosition()))
+					}
+
+				} else if a.Type.isType() == SCALAR { //a.DefaultVal.IsScalar() {
+					// can the input value be coerced e.g. from string to Time
+					// try coercing default value to the appropriate scalar e.g. string to Time
+					if s, ok := a.Type.AST.(ScalarProvider); ok { // assert interface supported - normal assert type (*Scalar_) would also work just as well because there is only 1 scalar type really
+						if civ, cerr := s.Coerce(a.DefaultVal.Value); cerr != nil {
+							*err = append(*err, cerr)
+							return
+						} else {
+							a.DefaultVal.Value = civ
+							defType = a.DefaultVal.isType()
+						}
+					}
+					// coerce to a list of appropriate depth. Current value is not a list as this is switch case default - see other cases.
+					if a.Type.Depth > 0 {
+						var coerce2list func(i *InputValue_, depth int) *InputValue_
+						// type List_ []*InputValue_
+
+						coerce2list = func(i *InputValue_, depth int) *InputValue_ {
+							if depth == 0 {
+								return i
+							}
+							vallist := make(List_, 1, 1)
+							vallist[0] = i
+							vi := &InputValue_{Value: vallist, Loc: i.Loc}
+							depth--
+							return coerce2list(vi, depth)
+						}
+						a.DefaultVal = coerce2list(a.DefaultVal, a.Type.Depth)
+					}
+
+				} else {
+					// coerce to a list of appropriate depth. Current value is not a list as this is case default - see other cases.
+					if a.Type.Depth > 0 {
+						var coerce2list func(i *InputValue_, depth int) *InputValue_
+						// type List_ []*InputValue_
+
+						coerce2list = func(i *InputValue_, depth int) *InputValue_ {
+							if depth == 0 {
+								return i
+							}
+							vallist := make(List_, 1, 1)
+							vallist[0] = i
+							vi := &InputValue_{Value: vallist, Loc: i.Loc}
+							depth--
+							return coerce2list(vi, depth)
+						}
+						a.DefaultVal = coerce2list(a.DefaultVal, a.Type.Depth)
+					}
+				}
+
+				if defType != NULL && defType != a.Type.isType() {
+					*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, a.Type.isType(), defType, a.DefaultVal.AtPosition()))
+				}
+			}
+		}
 	}
 }

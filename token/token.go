@@ -70,6 +70,7 @@ const (
 	INPUT      = "INPUT"
 	EXTEND     = "EXTEND"
 	SCALAR     = "SCALAR"
+	DIRECTIVE  = "DIRECTIVE"
 )
 
 type Pos struct {
@@ -109,6 +110,7 @@ var keywords = map[string]struct {
 	"input":      {INPUT, NONVALUE, false},
 	"extend":     {EXTEND, NONVALUE, false},
 	"scalar":     {SCALAR, NONVALUE, false},
+	"directive":  {DIRECTIVE, NONVALUE, false},
 }
 
 func LookupIdent(ident string) (TokenType, TokenCat, bool) {

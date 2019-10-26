@@ -2474,6 +2474,8 @@ type Person {
 func TestExtendField7(t *testing.T) {
 
 	input := `
+	directive @addedDirective34 on FIELD_DEFINITION | ARGUMENT_DEFINITION
+directive	@addedDirective67 on FIELD_DEFINITION | ARGUMENT_DEFINITION
 input Measure {
     height: Float
     weight: Int
@@ -2507,7 +2509,8 @@ extend type Person2 @addedDirective34
 	// inputMeasure{height:Floatweight:Int}enumAddress{NORTHSOUTHEAST}typePerson2@addedDirective34{name:String!age:Int!inputX(info:[Measure]=[{height:123.2weight:12}{height:1423.2weight:132}]):Floatposts:[Boolean!]!addres:Address!isHiddenLocally:Boolean}typePerson2@addedDirective34{name:String!age:Int!inputX(info:[Measure]=[{height:123.2weight:12}{height:1423.2weight:132}]):Floatposts:[Boolean!]!addres:Address!isHiddenLocally:Boolean}typePerson2@addedDirective34{name:String!age:Int!inputX(info:[Measure]=[{height:123.2weight:12}{height:1423.2weight:132}]):Floatposts:[Boolean!]!addres:Address!isHiddenLocally:Boolean}
 
 	expectedDoc := `
-
+	directive @addedDirective34 on | FIELD_DEFINITION | ARGUMENT_DEFINITION
+	directive	@addedDirective67 on |FIELD_DEFINITION | ARGUMENT_DEFINITION
 input Measure{height:Float weight:Int}
 
 enumAddress{NORTH SOUTH EAST} 
@@ -2523,18 +2526,39 @@ type Person2@addedDirective34{name:String!age:Int!inputX(info:[Measure]=[{height
  
 type Person2@addedDirective34{name:String!age:Int!inputX(info:[Measure]=[{height:123.2weight:12}{height:1423.2weight:132}]):Floatposts:[Boolean!]!addres:Address!isHiddenLocally:Boolean}
 `
+	var expectedErr [1]string
+	expectedErr[0] = ``
+
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	if len(errs) > 0 {
-		t.Errorf("Unexpected, should be 0 errors, got %d", len(errs))
-		for _, v := range errs {
-			t.Errorf(`Unexpected error: %s`, v.Error())
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 	if compare(d.String(), expectedDoc) {
-		t.Errorf("Got:      [%s] \n", d.String())
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
 		t.Errorf("Expected: [%s] \n", trimWS(expectedDoc))
 		t.Errorf(`Unexpected: program.String() wrong. `)
 	}

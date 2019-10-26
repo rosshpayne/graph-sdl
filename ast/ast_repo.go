@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	TableName string = "GraphQL"
+	TableName string = "GraphQL2"
 )
 
 type TypeRow struct {
@@ -87,18 +87,42 @@ func fetchInterface(input Name_) (*Interface_, bool, string) {
 
 func dbPersist(pkey NameValue_, ast GQLTypeProvider) error {
 	//
-
-	typeDef := TypeRow{PKey: pkey.String(), SortK: "__", Stmt: ast.String()}
-	av, err := dynamodbattribute.MarshalMap(typeDef)
-	if err != nil {
-		return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
-	}
-	_, err = db.PutItem(&dynamodb.PutItemInput{
-		TableName: aws.String(TableName),
-		Item:      av,
-	})
-	if err != nil {
-		return fmt.Errorf("%s: %s", "Error: failed to PutItem ", err.Error())
+	switch x := ast.(type) {
+	case *Directive_:
+		type DirRow struct {
+			PKey  string
+			SortK string
+			Stmt  string
+			Dir   string
+		}
+		typeDef := DirRow{PKey: pkey.String(), SortK: "__", Stmt: ast.String(), Dir: "D"}
+		av, err := dynamodbattribute.MarshalMap(typeDef)
+		if err != nil {
+			return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+		}
+		_, err = db.PutItem(&dynamodb.PutItemInput{
+			TableName: aws.String(TableName),
+			Item:      av,
+		})
+		if err != nil {
+			return fmt.Errorf("%s: %s", "Error: failed to PutItem ", err.Error())
+		}
+	case *Object_:
+		typeDef := TypeRow{PKey: pkey.String(), SortK: "__", Stmt: ast.String()}
+		av, err := dynamodbattribute.MarshalMap(typeDef)
+		if err != nil {
+			return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+		}
+		_, err = db.PutItem(&dynamodb.PutItemInput{
+			TableName: aws.String(TableName),
+			Item:      av,
+		})
+		if err != nil {
+			return fmt.Errorf("%s: %s", "Error: failed to PutItem ", err.Error())
+		}
+		for _, imp := range x.Implements {
+			PersistImplements(imp.Name, x.TypeName())
+		}
 	}
 	return nil
 }
@@ -141,6 +165,7 @@ func DeleteType(input string) error {
 	if err != nil {
 		return fmt.Errorf(`Error: failed to DeleteItem: "%s"  %s`, input, err.Error())
 	}
+	//TODO - delete any implement items
 	return nil
 }
 

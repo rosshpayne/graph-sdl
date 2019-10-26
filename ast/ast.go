@@ -406,6 +406,20 @@ func (d *Directives_) String() string {
 	return s.String()
 }
 
+func (d *Directives_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
+	for _, v := range d.Directives {
+		unresolved[v.Name_] = nil
+	}
+}
+
+func (d *Directives_) CheckDirectiveRef(dir NameValue_, err *[]error) {
+	for _, v := range d.Directives {
+		if v.Name_.String() == dir.String() {
+			*err = append(*err, fmt.Errorf(`Directive "%s" references itself, is not permitted %s`, dir, v.Name_.AtPosition()))
+		}
+	}
+}
+
 // =========== Loc_ =============================
 
 type Loc_ struct {
@@ -492,6 +506,7 @@ type GQLTypeProvider interface {
 	TypeName() NameValue_
 	CheckUnresolvedTypes(unresolved UnresolvedMap) // while not all Types contain nested types that need to be resolved e.g scalar must still include this method
 	String() string
+	CheckDirectiveRef(dir NameValue_, err *[]error)
 }
 
 var tc = 2
