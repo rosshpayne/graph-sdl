@@ -490,7 +490,7 @@ func TestImplements6a(t *testing.T) {
 	}
 }
 
-func TestBadInterfaceKeyword(t *testing.T) {
+func TestInterfaceBadKeyword(t *testing.T) {
 
 	input := `
 	interfacei NamedEntity6b {

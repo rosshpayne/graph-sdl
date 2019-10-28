@@ -11,8 +11,8 @@ func TestEnumDuplicate(t *testing.T) {
 
 	input := `
 
-directive @deprecated on FIELD_DEFINITION | ARGUMENT_DEFINITION
-directive @dep on FIELD_DEFINITION | ARGUMENT_DEFINITION
+directive @deprecated on ENUM_VALUE | ARGUMENT_DEFINITION
+directive @dep on ENUM_VALUE | ARGUMENT_DEFINITION
 
 enum Direction {
   NORTH
@@ -217,35 +217,44 @@ func TestBadBracket(t *testing.T) {
 func TestBadEnumValue2(t *testing.T) {
 
 	input := `
+		directive @ xyz on | ENUM_VALUE
+	directive @ dep  on | ENUM_VALUE
 	enum Direction {
   NORTH
   true
   SOUTH
-  WEST @deprecated @ dep (if: 99.34)
+  WEST @xyz @ dep (if: 99.34)
 }
 `
 	var expectedErr [1]string
-	expectedErr[0] = `Expected name identifer got TRUE of "true" at line: 4, column: 3`
+	expectedErr[0] = `Expected name identifer got TRUE of "true" at line: 6, column: 3`
 
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	if len(errs) != len(expectedErr) {
-		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
-	}
-	// for _, e := range errs {
-	// 	fmt.Println("*** ", e.Error())
-	// }
-	for _, e := range expectedErr {
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
 		found := false
-		for _, n := range errs {
-			if trimWS(n.Error()) == trimWS(e) {
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
 				found = true
 			}
 		}
 		if !found {
-			t.Errorf(`***  Expected %s- not exists.`, e)
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 }
@@ -253,11 +262,13 @@ func TestBadEnumValue2(t *testing.T) {
 func TestEnumDuplicate2(t *testing.T) {
 
 	input := `
+	directive @ xyz on | ENUM_VALUE
+	directive @ dep  on | ENUM_VALUE
 enum Direction {
   NORTH
   EAST
   SOUTH
-  EAST @deprecated @ dep (if: 99.34)
+  EAST @xyz @ dep (if: 99.34)
 }
 type Person {
 		address: [Direction]
@@ -265,27 +276,34 @@ type Person {
 `
 
 	var expectedErr [1]string
-	expectedErr[0] = `Duplicate Enum Value [EAST] at line: 6 column: 3`
+	expectedErr[0] = `Duplicate Enum Value [EAST] at line: 8 column: 3`
 
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	if len(errs) != len(expectedErr) {
-		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
-	}
-	// for _, e := range errs {
-	// 	fmt.Println("*** ", e.Error())
-	// }
-	for _, e := range expectedErr {
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
 		found := false
-		for _, n := range errs {
-			if trimWS(n.Error()) == trimWS(e) {
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
 				found = true
 			}
 		}
 		if !found {
-			t.Errorf(`***  Expected %s- not exists.`, e)
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 }
@@ -302,18 +320,20 @@ enum Direction {
 type Person {
 		address: [Place]
 		name: [String!]!
-	}
-`
+	}`
 
 	var expectedErr [4]string
 	expectedErr[0] = `Expected name identifer got TRUE of "true" at line: 4, column: 3`
 	expectedErr[1] = `identifer [__dep] cannot start with two underscores at line: 6, column: 22`
 	expectedErr[2] = `Type "Place" does not exist at line: 9 column: 13`
-	expectedErr[3] = `Type "__dep" does not exist at line: 6 column: 22`
+	expectedErr[3] = `Type "@__dep" does not exist at line: 6 column: 22`
 
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
+	for _, v := range errs {
+		fmt.Println(v.Error())
+	}
 	for _, ex := range expectedErr {
 		if len(ex) == 0 {
 			break

@@ -54,7 +54,14 @@ func init() {
 // 	return CacheFetch(input)
 // }
 
+func CacheClear() {
+	fmt.Println("******************************************")
+	fmt.Println("************ CLEAR CACHE *****************")
+	fmt.Println("******************************************")
+	typeCache_ = map[NameValue_]GQLTypeProvider{} // map literal to zero cache
+}
 func CacheFetch(input NameValue_) (GQLTypeProvider, bool) { // TODO: use GQLTypeProvider instead of GQLTypeProvider?
+	fmt.Printf("** CacheFetch [%s]\n", input)
 	if ast, ok := typeCache_[input]; !ok {
 		return nil, false
 	} else {
@@ -68,7 +75,7 @@ func Persist(input NameValue_, ast GQLTypeProvider) {
 }
 
 func Add2Cache(input NameValue_, obj GQLTypeProvider) {
-	fmt.Println("** Add2Cache ", input)
+	//	fmt.Printf("** Add2Cache  %s [%s]\n", input, obj.String())
 	typeCache_[input] = obj
 }
 
@@ -233,5 +240,6 @@ func DBFetch(name NameValue_) (string, error) {
 		errmsg := "error in unmarshal "
 		return "", fmt.Errorf("%s. UnmarshalMaps:  %s", errmsg, err.Error())
 	}
+	fmt.Printf("DBfetch result: [%s] \n", rec.Stmt)
 	return rec.Stmt, nil
 }

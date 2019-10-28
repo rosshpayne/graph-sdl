@@ -380,14 +380,22 @@ type DirectiveT struct {
 }
 
 func (d *DirectiveT) String() string {
-	return "@" + d.Name_.String() + d.Arguments_.String()
+	//	return "@" + d.Name_.String() + d.Arguments_.String()
+	return d.Name_.String() + d.Arguments_.String()
+}
+
+func (d *DirectiveT) CoerceDirectiveName() {
+	d.Name_.Name = NameValue_("@" + d.Name_.String())
 }
 
 type Directives_ struct {
 	Directives []*DirectiveT
 }
 
+//func (d *Directives_) CheckDirectiveLocation(location string, err *[]error) {}
+
 func (d *Directives_) AppendDirective(s *DirectiveT) error {
+	s.CoerceDirectiveName()
 	for _, v := range d.Directives {
 		if v.Name_.String() == s.Name_.String() {
 			loc := s.Name_.Loc
@@ -416,6 +424,32 @@ func (d *Directives_) CheckDirectiveRef(dir NameValue_, err *[]error) {
 	for _, v := range d.Directives {
 		if v.Name_.String() == dir.String() {
 			*err = append(*err, fmt.Errorf(`Directive "%s" references itself, is not permitted %s`, dir, v.Name_.AtPosition()))
+		}
+	}
+}
+
+func (d *Directives_) checkDirectiveLocation_(input DirectiveLoc, err *[]error) {
+	var found bool
+	for _, v := range d.Directives {
+		// get the use named directive's AST
+		if ast_, ok := CacheFetch(v.Name); ok {
+			found = false
+			if x, ok := ast_.(*Directive_); ok {
+				for _, loc := range x.Location {
+					if loc == input {
+						found = true
+					}
+				}
+				if !found {
+					if dloc, ok := DirectiveLocationMap[input]; ok {
+						*err = append(*err, fmt.Errorf(`Directive "%s" is not registered for %s usage %s`, v.Name, dloc, v.Name_.AtPosition()))
+					} else {
+						*err = append(*err, fmt.Errorf(`System Error: Directive %s not found in map `, v.Name, dloc, v.Name_.AtPosition()))
+					}
+				}
+			} else {
+				*err = append(*err, fmt.Errorf(`AST for type %s is not a Directive_ type %s`, v.Name, v.Name_.AtPosition()))
+			}
 		}
 	}
 }
@@ -491,7 +525,7 @@ type Document struct {
 func (d Document) String() string {
 	var s strings.Builder
 	tc = 2
-	for _, iv := range d.Statements {
+	for _, iv := range d.StatementsMap { // {d.Statements {
 		s.WriteString(iv.String())
 		s.WriteString("\n")
 	}
@@ -505,8 +539,9 @@ type GQLTypeProvider interface {
 	TypeSystemNode()
 	TypeName() NameValue_
 	CheckUnresolvedTypes(unresolved UnresolvedMap) // while not all Types contain nested types that need to be resolved e.g scalar must still include this method
-	String() string
 	CheckDirectiveRef(dir NameValue_, err *[]error)
+	CheckDirectiveLocation(err *[]error)
+	String() string
 }
 
 var tc = 2

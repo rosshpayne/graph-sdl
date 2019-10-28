@@ -23,7 +23,7 @@ import (
 //  3  execute QL - using both ASTs
 //  4  save AST-QL to dynamodb
 
-type TypeFlag_ int
+type TypeFlag_ uint16
 
 func (tf TypeFlag_) String() string {
 	switch tf {
@@ -77,6 +77,62 @@ const (
 	// error - not available
 	NA
 )
+
+// Directive Locations
+type DirectiveLoc uint32
+
+// Directive Locations
+const (
+	_ DirectiveLoc = 1 << iota
+	SCHEMA_DL
+	SCALAR_DL
+	OBJECT_DL
+	FIELD_DEFINITION_DL
+	ARGUMENT_DEFINITION_DL
+	INTERFACE_DL
+	UNION_DL
+	ENUM_DL
+	ENUM_VALUE_DL
+	INPUT_OBJECT_DL
+	INPUT_FIELD_DEFINITION_DL
+	//
+	QUERY_DL
+	MUTATION_DL
+	SUBSCRIPTION_DL
+	FIELD_DL
+	FRAGMENT_DEFINITION_DL
+	FRAGMENT_SPREAD_DL
+	INLINE_FRAGMENT_DL
+)
+
+var DirectiveLocationMap map[DirectiveLoc]string
+
+func init() {
+	DirectiveLocationMap = make(map[DirectiveLoc]string)
+
+	DirectiveLocationMap = map[DirectiveLoc]string{
+		SCHEMA_DL:                 "SCHEMA",
+		SCALAR_DL:                 "SCALAR",
+		OBJECT_DL:                 "OBJECT",
+		FIELD_DEFINITION_DL:       "FIELD_DEFINITION",
+		ARGUMENT_DEFINITION_DL:    "ARGUMENT_DEFINITION",
+		INTERFACE_DL:              "INTERFACE",
+		UNION_DL:                  "UNION",
+		ENUM_DL:                   "ENUM",
+		ENUM_VALUE_DL:             "ENUM_VALUE",
+		INPUT_OBJECT_DL:           "INPUT_OBJECT",
+		INPUT_FIELD_DEFINITION_DL: "INPUT_FIELD_DEFINITION",
+		//
+		QUERY_DL:               "QUERY",
+		MUTATION_DL:            "MUTATION",
+		SUBSCRIPTION_DL:        "SUBSCRIPTION",
+		FIELD_DL:               "FIELD",
+		FRAGMENT_DEFINITION_DL: "FRAGMENT_DEFINITION",
+		FRAGMENT_SPREAD_DL:     "FRAGMENT_SPREAD",
+		INLINE_FRAGMENT_DL:     "INLINE_FRAGMENT",
+	}
+
+}
 
 // ============== maps =============================
 
@@ -376,6 +432,11 @@ func (o *Object_) CheckDirectiveRef(dirName NameValue_, err *[]error) {
 		v.CheckDirectiveRef(dirName, err)
 	}
 
+}
+
+func (o *Object_) CheckDirectiveLocation(err *[]error) {
+	fmt.Println("in CheckDirectiveLocation for type Object_ ")
+	o.checkDirectiveLocation_(OBJECT_DL, err)
 }
 
 func (f *Object_) CheckImplements(err *[]error) {
@@ -681,6 +742,11 @@ func (f *Field_) AssignType(t *Type_) {
 	f.Type = t
 }
 
+func (f *Field_) CheckDirectiveLocation(err *[]error) {
+	f.checkDirectiveLocation_(FIELD_DEFINITION_DL, err)
+	f.ArgumentDefs.CheckDirectiveLocation(err)
+}
+
 // func (a *Field_) Equals(b *Field_) bool {
 // 	return a.Name_.Equals(b.Name_) && a.Type.Equals(b.Type)
 // }
@@ -755,6 +821,12 @@ func (fa *InputValueDefs) AppendField(f *InputValueDef, unresolved *[]error) {
 	*fa = append(*fa, f)
 }
 
+func (fa *InputValueDefs) CheckDirectiveLocation(err *[]error) {
+	for _, v := range *fa {
+		v.CheckDirectiveLocation(err)
+	}
+}
+
 func (fa *InputValueDefs) String(encl [2]token.TokenType) string {
 	var s strings.Builder
 	for i, v := range *fa {
@@ -775,7 +847,6 @@ func (fa *InputValueDefs) String(encl [2]token.TokenType) string {
 func (fa InputValueDefs) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 
 	for _, v := range fa {
-		fmt.Println("CheckUnresolvedTypes for ", v.Name_)
 		v.CheckUnresolvedTypes(unresolved)
 	}
 }
@@ -817,6 +888,10 @@ func (fa *InputValueDef) CheckUnresolvedTypes(unresolved UnresolvedMap) { //TODO
 		unresolved[fa.Type.Name_] = fa.Type
 	}
 	fa.Directives_.CheckUnresolvedTypes(unresolved)
+}
+
+func (fa *InputValueDef) CheckDirectiveLocation(err *[]error) {
+	fa.checkDirectiveLocation_(ARGUMENT_DEFINITION_DL, err)
 }
 
 func (fa *InputValueDef) CheckDirectiveRef(dir NameValue_, err *[]error) {
@@ -895,6 +970,13 @@ func (e *Enum_) String() string {
 	return s.String()
 }
 
+func (e *Enum_) CheckDirectiveLocation(err *[]error) {
+	e.checkDirectiveLocation_(ENUM_DL, err)
+	for _, v := range e.Values {
+		v.CheckDirectiveLocation(err)
+	}
+}
+
 // ======================  EnumValue =========================
 
 //	EnumValueDefinition
@@ -910,6 +992,10 @@ func (e *EnumValue_) TypeSystemNode() {}
 func (e *EnumValue_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 	e.Directives_.CheckUnresolvedTypes(unresolved)
 }
+func (e *EnumValue_) CheckDirectiveLocation(err *[]error) {
+	e.checkDirectiveLocation_(ENUM_VALUE_DL, err)
+}
+
 func (e *EnumValue_) AssignName(s string, l *Loc_, unresolved *[]error) {
 	e.Name_.AssignName(s, l, unresolved)
 }
@@ -978,6 +1064,10 @@ func (i *Interface_) TypeName() NameValue_ {
 	return i.Name
 }
 
+func (i *Interface_) CheckDirectiveLocation(err *[]error) {
+	i.checkDirectiveLocation_(INTERFACE_DL, err)
+}
+
 //func (i *Interface_) AssignUnresolvedTypes(repo TypeRepo) error {}
 func (i *Interface_) AssignName(input string, loc *Loc_, unresolved *[]error) {
 	i.Name_.AssignName(input, loc, unresolved)
@@ -1010,6 +1100,10 @@ func (u *Union_) CheckUnresolvedTypes(unresolved UnresolvedMap) { // TODO check 
 
 func (u *Union_) TypeName() NameValue_ {
 	return u.Name
+}
+
+func (u *Union_) CheckDirectiveLocation(err *[]error) {
+	u.checkDirectiveLocation_(UNION_DL, err)
 }
 
 // func (u *Union_) Equals(b *Union_) bool {
@@ -1063,6 +1157,13 @@ func (i *Input_) TypeName() NameValue_ {
 	return i.Name
 }
 
+func (i *Input_) CheckDirectiveLocation(err *[]error) {
+	i.Directives_.checkDirectiveLocation_(INPUT_OBJECT_DL, err)
+	for _, v := range i.InputValueDefs {
+		v.checkDirectiveLocation_(INPUT_FIELD_DEFINITION_DL, err)
+	}
+}
+
 func (i *Input_) CheckDirectiveRef(dir NameValue_, err *[]error) {
 	i.Directives_.CheckDirectiveRef(dir, err)
 	i.InputValueDefs.CheckDirectiveRef(dir, err)
@@ -1109,6 +1210,10 @@ func (e *Scalar_) CheckUnresolvedTypes(unresolved UnresolvedMap) { // TODO check
 }
 func (i *Scalar_) TypeName() NameValue_ {
 	return NameValue_(i.Name)
+}
+
+func (e *Scalar_) CheckDirectiveLocation(err *[]error) {
+	e.checkDirectiveLocation_(SCALAR_DL, err)
 }
 
 func (e *Scalar_) AssignName(s string, loc *Loc_, errS *[]error) {
@@ -1181,7 +1286,7 @@ type Directive_ struct {
 	Desc         string
 	Name_        // no need to hold Location as its stored in InputValue, parent of this object
 	ArgumentDefs InputValueDefs
-	Location     []string
+	Location     []DirectiveLoc
 }
 
 func (d *Directive_) TypeSystemNode() {}
@@ -1194,12 +1299,19 @@ func (d *Directive_) CheckDirectiveRef(dir NameValue_, err *[]error) {
 		v.CheckDirectiveRef(dir, err)
 	}
 }
+func (d *Directive_) CheckDirectiveLocation(err *[]error) {
+	d.ArgumentDefs.CheckDirectiveLocation(err)
+}
+
+func (d *Directive_) CoerceDirectiveName() {
+	d.Name_.Name = NameValue_("@" + d.Name.String())
+}
 func (d *Directive_) TypeName() NameValue_ {
 	return d.Name
 }
 
-func (i *Directive_) AssignName(input string, loc *Loc_, err *[]error) {
-	i.Name_.AssignName(input, loc, err)
+func (d *Directive_) AssignName(input string, loc *Loc_, err *[]error) {
+	d.Name_.AssignName(input, loc, err)
 }
 
 func (d *Directive_) String() string {
@@ -1207,7 +1319,7 @@ func (d *Directive_) String() string {
 		s    strings.Builder
 		encl [2]token.TokenType = [2]token.TokenType{token.LPAREN, token.RPAREN}
 	)
-	s.WriteString("\ndirective @")
+	s.WriteString("\ndirective ")
 	s.WriteString(d.Name.String())
 	s.WriteString(d.ArgumentDefs.String(encl))
 	if len(d.Location) > 0 {
@@ -1215,7 +1327,11 @@ func (d *Directive_) String() string {
 		s.WriteString(" on ")
 		for _, v := range d.Location {
 			s.WriteString("| ")
-			s.WriteString(v)
+			if dloc, ok := DirectiveLocationMap[v]; ok {
+				s.WriteString(dloc)
+			} else {
+				s.WriteString(" not-found ")
+			}
 		}
 	}
 	return s.String()

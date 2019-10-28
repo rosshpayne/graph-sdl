@@ -362,20 +362,37 @@ name : String
 picture(size : Int =12918@NME(if:"""abc""") ) : Url@iff(abc:123) 
 }`
 
-	var expectedErr [2]string
+	var expectedErr [3]string
 	expectedErr[0] = `Type "Url" does not exist at line: 3 column: 49`
+	expectedErr[1] = `Type "@NME" does not exist at line: 3 column: 27`
+	expectedErr[2] = `Type "@iff" does not exist at line: 3 column: 53`
 
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	for i, v := range errs {
-		if i < 2 {
-			if v.Error() != expectedErr[i] {
-				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
 			}
-		} else {
-			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 }
@@ -387,20 +404,38 @@ name : String
 picture(size : Int =12918@NME(if:"""abc""") size2 : Boolean =true @NME34(ifx:false)) : Url@iff(abc:123) 
 }`
 
-	var expectedErr [2]string
+	var expectedErr [4]string
 	expectedErr[0] = `Type "Url" does not exist at line: 3 column: 88`
+	expectedErr[1] = `Type "@NME" does not exist at line: 3 column: 27`
+	expectedErr[2] = `Type "@NME34" does not exist at line: 3 column: 68`
+	expectedErr[3] = `Type "@iff" does not exist at line: 3 column: 92`
 
 	l := lexer.New(input)
 	p := New(l)
-	d, errs := p.ParseDocument()
-	fmt.Println(d.String())
-	for i, v := range errs {
-		if i < 2 {
-			if v.Error() != expectedErr[i] {
-				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+	_, errs := p.ParseDocument()
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
 			}
-		} else {
-			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 }
@@ -412,20 +447,41 @@ name : String
 picture(size : Int =12918@NME(if:"""abc""") size2 : Boolean  @NME34(ifx:false) @NME33(i12fx:12.345) @NME54(if2x:123)) : Url@iff(abc:123) 
 }`
 
-	var expectedErr [2]string
+	var expectedErr [6]string
 	expectedErr[0] = `Type "Url" does not exist at line: 3 column: 121`
+	expectedErr[5] = `Type "@NME" does not exist at line: 3 column: 27`
+	expectedErr[1] = `Type "@NME34" does not exist at line: 3 column: 63`
+	expectedErr[2] = `Type "@NME33" does not exist at line: 3 column: 81`
+	expectedErr[3] = `Type "@NME54" does not exist at line: 3 column: 102`
+	expectedErr[4] = `Type "@iff" does not exist at line: 3 column: 125`
 
 	l := lexer.New(input)
 	p := New(l)
-	d, errs := p.ParseDocument()
-	fmt.Println(d.String())
-	for i, v := range errs {
-		if i < 2 {
-			if v.Error() != expectedErr[i] {
-				t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr[i])
+	_, errs := p.ParseDocument()
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
 			}
-		} else {
-			t.Errorf(`Not expected Error =[%q]`, v.Error())
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
 		}
 	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+
 }

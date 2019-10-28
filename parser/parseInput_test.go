@@ -7,10 +7,11 @@ import (
 )
 
 func TestInput1(t *testing.T) {
-
+	// directive @jun on | FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION | INPUT_OBJECT
+	// directive @june on | INPUT_OBJECT
 	input := `
-	directive @jun on | FIELD_DEFINITION | ARGUMENT_DEFINITION
-	
+	directive @june on | INPUT_OBJECT
+	directive @jun on | FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION | INPUT_OBJECT
 	input Point2D  @ june (asdf:234){
   x: Float = 123.23 @ jun (asdf:234)
   y: Float = 34 @ jun (asdf:"""asdflkjslkjd""")
@@ -21,11 +22,11 @@ func TestInput1(t *testing.T) {
         y5: Float = 34 @ jun (asdf:"""asdflkjslkjd""")
          y6: Float = 34 @ jun (asdf:"""asdflkjslkjd""")
           y63: Float = 34 @ jun (asdf:"""asdflkjslkjd""")
-}
-`
+}`
 
 	l := lexer.New(input)
 	p := New(l)
+	p.ClearCache()
 	d, errs := p.ParseDocument()
 	//fmt.Println(d.String())
 	if len(errs) > 0 {
@@ -43,7 +44,8 @@ func TestInput1(t *testing.T) {
 
 func TestInputDuplicate(t *testing.T) {
 
-	input := `input Point2D  @ june (asdf:234){
+	input := `
+	input Point2D  @ june (asdf:234){
   x: Float = 123.23 @ jun (asdf:234)
   y: Float = 34 @ jun (asdf:"""asdflkjslkjd""")
    y1: Float = 34 @ jun (asdf:"""asdflkjslkjd""")
@@ -57,10 +59,11 @@ func TestInputDuplicate(t *testing.T) {
 }
 `
 	var expectedErr [1]string
-	expectedErr[0] = `Duplicate input value name "y" at line: 6, column: 8`
+	expectedErr[0] = `Duplicate input value name "y" at line: 7, column: 8`
 
 	l := lexer.New(input)
 	p := New(l)
+	p.ClearCache()
 	_, errs := p.ParseDocument()
 	for _, ex := range expectedErr {
 		found := false
@@ -105,6 +108,7 @@ func TestInputInvalidName(t *testing.T) {
 
 	l := lexer.New(input)
 	p := New(l)
+	p.ClearCache()
 	_, errs := p.ParseDocument()
 	for _, ex := range expectedErr {
 		found := false

@@ -1,6 +1,7 @@
 package lexer
 
 import (
+	_ "fmt"
 	"unicode"
 	"unicode/utf8"
 
@@ -41,6 +42,7 @@ func (l *Lexer) NextToken() token.Token {
 	var tok token.Token
 	//	fmt.Printf("NextToken: %c\n", l.ch)
 	l.skipWhitespace() // scan to next non-whitespace and return its value as a token
+	//fmt.Printf("[%c]\n", l.ch)
 	switch l.ch {
 	case '\ufeff':
 		tok = l.newToken(token.BOM, l.ch)
@@ -85,8 +87,8 @@ func (l *Lexer) NextToken() token.Token {
 		tok = l.newToken(token.COLON, l.ch)
 	case '@':
 		tok = l.newToken(token.ATSIGN, l.ch)
-	case ',':
-		tok = l.newToken(token.COMMA, l.ch)
+	// case ',':
+	// 	tok = l.newToken(token.COMMA, l.ch)
 	case '{':
 		tok = l.newToken(token.LBRACE, l.ch)
 		tok.Cat = token.VALUE
@@ -145,6 +147,7 @@ func (l *Lexer) readRune() {
 	// get next byte in string
 	if l.rLoc >= len(l.input) {
 		l.ch = 0
+		l.cLoc++
 	} else {
 		var size int
 		// TODO: check token type. Only comment and string need rune reads all others simple ascii will suffice
@@ -154,8 +157,8 @@ func (l *Lexer) readRune() {
 		if !(l.ch == '\n' || l.ch == '\r') {
 			l.Col++
 		}
+		//	fmt.Printf("readRune: %c %d %d %d [%s]\n", l.ch, l.cLoc, l.rLoc, size, l.input[:l.rLoc])
 	}
-	//	fmt.Printf("readRune: %c\n", l.ch)
 
 }
 

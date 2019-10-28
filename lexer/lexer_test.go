@@ -1,10 +1,10 @@
 package lexer
 
 import (
-	"fmt"
+	_ "fmt"
 	"testing"
 
-	"github.com/graphql/token"
+	"github.com/graph-sdl/token"
 )
 
 func TestNextToken(t *testing.T) {
@@ -50,8 +50,7 @@ enum Episode {
 }
 
 [1, 2, -13]
-
-`
+directive on | FIELD_DEFINITION`
 	tests := []struct {
 		expectedType    token.TokenType
 		expectedLiteral string
@@ -75,7 +74,7 @@ enum Episode {
 		{token.LBRACE, "{"}, //15
 		{token.IDENT, "界"},
 		{token.COLON, ":"},
-		{token.IDENT, "String"},
+		{token.STRING, "String"},
 		{token.BANG, "!"},
 		{token.IDENT, "appearsIn"}, //20
 		{token.COLON, ":"},
@@ -85,7 +84,7 @@ enum Episode {
 		{token.RBRACKET, "]"}, //25
 		{token.BANG, "!"},
 		{token.RBRACE, "}"},
-		{token.QUERY, "query"},
+		{token.IDENT, "query"},
 		{token.IDENT, "qName"},
 		{token.LBRACE, "{"}, //30
 		{token.EXPAND, "..."},
@@ -95,7 +94,7 @@ enum Episode {
 		{token.IDENT, "id"}, //35
 		{token.COLON, ":"},
 		{token.FLOAT, "-4.567E-2"},
-		{token.COMMA, ","},
+		//		{token.COMMA, ","}, // treate as whitespcae
 		{token.IDENT, "mode"},
 		{token.COLON, ":"},
 		{token.NULL, "null"},
@@ -112,16 +111,16 @@ enum Episode {
 		{token.RPAREN, ")"},
 		{token.RBRACE, "}"},
 		{token.RBRACE, "}"},
-		{token.MUTATION, "mutation"},
+		{token.IDENT, "mutation"},
 		{token.LBRACE, "{"},
 		{token.IDENT, "sendEmail"},
 		{token.LPAREN, "("},
 		{token.IDENT, "message"},
 		{token.COLON, ":"},
-		{token.STRING, "\n    Hello,\n      World!\n    Yours,\n      GraphQL.\n"},
+		{token.RAWSTRING, "\n    Hello,\n      World!\n    Yours,\n      GraphQL.\n"},
 		{token.RPAREN, ")"},
 		{token.RBRACE, "}"},
-		{token.MUTATION, "mutation"},
+		{token.IDENT, "mutation"},
 		{token.LBRACE, "{"},
 		{token.IDENT, "sendEmail"},
 		{token.LPAREN, "("},
@@ -139,11 +138,15 @@ enum Episode {
 		{token.RBRACE, "}"},
 		{token.LBRACKET, "["},
 		{token.INT, "1"},
-		{token.COMMA, ","},
+		//		{token.COMMA, ","},
 		{token.INT, "2"},
-		{token.COMMA, ","},
+		//		{token.COMMA, ","},
 		{token.INT, "-13"},
 		{token.RBRACKET, "]"},
+		{token.DIRECTIVE, "directive"},
+		{token.ON, "on"},
+		{token.BAR, "|"},
+		{token.IDENT, "FIELD_DEFINITION"},
 	}
 
 	l := New(input)
@@ -151,15 +154,15 @@ enum Episode {
 	for i, tt := range tests {
 		tok := l.NextToken()
 		//	fmt.Printf("%v\n", tok)
-		fmt.Println(tok.Literal)
+		//	fmt.Println(tok.Literal)
 		if tok.Type != tt.expectedType {
-			t.Fatalf("tests[%d] - tokentype wrong. expected=%q, got=%q Error: %s",
-				i, tt.expectedType, tok.Type, l.Error())
+			t.Fatalf("tests[%d] - tokentype wrong. expected=%q, got=%q ",
+				i, tt.expectedType, tok.Type)
 		}
 
 		if tok.Literal != tt.expectedLiteral {
-			t.Fatalf("tests[%d] - literal wrong. expected=%q, got=%q Error: %s",
-				i, tt.expectedLiteral, tok.Literal, l.Error())
+			t.Fatalf("tests[%d] - literal wrong. expected=%q, got=%q ",
+				i, tt.expectedLiteral, tok.Literal)
 		}
 	}
 }
@@ -180,13 +183,13 @@ query getZuckProfile($devicePicSize: Int = 1234) {
 		expectedLiteral string
 	}{
 		{token.BOM, "\ufeff"},
-		{token.QUERY, "query"},
+		{token.IDENT, "query"},
 		{token.IDENT, "getZuckProfile"},
 		{token.LPAREN, "("},
 		{token.DOLLAR, "$"},
 		{token.IDENT, "devicePicSize"},
 		{token.COLON, ":"},
-		{token.IDENT, "Int"},
+		{token.INT, "Int"},
 		{token.ASSIGN, "="},
 		{token.INT, "1234"},
 		{token.RPAREN, ")"},
@@ -220,13 +223,13 @@ query getZuckProfile($devicePicSize: Int = 1234) {
 		//fmt.Printf("%v\n", tok)
 
 		if tok.Type != tt.expectedType {
-			t.Fatalf("tests[%d] - tokentype wrong. expected=%q, got=%q Error: %s",
-				i, tt.expectedType, tok.Type, l.Error())
+			t.Fatalf("tests[%d] - tokentype wrong. expected=%q, got=%q ",
+				i, tt.expectedType, tok.Type)
 		}
 
 		if tok.Literal != tt.expectedLiteral {
-			t.Fatalf("tests[%d] - literal wrong. expected=%q, got=%q Error: %s",
-				i, tt.expectedLiteral, tok.Literal, l.Error())
+			t.Fatalf("tests[%d] - literal wrong. expected=%q, got=%q ",
+				i, tt.expectedLiteral, tok.Literal)
 		}
 	}
 }

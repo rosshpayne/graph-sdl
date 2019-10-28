@@ -34,15 +34,15 @@ const (
 	SLASH    = "/"
 
 	// Punctuator :: one of ! $ ( ) ... : = @ [ ] { | }
-	COMMA      = ","
-	SEMICOLON  = ";"
-	COLON      = ":"
-	COMMENT    = "#"
-	UNDERSSCRE = "_"
-	DOLLAR     = "$"
-	ATSIGN     = "@"
-	AND        = "&"
-	BAR        = "|"
+	// COMMA     = ","  treated as whitespace
+	SEMICOLON = ";"
+	COLON     = ":"
+	COMMENT   = "#"
+	//	UNDERSCORE = "_"
+	DOLLAR = "$"
+	ATSIGN = "@"
+	AND    = "&"
+	BAR    = "|"
 
 	LPAREN   = "("
 	RPAREN   = ")"
@@ -60,7 +60,9 @@ const (
 	BOM = "BOM"
 
 	// Keywords
-	TYPE       = "TYPE"
+	TYPE = "TYPE"
+	//	QUERY      = "QUERY"
+	//	MUTATION   = "MUTATION"
 	IMPLEMENTS = "IMPLEMENTS"
 	INTERFACE  = "INTERFACE"
 	UNION      = "UNION"

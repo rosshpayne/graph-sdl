@@ -37,8 +37,30 @@ type (
 
 var (
 	//	enumRepo      ast.EnumRepo_
-	typeNotExists     map[ast.NameValue_]bool
-	directiveLocation map[string]byte
+	typeNotExists map[ast.NameValue_]bool
+
+	directiveLocation map[string]ast.DirectiveLoc = map[string]ast.DirectiveLoc{
+		//	Executable DirectiveLocation
+		"QUERY":               ast.QUERY_DL,
+		"MUTATION":            ast.MUTATION_DL,
+		"SUBSCRIPTION":        ast.SUBSCRIPTION_DL,
+		"FIELD":               ast.FIELD_DL,
+		"FRAGMENT_DEFINITION": ast.FRAGMENT_DEFINITION_DL,
+		"FRAGMENT_SPREAD":     ast.FRAGMENT_SPREAD_DL,
+		"INLINE_FRAGMENT":     ast.INLINE_FRAGMENT_DL,
+		//	TypeSystem DirectiveLocation
+		"SCHEMA":                 ast.SCHEMA_DL,
+		"SCALAR":                 ast.SCALAR_DL,
+		"OBJECT":                 ast.OBJECT_DL,
+		"FIELD_DEFINITION":       ast.FIELD_DEFINITION_DL,
+		"ARGUMENT_DEFINITION":    ast.ARGUMENT_DEFINITION_DL,
+		"INTERFACE":              ast.INTERFACE_DL,
+		"UNION":                  ast.UNION_DL,
+		"ENUM":                   ast.ENUM_DL,
+		"ENUM_VALUE":             ast.ENUM_VALUE_DL,
+		"INPUT_OBJECT":           ast.INPUT_OBJECT_DL,
+		"INPUT_FIELD_DEFINITION": ast.INPUT_FIELD_DEFINITION_DL,
+	}
 )
 
 func New(l *lexer.Lexer) *Parser {
@@ -57,7 +79,10 @@ func New(l *lexer.Lexer) *Parser {
 	// Read two tokens, to initialise curToken and peekToken
 	p.nextToken()
 	p.nextToken()
-
+	//
+	// remove cacheClar before releasing..
+	//
+	//ast.CacheClear()
 	return p
 }
 
@@ -66,28 +91,6 @@ func New(l *lexer.Lexer) *Parser {
 func init() {
 	//	enumRepo = make(ast.EnumRepo_)
 	typeNotExists = make(map[ast.NameValue_]bool)
-	directiveLocation = map[string]byte{
-		//	Executable DirectiveLocation
-		"QUERY":               Executable,
-		"MUTATION":            Executable,
-		"SUBSCRIPTION":        Executable,
-		"FIELD":               Executable,
-		"FRAGMENT_DEFINITION": Executable,
-		"FRAGMENT_SPREAD":     Executable,
-		"INLINE_FRAGMENT":     Executable,
-		//	TypeSystem DirectiveLocation
-		"SCHEMA":                 TypeSystem,
-		"SCALAR":                 TypeSystem,
-		"OBJECT":                 TypeSystem,
-		"FIELD_DEFINITION":       TypeSystem,
-		"ARGUMENT_DEFINITION":    TypeSystem,
-		"INTERFACE":              TypeSystem,
-		"UNION":                  TypeSystem,
-		"ENUM":                   TypeSystem,
-		"ENUM_VALUE":             TypeSystem,
-		"INPUT_OBJECT":           TypeSystem,
-		"INPUT_FIELD_DEFINITION": TypeSystem,
-	}
 }
 
 func (p *Parser) Loc() *ast.Loc_ {
@@ -95,6 +98,9 @@ func (p *Parser) Loc() *ast.Loc_ {
 	return &ast.Loc_{loc.Line, loc.Col}
 }
 
+func (p *Parser) ClearCache() {
+	ast.CacheClear()
+}
 func (p *Parser) printToken(s ...string) {
 	if len(s) > 0 {
 		fmt.Printf("** Current Token: [%s] %s %s %s %v %s %s [%s]\n", s[0], p.curToken.Type, p.curToken.Literal, p.curToken.Cat, p.curToken.IsScalarType, "Next Token:  ", p.peekToken.Type, p.peekToken.Literal)
@@ -103,7 +109,7 @@ func (p *Parser) printToken(s ...string) {
 	}
 }
 func (p *Parser) hasError() bool {
-	if len(p.perror) > 7 || p.abort {
+	if len(p.perror) > 17 || p.abort {
 		return true
 	}
 	return false
@@ -152,17 +158,18 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 		//
 		//p.perror = nil
 		p.perror = append(p.perror, holderr...)
-		for _, v := range program.Statements {
+		for _, v := range program.StatementsMap { //range program.Statements {
 			p.perror = append(p.perror, program.ErrorMap[v.TypeName()]...)
 		}
 		// persist error free statements to db
-		for _, v := range program.Statements {
+		for _, v := range program.StatementsMap { //program.Statements {
 			if len(program.ErrorMap[v.TypeName()]) == 0 {
 				// TODO - what if another type by that name exists
 				//  auto overrite or raise an error
 				ast.Persist(v.TypeName(), v)
 			}
 		}
+		//	ast.CacheClear()
 		errs = p.perror
 	}()
 
@@ -197,7 +204,8 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 		}
 	}
 	//
-	// validate phase 1 - resolve types
+	// validate phase 1 - resolve ALL types. Once complete all type's AST will reside in the cache
+	//                    and  *Type.AST assigned where applicable
 	//
 	for _, v := range program.Statements {
 		p.checkUnresolvedTypes_(v)
@@ -210,7 +218,7 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 	// Build perror from statement errors to use in hasError() counting
 	//
 	p.perror = holderr
-	for _, v := range program.Statements {
+	for _, v := range program.StatementsMap { //program.Statements {
 		p.perror = append(p.perror, program.ErrorMap[v.TypeName()]...)
 	}
 	if p.hasError() {
@@ -218,10 +226,32 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 		return program, p.perror
 	}
 	//
-	// validate phase 2
+	// validate phase 2 - generic validations
 	//
 	p.perror = nil
-	for _, v := range program.Statements {
+	for _, v := range program.StatementsMap {
+		v.CheckDirectiveLocation(&p.perror)
+		if len(p.perror) > 0 {
+			program.ErrorMap[v.TypeName()] = append(program.ErrorMap[v.TypeName()], p.perror...)
+			p.perror = nil
+		}
+	}
+	//
+	// Build perror from statement errors to use in hasError() counting
+	//
+	p.perror = holderr
+	for _, v := range program.StatementsMap { //program.Statements {
+		p.perror = append(p.perror, program.ErrorMap[v.TypeName()]...)
+	}
+	if p.hasError() {
+		p.perror = nil
+		return program, p.perror
+	}
+	//
+	// validate phase 3 - type specific validations
+	//
+	p.perror = nil
+	for _, v := range program.StatementsMap {
 		// only proceed if zero errors for stmt
 		if len(program.ErrorMap[v.TypeName()]) == 0 {
 			switch x := v.(type) {
@@ -269,7 +299,7 @@ func (p *Parser) parseStatement() ast.GQLTypeProvider {
 		return f(stmtType)
 	} else {
 		p.abort = true
-		p.addErr(fmt.Sprintf(`Parse aborted. "%s" is not a statement keyword`, p.curToken.Literal))
+		p.addErr(fmt.Sprintf(`Parse aborted. "%s" is not a statement keyword`, stmtType))
 	}
 	return nil
 }
@@ -298,9 +328,15 @@ func (p *Parser) fetchAST(name ast.Name_) ast.GQLTypeProvider {
 					return nil
 				} else {
 					// generate the AST
+					fmt.Println()
 					l := lexer.New(typeDef)
+					fmt.Println()
 					p2 := New(l)
 					ast_ = p2.parseStatement()
+					if len(p2.perror) > 0 {
+						// error in parsing stmt from db - this should not happen as only valid stmts are saved.
+						p.perror = append(p.perror, p2.perror...)
+					}
 					ast.Add2Cache(name_, ast_)
 				}
 			}
@@ -654,6 +690,8 @@ func (p *Parser) ParseDirective(op string) ast.GQLTypeProvider {
 
 	p.parseAt().parseName(inp).parseFieldArgumentDefs(inp).parseOn().parseDirectiveLocations(inp)
 
+	inp.CoerceDirectiveName() // prepend @ to name
+
 	return inp
 }
 
@@ -788,10 +826,10 @@ func (p *Parser) parseDirectiveLocations(d *ast.Directive_) *Parser {
 		if p.curToken.Type == token.BAR && p.peekToken.Type != token.IDENT {
 			p.addErr(fmt.Sprintf("expected directive location identifer, got %s, %s", p.curToken.Type, p.curToken.Literal))
 		} else if p.curToken.Type == token.IDENT {
-			if _, ok := directiveLocation[p.curToken.Literal]; !ok {
-				p.addErr(fmt.Sprintf("Invalid directive location %s", p.curToken.Literal))
+			if dl, ok := directiveLocation[p.curToken.Literal]; !ok {
+				p.addErr(fmt.Sprintf(`Invalid directive location "%s" %s`, p.curToken.Literal, p.Loc()))
 			} else {
-				d.Location = append(d.Location, p.curToken.Literal)
+				d.Location = append(d.Location, dl)
 			}
 		}
 	}
