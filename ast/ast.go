@@ -2,6 +2,7 @@ package ast
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -30,6 +31,7 @@ type InputValue_ struct {
 //func (iv *InputValue_) InputValueNode() {}
 
 func (iv *InputValue_) String() string {
+
 	switch x := iv.Value.(type) {
 	case RawString_:
 		return token.RAWSTRINGDEL + iv.Value.String() + token.RAWSTRINGDEL //+ "-" + iv.dTString()
@@ -83,6 +85,9 @@ func (iv *InputValue_) AtPosition() string {
 // }
 
 // dataTypeString - prints the datatype of the input value
+func (iv *InputValue_) IsType() string {
+	return iv.isType().String()
+}
 
 func (iv *InputValue_) isType() TypeFlag_ {
 	// Union are not a valid input value
@@ -128,6 +133,7 @@ func (iv *InputValue_) IsScalar() bool {
 }
 
 // dataTypeString - prints the datatype of the type specification
+
 func (t *Type_) isType() TypeFlag_ {
 	//
 	// Object types have nested types i.e. each field has a *Type attribute
@@ -244,31 +250,6 @@ func (b Bool_) String() string {
 	//return strconv.FormatBool(bool(i))
 	return string(b)
 }
-
-// Enum
-
-// type Enum_ Name_
-
-// func (e Enum_) ValueNode() {}
-
-// func (e Enum_) Valid(s string) error {
-// 	if _, err := validateName(s); err != nil {
-// 		return err
-// 	}
-// 	if e == "true" || e == "false" || e == "null" {
-// 		return fmt.Errorf("Enum, [%s] cannot be true false null", s)
-// 	}
-// 	return nil
-// }
-
-// func (e *Enum_) Assign(s string) {
-// 	s_ := Enum_(Name_(s))
-// 	e = &s_
-// }
-
-// func (e Enum_) String() string {
-// 	return string(Name_(e))
-// }
 
 // List
 
@@ -498,6 +479,9 @@ func (a Name_) Equals(b Name_) bool {
 }
 
 func (n Name_) AtPosition() string {
+	if n.Loc == nil {
+		panic(fmt.Errorf("Error in AtPosition(), Loc not set"))
+	}
 	return n.Loc.String()
 }
 
@@ -510,7 +494,7 @@ func (n Name_) Exists() bool {
 
 func (n *Name_) AssignName(s string, loc *Loc_, errS *[]error) {
 	n.Loc = loc
-	validateName(s, errS, loc)
+	ValidateName(s, errS, loc)
 	n.Name = NameValue_(s)
 }
 
@@ -523,10 +507,19 @@ type Document struct {
 }
 
 func (d Document) String() string {
-	var s strings.Builder
+	var (
+		s    strings.Builder
+		name []string
+	)
 	tc = 2
-	for _, iv := range d.StatementsMap { // {d.Statements {
-		s.WriteString(iv.String())
+	for k, _ := range d.StatementsMap {
+		name = append(name, k.String())
+	}
+	sort.Strings(name) // conversion method to acquire sort methods and perform inplace sort
+
+	for _, v := range name {
+		stmt := d.StatementsMap[NameValue_(v)]
+		s.WriteString(stmt.String())
 		s.WriteString("\n")
 	}
 	return s.String()
@@ -552,11 +545,11 @@ var blank string = ""
 var errNameChar string = "Invalid character in identifer at line: %d, column: %d"
 var errNameBegin string = "identifer [%s] cannot start with two underscores at line: %d, column: %d"
 
-func validateName(name string, errS *[]error, loc *Loc_) {
+func ValidateName(name string, errS *[]error, loc *Loc_) {
 	// /[_A-Za-z][_0-9A-Za-z]*/
 	var err error
 	if len(name) == 0 {
-		err = fmt.Errorf("Error: zero length name passed to validateName")
+		err = fmt.Errorf("Error: zero length name passed to ValidateName")
 		*errS = append(*errS, err)
 		return
 	}

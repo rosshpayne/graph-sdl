@@ -447,6 +447,29 @@ type exampleTypeOuter2b @exampleDirOK {
 directive @exampleDirRef (arg: exampleInput2@exampleDirRef ) on| FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION | OBJECT
 `
 
+	expectedDoc := `directive @exampleDirOK on | FIELD_DEFINITION| ARGUMENT_DEFINITION
+
+directive @exampleDirRef(arg : exampleInput2 @exampleDirRef ) on | FIELD_DEFINITION| ARGUMENT_DEFINITION| INPUT_FIELD_DEFINITION| OBJECT
+
+input ExampleInput @exampleDirOK {x : String @exampleDirOK y : Int @exampleDirRef }
+
+type ExampleRefType @exampleDirRef {
+x(Nm : Float =23.3@exampleDirOK ) : String@exampleDirOK 
+y(Nm : Float =23.3@exampleDirOK ) : Int@exampleDirOK 
+}
+
+input exampleInput2 @exampleDirOK {x : String @exampleDirOK y : exampleTypeOuter @exampleDirRef }
+
+type exampleTypeOuter @exampleDirOK {
+x(Nm : Float =23.3@exampleDirOK ) : String@exampleDirOK 
+y(Nm : Float =23.3@exampleDirRef ) : ExampleRefType@exampleDirRef 
+}
+
+type exampleTypeOuter2b @exampleDirOK {
+x(Nm : String ={x:"abc" y:1 } @exampleDirOK ) : String
+y(Nm : Float =23.3@exampleDirOK ) : exampleTypeOuter2a@exampleDirOK 
+}`
+
 	err := ast.DeleteType("exampleDirOK")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
@@ -491,8 +514,8 @@ directive @exampleDirRef (arg: exampleInput2@exampleDirRef ) on| FIELD_DEFINITIO
 	l := lexer.New(input)
 	p := New(l)
 	p.ClearCache()
-	_, errs := p.ParseDocument()
-	//fmt.Println(d.String())
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
 	for _, ex := range expectedErr {
 		if len(ex) == 0 {
 			break
@@ -518,7 +541,11 @@ directive @exampleDirRef (arg: exampleInput2@exampleDirRef ) on| FIELD_DEFINITIO
 			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
-
+	if compare(d.String(), expectedDoc) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(expectedDoc))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
 	err = ast.DeleteType("exampleDirOK")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())

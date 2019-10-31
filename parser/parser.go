@@ -93,6 +93,9 @@ func init() {
 	typeNotExists = make(map[ast.NameValue_]bool)
 }
 
+func (p *Parser) Getperror() []error {
+	return p.perror
+}
 func (p *Parser) Loc() *ast.Loc_ {
 	loc := p.curToken.Loc
 	return &ast.Loc_{loc.Line, loc.Col}
@@ -177,7 +180,7 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 	// parse phase - 	build AST from GraphQL SDL script
 	//
 	for p.curToken.Type != token.EOF {
-		stmtAST := p.parseStatement()
+		stmtAST := p.ParseStatement()
 
 		// handle any abort error
 		if p.hasError() {
@@ -269,7 +272,7 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 			case *ast.Directive_:
 				x.CheckIsInputType(&p.perror)
 				x.CheckInputValueType(&p.perror)
-				p.CheckForSelfReference(v.TypeName(), x)
+				p.CheckSelfReference(v.TypeName(), x)
 			}
 		}
 		program.ErrorMap[v.TypeName()] = append(program.ErrorMap[v.TypeName()], p.perror...)
@@ -288,7 +291,7 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 // ================ parseStatement ==========================
 
 // parseStatement takes predefined parser routine and applies it to a valid statement
-func (p *Parser) parseStatement() ast.GQLTypeProvider {
+func (p *Parser) ParseStatement() ast.GQLTypeProvider {
 	p.skipComment()
 	if p.curToken.Type == token.EXTEND {
 		p.extend = true
@@ -332,7 +335,7 @@ func (p *Parser) fetchAST(name ast.Name_) ast.GQLTypeProvider {
 					l := lexer.New(typeDef)
 					fmt.Println()
 					p2 := New(l)
-					ast_ = p2.parseStatement()
+					ast_ = p2.ParseStatement()
 					if len(p2.perror) > 0 {
 						// error in parsing stmt from db - this should not happen as only valid stmts are saved.
 						p.perror = append(p.perror, p2.perror...)
@@ -382,7 +385,7 @@ func (p *Parser) checkUnresolvedTypes_(v ast.GQLTypeProvider) {
 
 //  ===================== CheckDirectives ================
 
-func (p *Parser) CheckForSelfReference(directive ast.NameValue_, x *ast.Directive_) {
+func (p *Parser) CheckSelfReference(directive ast.NameValue_, x *ast.Directive_) {
 	// search for directives in the current stmt making sure it doesn't find itself
 
 	refCheck := func(dirName ast.NameValue_, x ast.GQLTypeProvider) {

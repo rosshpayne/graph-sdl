@@ -303,9 +303,11 @@ func (o ObjectVals) ValidateInputObjectValues(ref *Type_, err *[]error) {
 	//
 	//  ref{ name:value name:value ... } -- ref is the input object type specifed for the argument and { } is the argument data
 	//
+	fmt.Println("****** in ValidateInputObjectValue  ref.isType() ", ref.isType())
 	refFields := make(map[NameValue_]*Type_)
 	// check if default input fields has fields not in field Type, PET, MEASURE
 	if ref.isType() != INPUT { // required: donot remove
+		fmt.Println("****** RETURN ")
 		return
 	}
 	// get reference type AST object.
@@ -314,6 +316,7 @@ func (o ObjectVals) ValidateInputObjectValues(ref *Type_, err *[]error) {
 	for _, v := range refOV.InputValueDefs { //
 		refFields[v.Name] = v.Type
 	}
+	fmt.Println("****** ", refFields)
 	//
 	// loop thru name:value pairs using the ref type spec to match against name and its associated type for each pair.
 	//
@@ -389,7 +392,7 @@ func (o ObjectVals) ValidateInputObjectValues(ref *Type_, err *[]error) {
 type NameS []Name_
 
 // CheckUnresolvedTypes is typically promoted to type that embedds the NameS type.
-func (f NameS) CheckUnresolvedTypes(unresolved UnresolvedMap) {
+func (f NameS) CheckUnresolvedTypes(unresolved UnresolvedMap) { //TODO rename to checkUnresolvedTypes
 	for _, v := range f {
 		// check if the implement type is cached.
 		if _, ok := CacheFetch(v.Name); !ok {
@@ -551,6 +554,8 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 		for _, a := range v.ArgumentDefs { // go thru each of the argument field objects [] {} scalar
 
 			if a.DefaultVal != nil {
+
+				//a.DefaultVal.CheckInputValueType(a.Type, err)
 
 				// what type is the default value
 				switch defval := a.DefaultVal.Value.(type) {
@@ -1217,7 +1222,7 @@ func (e *Scalar_) CheckDirectiveLocation(err *[]error) {
 }
 
 func (e *Scalar_) AssignName(s string, loc *Loc_, errS *[]error) {
-	validateName(s, errS, loc)
+	ValidateName(s, errS, loc)
 	e.Name = s
 	e.Loc = loc
 }
@@ -1454,6 +1459,115 @@ func (d *Directive_) CheckInputValueType(err *[]error) { // TODO try merging wih
 					*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, a.Type.isType(), defType, a.DefaultVal.AtPosition()))
 				}
 			}
+		}
+	}
+}
+
+func (a *InputValue_) CheckInputValueType__(m *Type_, nm Name_, err *[]error) {
+
+	if a == nil {
+		return
+	}
+
+	fmt.Println("In CheckInputValueType__ ")
+	// what type is the default value
+	switch defval := a.Value.(type) {
+
+	case List_: // [ "ads", "wer" ]
+		if m.Depth == 0 { // required type is not a LIST
+			*err = append(*err, fmt.Errorf(`Argument "%s", type is not a list but default value is a list %s`, nm, a.AtPosition()))
+			return
+		}
+		var d int = 0
+		var maxd int
+		defval.ValidateListValues(m, &d, &maxd, err) // m.Type is the data type of the list items
+		//
+		if maxd != m.Depth {
+			*err = append(*err, fmt.Errorf(`Argument "%s", nested List type depth different reqired %d, got %d %s`, nm, m.Depth, maxd, a.AtPosition()))
+		}
+
+	case ObjectVals:
+		// { x: "ads", y: 234 }
+		fmt.Printf("In CheckInputValueType__  ObjectVals  Type_ %#v", *m)
+		defval.ValidateInputObjectValues(m, err)
+
+	case *EnumValue_:
+		// EAST WEST NORHT SOUTH
+		if m.isType() != ENUM {
+			*err = append(*err, fmt.Errorf(`"%s" is an enum like value but the argument type "%s" is not an Enum type %s`, defval.Name, m.Name_, a.AtPosition()))
+		} else {
+			defval.CheckEnumValue(m, err)
+		}
+
+	default:
+		// single instance data
+		fmt.Printf("name: %s\n", m.Name_)
+		fmt.Printf("constrint: %08b\n", m.Constraint)
+		fmt.Printf("depth: %d\n", m.Depth)
+		fmt.Println("defType ", a.isType(), a.IsScalar())
+		fmt.Println("refType ", m.isType())
+
+		// save default type before potential coercing
+		defType := a.isType()
+
+		if a.isType() == NULL {
+			// test case FieldArgListInt3_6 [int]!  null  - value cannot be null
+			if m.Constraint>>uint(m.Depth)&1 == 1 {
+				*err = append(*err, fmt.Errorf(`Value cannot be NULL %s`, a.AtPosition()))
+			}
+
+		} else if m.isType() == SCALAR { //a.IsScalar() {
+			// can the input value be coerced e.g. from string to Time
+			// try coercing default value to the appropriate scalar e.g. string to Time
+			if s, ok := m.AST.(ScalarProvider); ok { // assert interface supported - normal assert type (*Scalar_) would also work just as well because there is only 1 scalar type really
+				if civ, cerr := s.Coerce(a.Value); cerr != nil {
+					*err = append(*err, cerr)
+					return
+				} else {
+					a.Value = civ
+					defType = a.isType()
+				}
+			}
+			// coerce to a list of appropriate depth. Current value is not a list as this is switch case default - see other cases.
+			if m.Depth > 0 {
+				var coerce2list func(i *InputValue_, depth int) *InputValue_
+				// type List_ []*InputValue_
+
+				coerce2list = func(i *InputValue_, depth int) *InputValue_ {
+					if depth == 0 {
+						return i
+					}
+					vallist := make(List_, 1, 1)
+					vallist[0] = i
+					vi := &InputValue_{Value: vallist, Loc: i.Loc}
+					depth--
+					return coerce2list(vi, depth)
+				}
+				a = coerce2list(a, m.Depth)
+			}
+
+		} else {
+			// coerce to a list of appropriate depth. Current value is not a list as this is case default - see other cases.
+			if m.Depth > 0 {
+				var coerce2list func(i *InputValue_, depth int) *InputValue_
+				// type List_ []*InputValue_
+
+				coerce2list = func(i *InputValue_, depth int) *InputValue_ {
+					if depth == 0 {
+						return i
+					}
+					vallist := make(List_, 1, 1)
+					vallist[0] = i
+					vi := &InputValue_{Value: vallist, Loc: i.Loc}
+					depth--
+					return coerce2list(vi, depth)
+				}
+				a = coerce2list(a, m.Depth)
+			}
+		}
+
+		if defType != NULL && defType != m.isType() {
+			*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, m.isType(), defType, a.AtPosition()))
 		}
 	}
 }
