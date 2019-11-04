@@ -42,13 +42,12 @@ func (l *Lexer) NextToken() token.Token {
 	var tok token.Token
 	//	fmt.Printf("NextToken: %c\n", l.ch)
 	l.skipWhitespace() // scan to next non-whitespace and return its value as a token
-	//fmt.Printf("[%c]\n", l.ch)
 	switch l.ch {
 	case '\ufeff':
 		tok = l.newToken(token.BOM, l.ch)
 	case '#':
-		tok = l.newToken(token.COMMENT, l.ch)
 		l.readToEol()
+		return l.NextToken()
 	case '.': // ... expand sequence
 		if l.peekRune() == '.' {
 			//ch := l.ch

@@ -187,6 +187,29 @@ func (t *Type_) isType() TypeFlag_ {
 	return NA
 }
 
+func isType(t GQLTypeProvider) string {
+	//
+	//
+	// non-standard defined types
+	//
+	switch t.(type) {
+	case *Object_:
+		return "O"
+	case *Interface_:
+		return "I"
+	case *Enum_:
+		return "E"
+	case *Input_:
+		return "In"
+	case *Union_:
+		return "U"
+	case *Scalar_:
+		return "S"
+	}
+	//
+	return "X"
+}
+
 func (t *Type_) IsScalar() bool {
 	switch t.isType() {
 	case INT, FLOAT, STRING, BOOLEAN, SCALAR:
@@ -251,7 +274,7 @@ func (b Bool_) String() string {
 	return string(b)
 }
 
-// List
+// List for input values only - just a bunch of types (any) can be the same or different. The base type is defined elsewhere in the TYPE field of a argument for example.
 
 type List_ []*InputValue_
 
@@ -393,6 +416,10 @@ func (d *Directives_) String() string {
 		s.WriteString(v.String() + " ")
 	}
 	return s.String()
+}
+
+func (d *Directives_) Len() int {
+	return len(d.Directives)
 }
 
 func (d *Directives_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
@@ -582,4 +609,61 @@ func ValidateName(name string, errS *[]error, loc *Loc_) {
 		err = fmt.Errorf(errNameBegin, name, loc.Line, loc.Column)
 		*errS = append(*errS, err)
 	}
+}
+
+type opType byte
+
+const (
+	QUERY_OP opType = 1 << iota
+	MUTATION_OP
+	SUBSCRIPTION_OP
+)
+
+type Schema_ struct {
+	Directives_
+	Query        Name_
+	Mutation     Name_
+	Subscription Name_
+	Op           opType //  current operation used during parsing of statement
+}
+
+func (sc *Schema_) TypeSystemNode() {}
+
+func (sc *Schema_) AssignName(s string, loc *Loc_, errS *[]error) {
+	switch sc.Op {
+	case QUERY_OP:
+		sc.Query.AssignName(s, loc, errS)
+	case MUTATION_OP:
+		sc.Mutation.AssignName(s, loc, errS)
+	case SUBSCRIPTION_OP:
+		sc.Subscription.AssignName(s, loc, errS)
+	}
+}
+
+func (sc *Schema_) CheckDirectiveLocation(err *[]error) {
+	sc.checkDirectiveLocation_(SCHEMA_DL, err)
+}
+
+func (sc *Schema_) String() string {
+	var s strings.Builder
+	sc.Directives_.String()
+	s.WriteString("schema {")
+	if sc.Query.Exists() {
+		s.WriteString("\nquery : ")
+		s.WriteString(sc.Query.String())
+	}
+	if sc.Mutation.Exists() {
+		s.WriteString(" \nmutation : ")
+		s.WriteString(sc.Mutation.String())
+	}
+	if sc.Subscription.Exists() {
+		s.WriteString("\nsubscription : ")
+		s.WriteString(sc.Subscription.String())
+	}
+	s.WriteString("\n}")
+	return s.String()
+}
+
+func (sc *Schema_) TypeName() NameValue_ {
+	return NameValue_("schema")
 }

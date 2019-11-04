@@ -264,49 +264,97 @@ type Subscription {
 	}
 }
 
-// func TestSchema1(t *testing.T) {
+func TestSchema1(t *testing.T) {
 
-// 	input := `
-// schema {
-//     query: Query
-//     mutation: Mutation
-//     subscription: Subscription
-// }
-// type Query {
-//   allPersons(last: Int): [Person!]!
-// }
+	input := `
+schema {
+    query: Query
+    mutation: Mutation
+    subscription: Subscription
+}
+	type Query {
+	  allPersons(last: Int): [Person!]!
+	}
 
-// type Mutation {
-//   createPerson(name: String!, age: Int!): Person!
-// }
+	#type Mutation {
+	#  createPerson(name: String!, age: Int!): Person!
+	#}
 
-// type Subscription {
-//   newPerson: Person!
-// }
+	#type Subscription {
+	#  newPerson: Person!
+#}
 
-// type Person {
-//   name: String!
-//   age: Int!
-//   posts: [Post!]!
-// }
+	type Person {
+	  name: String!
+	  age: Int!
+	  posts: [Post!]!
+	}
 
-// type Post {
-//   title: String!
-//   author: Person!
-// }`
+	type Post {
+	  title: String!
+	  author: Person!
+	}
+	`
 
-// 	expectedErr := `Expected an argument name followed by colon got an "} ff" at [10 : 35]`
+	expectedDoc := `type Person {
+name : String!
+age : Int!
+posts : [Post!]!
+}
 
-// 	l := lexer.New(input)
-// 	p := New(l)
-// 	_, errs, _ := p.ParseDocument()
-// 	//fmt.Println(d.String())
-// 	for _, v := range errs {
-// 		if v.Error() != expectedErr {
-// 			t.Errorf(`Wrong Error got=[%q] expected [%s]`, v.Error(), expectedErr)
-// 		}
-// 	}
-// }
+type Post {
+title : String!
+author : Person!
+}
+
+type Query {
+allPersons(last : Int ) : [Person!]!
+}
+schema {
+query : Query 
+mutation : Mutation
+subscription : Subscription
+}`
+	var expectedErr [1]string
+	expectedErr[0] = ``
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+
+	if compare(d.String(), expectedDoc) {
+		fmt.Println(trimWS(d.String()))
+		fmt.Println(trimWS(expectedDoc))
+		t.Errorf(`*************  program.String() wrong.`)
+	}
+
+}
 
 func TestUnresolvedType(t *testing.T) {
 

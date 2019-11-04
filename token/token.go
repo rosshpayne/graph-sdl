@@ -60,19 +60,21 @@ const (
 	BOM = "BOM"
 
 	// Keywords
-	TYPE = "TYPE"
-	//	QUERY      = "QUERY"
-	//	MUTATION   = "MUTATION"
-	IMPLEMENTS = "IMPLEMENTS"
-	INTERFACE  = "INTERFACE"
-	UNION      = "UNION"
-	ON         = "ON"
-	TRUE       = "TRUE"
-	FALSE      = "FALSE"
-	INPUT      = "INPUT"
-	EXTEND     = "EXTEND"
-	SCALAR     = "SCALAR"
-	DIRECTIVE  = "DIRECTIVE"
+	TYPE         = "TYPE"
+	QUERY        = "QUERY"
+	MUTATION     = "MUTATION"
+	SUBSCRIPTION = "SUBSCRIPTION"
+	IMPLEMENTS   = "IMPLEMENTS"
+	INTERFACE    = "INTERFACE"
+	SCHEMA       = "SCHEMA"
+	UNION        = "UNION"
+	ON           = "ON"
+	TRUE         = "TRUE"
+	FALSE        = "FALSE"
+	INPUT        = "INPUT"
+	EXTEND       = "EXTEND"
+	SCALAR       = "SCALAR"
+	DIRECTIVE    = "DIRECTIVE"
 )
 
 type Pos struct {
@@ -100,19 +102,23 @@ var keywords = map[string]struct {
 	"String":  {STRING, NONVALUE, true},
 	"Boolean": {BOOLEAN, NONVALUE, true},
 	//	"ID":      {ID, NONVALUE, true},
-	"enum":       {ENUM, NONVALUE, false},
-	"on":         {ON, NONVALUE, false},
-	"type":       {TYPE, NONVALUE, false},
-	"null":       {NULL, VALUE, false},
-	"true":       {TRUE, VALUE, false},
-	"false":      {FALSE, VALUE, false},
-	"union":      {UNION, NONVALUE, false},
-	"implements": {IMPLEMENTS, NONVALUE, false},
-	"interface":  {INTERFACE, NONVALUE, false},
-	"input":      {INPUT, NONVALUE, false},
-	"extend":     {EXTEND, NONVALUE, false},
-	"scalar":     {SCALAR, NONVALUE, false},
-	"directive":  {DIRECTIVE, NONVALUE, false},
+	"enum":         {ENUM, NONVALUE, false},
+	"schema":       {SCHEMA, NONVALUE, false},
+	"on":           {ON, NONVALUE, false},
+	"type":         {TYPE, NONVALUE, false},
+	"null":         {NULL, VALUE, false},
+	"true":         {TRUE, VALUE, false},
+	"false":        {FALSE, VALUE, false},
+	"union":        {UNION, NONVALUE, false},
+	"implements":   {IMPLEMENTS, NONVALUE, false},
+	"interface":    {INTERFACE, NONVALUE, false},
+	"input":        {INPUT, NONVALUE, false},
+	"extend":       {EXTEND, NONVALUE, false},
+	"scalar":       {SCALAR, NONVALUE, false},
+	"directive":    {DIRECTIVE, NONVALUE, false},
+	"query":        {QUERY, NONVALUE, false},
+	"subscription": {SUBSCRIPTION, NONVALUE, false},
+	"mutation":     {MUTATION, NONVALUE, false},
 }
 
 func LookupIdent(ident string) (TokenType, TokenCat, bool) {

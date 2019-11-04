@@ -303,11 +303,9 @@ func (o ObjectVals) ValidateInputObjectValues(ref *Type_, err *[]error) {
 	//
 	//  ref{ name:value name:value ... } -- ref is the input object type specifed for the argument and { } is the argument data
 	//
-	fmt.Println("****** in ValidateInputObjectValue  ref.isType() ", ref.isType())
 	refFields := make(map[NameValue_]*Type_)
 	// check if default input fields has fields not in field Type, PET, MEASURE
 	if ref.isType() != INPUT { // required: donot remove
-		fmt.Println("****** RETURN ")
 		return
 	}
 	// get reference type AST object.
@@ -438,7 +436,6 @@ func (o *Object_) CheckDirectiveRef(dirName NameValue_, err *[]error) {
 }
 
 func (o *Object_) CheckDirectiveLocation(err *[]error) {
-	fmt.Println("in CheckDirectiveLocation for type Object_ ")
 	o.checkDirectiveLocation_(OBJECT_DL, err)
 }
 
@@ -1468,8 +1465,6 @@ func (a *InputValue_) CheckInputValueType__(m *Type_, nm Name_, err *[]error) {
 	if a == nil {
 		return
 	}
-
-	fmt.Println("In CheckInputValueType__ ")
 	// what type is the default value
 	switch defval := a.Value.(type) {
 
@@ -1488,7 +1483,6 @@ func (a *InputValue_) CheckInputValueType__(m *Type_, nm Name_, err *[]error) {
 
 	case ObjectVals:
 		// { x: "ads", y: 234 }
-		fmt.Printf("In CheckInputValueType__  ObjectVals  Type_ %#v", *m)
 		defval.ValidateInputObjectValues(m, err)
 
 	case *EnumValue_:

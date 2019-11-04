@@ -7,6 +7,60 @@ import (
 	"github.com/graph-sdl/lexer"
 )
 
+func TestEnumValid(t *testing.T) {
+
+	input := `
+
+directive @deprecated on ENUM_VALUE | ARGUMENT_DEFINITION
+directive @dep on ENUM_VALUE | ARGUMENT_DEFINITION
+
+enum Direction {
+  NORTH
+  EAST
+  SOUTH
+  WEST @deprecated @ dep (if: 99.34 fi:true cat: 23.323)
+}
+type Person {
+  name: String!
+  age: Int!
+  dir: [Direction]
+}
+`
+
+	var expectedErr [1]string
+	expectedErr[0] = ``
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+
+}
+
 func TestEnumDuplicate(t *testing.T) {
 
 	input := `

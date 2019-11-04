@@ -12,13 +12,14 @@ import (
 )
 
 const (
-	TableName string = "GraphQL2"
+	TableName string = "GraphQL"
 )
 
 type TypeRow struct {
 	PKey  string
 	SortK string
 	Stmt  string
+	Type  string
 }
 
 // cache returns the AST type for a given TypeName
@@ -94,6 +95,9 @@ func fetchInterface(input Name_) (*Interface_, bool, string) {
 
 func dbPersist(pkey NameValue_, ast GQLTypeProvider) error {
 	//
+	// TODO: check to see if item already exists, and if type is different error otherwise give a warning.
+	//		 table design ensures uniqueness of type with a given name, however currently it will overrite existing item
+	//
 	switch x := ast.(type) {
 	case *Directive_:
 		type DirRow struct {
@@ -101,8 +105,9 @@ func dbPersist(pkey NameValue_, ast GQLTypeProvider) error {
 			SortK string
 			Stmt  string
 			Dir   string
+			Type  string
 		}
-		typeDef := DirRow{PKey: pkey.String(), SortK: "__", Stmt: ast.String(), Dir: "D"}
+		typeDef := DirRow{PKey: pkey.String(), SortK: "D", Stmt: ast.String(), Dir: "D", Type: "D"}
 		av, err := dynamodbattribute.MarshalMap(typeDef)
 		if err != nil {
 			return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -115,7 +120,7 @@ func dbPersist(pkey NameValue_, ast GQLTypeProvider) error {
 			return fmt.Errorf("%s: %s", "Error: failed to PutItem ", err.Error())
 		}
 	case *Object_:
-		typeDef := TypeRow{PKey: pkey.String(), SortK: "__", Stmt: ast.String()}
+		typeDef := TypeRow{PKey: pkey.String(), SortK: "__", Stmt: ast.String(), Type: "O"}
 		av, err := dynamodbattribute.MarshalMap(typeDef)
 		if err != nil {
 			return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -129,6 +134,19 @@ func dbPersist(pkey NameValue_, ast GQLTypeProvider) error {
 		}
 		for _, imp := range x.Implements {
 			PersistImplements(imp.Name, x.TypeName())
+		}
+	default:
+		typeDef := TypeRow{PKey: pkey.String(), SortK: "__", Stmt: ast.String(), Type: isType(ast)}
+		av, err := dynamodbattribute.MarshalMap(typeDef)
+		if err != nil {
+			return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
+		}
+		_, err = db.PutItem(&dynamodb.PutItemInput{
+			TableName: aws.String(TableName),
+			Item:      av,
+		})
+		if err != nil {
+			return fmt.Errorf("%s: %s", "Error: failed to PutItem ", err.Error())
 		}
 	}
 	return nil

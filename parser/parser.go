@@ -25,8 +25,8 @@ type (
 
 		extend bool
 
-		abort bool
-
+		abort     bool
+		stmtType  string
 		curToken  token.Token
 		peekToken token.Token
 
@@ -76,6 +76,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerFn(token.INPUT, p.ParseInputValueType)
 	p.registerFn(token.SCALAR, p.ParseScalar)
 	p.registerFn(token.DIRECTIVE, p.ParseDirective)
+	p.registerFn(token.SCHEMA, p.ParseSchema)
 	// Read two tokens, to initialise curToken and peekToken
 	p.nextToken()
 	p.nextToken()
@@ -297,12 +298,12 @@ func (p *Parser) ParseStatement() ast.GQLTypeProvider {
 		p.extend = true
 		p.nextToken() // read over extend
 	}
-	stmtType := p.curToken.Literal
+	p.stmtType = strings.ToLower(p.curToken.Literal)
 	if f, ok := p.parseFns[p.curToken.Type]; ok {
-		return f(stmtType)
+		return f(p.stmtType)
 	} else {
 		p.abort = true
-		p.addErr(fmt.Sprintf(`Parse aborted. "%s" is not a statement keyword`, stmtType))
+		p.addErr(fmt.Sprintf(`Parse aborted. "%s" is not a statement keyword`, p.stmtType))
 	}
 	return nil
 }
@@ -442,6 +443,87 @@ func (p *Parser) CheckUnionMembers(x *ast.Union_) {
 }
 
 var opt bool = true // is optional
+
+// ==================== Schema  ============================
+
+//SchemaDefinition
+//		schemaDirectivesConstopt{RootOperationTypeDefinitionlist}
+// RootOperationTypeDefinition
+//  	 OperationType : NamedType
+func (p *Parser) ParseSchema(op string) ast.GQLTypeProvider {
+	// Types: query, mutation, subscription
+	p.nextToken() // read over type
+	if !p.extend {
+		inp := &ast.Schema_{}
+
+		p.parseDirectives(inp, opt).parseOperationTypes(inp)
+
+		return inp
+	} else {
+		// return original AST associated with the extend Name.
+		obj, name := p.parseExtendName()
+		if obj != nil {
+			if inp, ok := obj.(*ast.Schema_); !ok {
+				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
+				p.abort = true
+			} else {
+				d := inp.Directives_.Len()
+
+				p.parseDirectives(inp, opt)
+
+				if inp.Directives_.Len() > d {
+					p.parseOperationTypes(inp, opt)
+				} else {
+					p.parseOperationTypes(inp)
+				}
+				return inp
+			}
+		} else {
+			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
+			return &ast.Object_{Name_: name}
+		}
+	}
+	return nil
+}
+
+func (p *Parser) parseOperationTypes(v *ast.Schema_, optional ...bool) *Parser {
+	if p.hasError() {
+		return p
+	}
+	if p.curToken.Type != token.LBRACE {
+		if len(optional) != 0 {
+			p.addErr(fmt.Sprintf("Expected a ( instead got %s", p.curToken.Type))
+		}
+		return p
+	}
+	//
+	for p.nextToken(); p.curToken.Type != token.RBRACE; {
+
+		p.parseOperation(v).parseColon().parseName(v)
+
+	}
+
+	p.nextToken() // read over }
+	return p
+}
+
+func (p *Parser) parseOperation(inp *ast.Schema_) *Parser {
+
+	switch p.curToken.Type {
+	case token.QUERY:
+		inp.Op = ast.QUERY_OP
+	case token.MUTATION:
+		inp.Op = ast.MUTATION_OP
+	case token.SUBSCRIPTION:
+		inp.Op = ast.SUBSCRIPTION_OP
+	default:
+		p.addErr(fmt.Sprintf("%s is not a valid operation. Must be query, mutation or subscription ", p.curToken.Type))
+	}
+
+	p.nextToken() // read over op type
+
+	return p
+}
 
 // ==================== Object Type  ============================
 
@@ -1029,6 +1111,11 @@ func (p *Parser) parseDecription() *Parser {
 }
 
 // ===================== parseType ===========================
+
+// func  (p *Parser) ParseType(p ParserI, f ast.AssignTyper) {
+// 	// need to create methods for all parser variables
+// 	return p.parseType(f)
+// }
 
 func (p *Parser) parseType(f ast.AssignTyper) *Parser {
 	if p.hasError() {
