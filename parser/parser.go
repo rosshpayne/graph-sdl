@@ -212,7 +212,7 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 	//                    and  *Type.AST assigned where applicable
 	//
 	for _, v := range program.Statements {
-		p.checkUnresolvedTypes_(v)
+		p.ResolveAllTypes(v)
 		if len(p.perror) > 0 {
 			program.ErrorMap[v.TypeName()] = append(program.ErrorMap[v.TypeName()], p.perror...)
 			p.perror = nil
@@ -341,7 +341,11 @@ func (p *Parser) fetchAST(name ast.Name_) ast.GQLTypeProvider {
 						// error in parsing stmt from db - this should not happen as only valid stmts are saved.
 						p.perror = append(p.perror, p2.perror...)
 					}
+					// save to cache
 					ast.Add2Cache(name_, ast_)
+					// now resolve all types in the ast
+					p.ResolveAllTypes(ast_)
+
 				}
 			}
 		} else {
@@ -351,11 +355,11 @@ func (p *Parser) fetchAST(name ast.Name_) ast.GQLTypeProvider {
 	return ast_
 }
 
-// ===================  checkUnresolvedTypes_  ==========================
-// checkUnresolvedTypes_ is a validation check performed after parsing completed
+// ===================  ResolveAllTypes  ==========================
+// ResolveAllTypes is a validation check performed after parsing completed
 //  unresolved Types from parsed types are then checked in DB.
 //  check performed across nested types until all leaf finsihed or unresolved found
-func (p *Parser) checkUnresolvedTypes_(v ast.GQLTypeProvider) {
+func (p *Parser) ResolveAllTypes(v ast.GQLTypeProvider) {
 	//returns slice of unresolved types from the statement passed in
 	unresolved := make(ast.UnresolvedMap)
 	v.CheckUnresolvedTypes(unresolved)
@@ -369,7 +373,7 @@ func (p *Parser) checkUnresolvedTypes_(v ast.GQLTypeProvider) {
 				ty.AST = ast_
 				// if not scalar then check for unresolved types in nested type
 				if !ty.IsScalar() {
-					p.checkUnresolvedTypes_(ast_)
+					p.ResolveAllTypes(ast_)
 				}
 			}
 

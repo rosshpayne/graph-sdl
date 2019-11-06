@@ -223,11 +223,11 @@ func DBFetch(name NameValue_) (string, error) {
 		Key:       av,
 		TableName: aws.String(TableName),
 	}
-	input = input.SetReturnConsumedCapacity("TOTAL").SetConsistentRead(false)
+	input = input.SetReturnConsumedCapacity("TOTAL").SetConsistentRead(true)
 	//
 	result, err := db.GetItem(input)
 	if err != nil {
-		fmt.Println("ERROROR")
+		fmt.Println("ERROR")
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case dynamodb.ErrCodeProvisionedThroughputExceededException:
@@ -246,7 +246,7 @@ func DBFetch(name NameValue_) (string, error) {
 			// Message from an error.
 			fmt.Println(err.Error())
 		}
-		return "", fmt.Errorf("%s %s: %s", errmsg, "GetItem", errmsg, err.Error())
+		return "", fmt.Errorf("%s %s: %s", errmsg, "GetItemX", err.Error())
 	}
 	fmt.Println("dbFetch: GetItem: Query ConsumedCapacity: \n", result.ConsumedCapacity)
 	if len(result.Item) == 0 {
