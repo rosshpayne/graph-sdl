@@ -243,7 +243,7 @@ type ArgumentAppender interface {
 }
 
 type ArgumentT struct {
-	//( name:value )
+	//( name : value )
 	Name_
 	Value *InputValue_
 }
@@ -341,7 +341,7 @@ func (o ObjectVals) ValidateInputObjectValues(ref *Type_, err *[]error) {
 			}
 
 			// look at argument value type as it may be a list or another input object type
-			switch inobj := v.Value.Value.(type) { // y inob:Float_
+			switch inobj := v.Value.InputValueProvider.(type) { // y inob:Float_
 
 			case List_:
 				var errSet bool
@@ -555,7 +555,7 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 				//a.DefaultVal.CheckInputValueType(a.Type, err)
 
 				// what type is the default value
-				switch defval := a.DefaultVal.Value.(type) {
+				switch defval := a.DefaultVal.InputValueProvider.(type) {
 
 				case List_: // [ "ads", "wer" ]
 					if a.Type.Depth == 0 { // required type is not a LIST
@@ -603,11 +603,11 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 						// can the input value be coerced e.g. from string to Time
 						// try coercing default value to the appropriate scalar e.g. string to Time
 						if s, ok := a.Type.AST.(ScalarProvider); ok { // assert interface supported - normal assert type (*Scalar_) would also work just as well because there is only 1 scalar type really
-							if civ, cerr := s.Coerce(a.DefaultVal.Value); cerr != nil {
+							if civ, cerr := s.Coerce(a.DefaultVal.InputValueProvider); cerr != nil {
 								*err = append(*err, cerr)
 								return
 							} else {
-								a.DefaultVal.Value = civ
+								a.DefaultVal.InputValueProvider = civ
 								defType = a.DefaultVal.isType()
 							}
 						}
@@ -622,7 +622,7 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 								}
 								vallist := make(List_, 1, 1)
 								vallist[0] = i
-								vi := &InputValue_{Value: vallist, Loc: i.Loc}
+								vi := &InputValue_{InputValueProvider: vallist, Loc: i.Loc}
 								depth--
 								return coerce2list(vi, depth)
 							}
@@ -641,7 +641,7 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 								}
 								vallist := make(List_, 1, 1)
 								vallist[0] = i
-								vi := &InputValue_{Value: vallist, Loc: i.Loc}
+								vi := &InputValue_{InputValueProvider: vallist, Loc: i.Loc}
 								depth--
 								return coerce2list(vi, depth)
 							}
@@ -1358,7 +1358,7 @@ func (d *Directive_) CheckInputValueType(err *[]error) { // TODO try merging wih
 		if a.DefaultVal != nil {
 
 			// what type is the default value
-			switch defval := a.DefaultVal.Value.(type) {
+			switch defval := a.DefaultVal.InputValueProvider.(type) {
 
 			case List_: // [ "ads", "wer" ]
 				if a.Type.Depth == 0 { // required type is not a LIST
@@ -1406,11 +1406,11 @@ func (d *Directive_) CheckInputValueType(err *[]error) { // TODO try merging wih
 					// can the input value be coerced e.g. from string to Time
 					// try coercing default value to the appropriate scalar e.g. string to Time
 					if s, ok := a.Type.AST.(ScalarProvider); ok { // assert interface supported - normal assert type (*Scalar_) would also work just as well because there is only 1 scalar type really
-						if civ, cerr := s.Coerce(a.DefaultVal.Value); cerr != nil {
+						if civ, cerr := s.Coerce(a.DefaultVal.InputValueProvider); cerr != nil {
 							*err = append(*err, cerr)
 							return
 						} else {
-							a.DefaultVal.Value = civ
+							a.DefaultVal.InputValueProvider = civ
 							defType = a.DefaultVal.isType()
 						}
 					}
@@ -1425,7 +1425,7 @@ func (d *Directive_) CheckInputValueType(err *[]error) { // TODO try merging wih
 							}
 							vallist := make(List_, 1, 1)
 							vallist[0] = i
-							vi := &InputValue_{Value: vallist, Loc: i.Loc}
+							vi := &InputValue_{InputValueProvider: vallist, Loc: i.Loc}
 							depth--
 							return coerce2list(vi, depth)
 						}
@@ -1444,7 +1444,7 @@ func (d *Directive_) CheckInputValueType(err *[]error) { // TODO try merging wih
 							}
 							vallist := make(List_, 1, 1)
 							vallist[0] = i
-							vi := &InputValue_{Value: vallist, Loc: i.Loc}
+							vi := &InputValue_{InputValueProvider: vallist, Loc: i.Loc}
 							depth--
 							return coerce2list(vi, depth)
 						}
@@ -1466,7 +1466,7 @@ func (a *InputValue_) CheckInputValueType__(m *Type_, nm Name_, err *[]error) {
 		return
 	}
 	// what type is the default value
-	switch defval := a.Value.(type) {
+	switch defval := a.InputValueProvider.(type) {
 
 	case List_: // [ "ads", "wer" ]
 		if m.Depth == 0 { // required type is not a LIST
@@ -1514,11 +1514,11 @@ func (a *InputValue_) CheckInputValueType__(m *Type_, nm Name_, err *[]error) {
 			// can the input value be coerced e.g. from string to Time
 			// try coercing default value to the appropriate scalar e.g. string to Time
 			if s, ok := m.AST.(ScalarProvider); ok { // assert interface supported - normal assert type (*Scalar_) would also work just as well because there is only 1 scalar type really
-				if civ, cerr := s.Coerce(a.Value); cerr != nil {
+				if civ, cerr := s.Coerce(a.InputValueProvider); cerr != nil {
 					*err = append(*err, cerr)
 					return
 				} else {
-					a.Value = civ
+					a.InputValueProvider = civ
 					defType = a.isType()
 				}
 			}
@@ -1533,7 +1533,7 @@ func (a *InputValue_) CheckInputValueType__(m *Type_, nm Name_, err *[]error) {
 					}
 					vallist := make(List_, 1, 1)
 					vallist[0] = i
-					vi := &InputValue_{Value: vallist, Loc: i.Loc}
+					vi := &InputValue_{InputValueProvider: vallist, Loc: i.Loc}
 					depth--
 					return coerce2list(vi, depth)
 				}
@@ -1552,7 +1552,7 @@ func (a *InputValue_) CheckInputValueType__(m *Type_, nm Name_, err *[]error) {
 					}
 					vallist := make(List_, 1, 1)
 					vallist[0] = i
-					vi := &InputValue_{Value: vallist, Loc: i.Loc}
+					vi := &InputValue_{InputValueProvider: vallist, Loc: i.Loc}
 					depth--
 					return coerce2list(vi, depth)
 				}

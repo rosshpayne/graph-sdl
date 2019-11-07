@@ -24,29 +24,29 @@ type InputValueProvider interface {
 
 // input values used for "default values" in arguments in type and field arguments and input objecs.
 type InputValue_ struct {
-	Value InputValueProvider // Important: this is an Interface (embedded value|type), so the type of the input value is defined in the interface value.
-	Loc   *Loc_
+	InputValueProvider // Important: this is an Interface (embedded value|type), so the type of the input value is defined in the interface value.
+	Loc                *Loc_
 }
 
 //func (iv *InputValue_) InputValueNode() {}
 
 func (iv *InputValue_) String() string {
 
-	switch x := iv.Value.(type) {
+	switch x := iv.InputValueProvider.(type) {
 	case RawString_:
-		return token.RAWSTRINGDEL + iv.Value.String() + token.RAWSTRINGDEL //+ "-" + iv.dTString()
+		return token.RAWSTRINGDEL + iv.InputValueProvider.String() + token.RAWSTRINGDEL //+ "-" + iv.dTString()
 	case String_:
-		return token.STRINGDEL + iv.Value.String() + token.STRINGDEL //+ "-" + iv.dTString() + iv.Loc.String()
+		return token.STRINGDEL + iv.InputValueProvider.String() + token.STRINGDEL //+ "-" + iv.dTString() + iv.Loc.String()
 	case *Scalar_:
 		switch x.Name {
 		case "Time":
 			return fmt.Sprintf("%q", x.TimeV.String())
 		}
 	}
-	if iv.Value == nil { // interface is not populated with concrete value
+	if iv.InputValueProvider == nil { // interface is not populated with concrete value
 		return ""
 	}
-	return iv.Value.String() //+ "-" + iv.dTString()
+	return iv.InputValueProvider.String() //+ "-" + iv.dTString()
 }
 
 func (iv *InputValue_) AtPosition() string {
@@ -91,7 +91,7 @@ func (iv *InputValue_) IsType() string {
 
 func (iv *InputValue_) isType() TypeFlag_ {
 	// Union are not a valid input value
-	switch iv.Value.(type) {
+	switch iv.InputValueProvider.(type) {
 	case Int_:
 		return INT
 	case Float_:
@@ -123,7 +123,7 @@ func (iv *InputValue_) isType() TypeFlag_ {
 
 func (iv *InputValue_) IsScalar() bool {
 	// Union are not a valid input value
-	switch iv.Value.(type) {
+	switch iv.InputValueProvider.(type) {
 	case Int_, Bool_, Float_, RawString_:
 		return true
 	case *Scalar_:
@@ -266,12 +266,15 @@ func (s RawString_) String() string {
 	return string(s)
 }
 
-type Bool_ string //bool
+type Bool_ bool //bool
 
 func (b Bool_) ValueNode() {}
 func (b Bool_) String() string {
 	//return strconv.FormatBool(bool(i))
-	return string(b)
+	if b {
+		return "true"
+	}
+	return "false"
 }
 
 // List for input values only - just a bunch of types (any) can be the same or different. The base type is defined elsewhere in the TYPE field of a argument for example.
@@ -331,7 +334,7 @@ func (l List_) ValidateListValues(iv *Type_, d *int, maxd *int, err *[]error) {
 	}
 	for _, v := range l { // []*InputValue_ // Measure items {Name_, InputValue_}
 		// what is the type of the list element. Scalar, another LIST, a OBJECT
-		switch in := v.Value.(type) {
+		switch in := v.InputValueProvider.(type) {
 
 		case List_:
 			// maxd records maximum depth of list(d=1) [] list of lists [[]](d=2) = [[][][][]] list of lists of lists (d=3) [[[]]] = [[[][][]],[[][][][]],[[]]]
@@ -339,7 +342,7 @@ func (l List_) ValidateListValues(iv *Type_, d *int, maxd *int, err *[]error) {
 			*d--
 
 		case ObjectVals:
-			// default values in input object form { name:value name:value ... }: []*ArgumentT type ArgumentT: struct {Name_, Value *InputValue_}
+			// default values in input object form { name:value name:value ... }: []*ArgumentT type ArgumentT: struct {Name_, InputValueProvider}
 			// reqType is the type of the input object  - which defines the name and associated type for each item in the { }
 			if *d != reqDepth {
 				*err = append(*err, fmt.Errorf(`Value %s is not at required nesting of %d %s`, v, reqDepth, v.AtPosition()))

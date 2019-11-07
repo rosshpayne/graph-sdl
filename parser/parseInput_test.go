@@ -46,16 +46,16 @@ func TestInputDuplicate(t *testing.T) {
 
 	input := `
 	input Point2D  @ june (asdf:234){
-  x: Float = 123.23 @ jun (asdf:234)
-  y: Float = 34 @ jun (asdf:"""asdflkjslkjd""")
-   y1: Float = 34 @ jun (asdf:"""asdflkjslkjd""")
-     y2: Float = 34 @ jun (asdf:"""asdflkjslkjd""")
-       y: Int = 34 @ jun (asdf:"""asdflkjslkjd""")
-      y3: Float = 34 @ jun (asdf:"""asdflkjslkjd""" dei:234 uio:false)
-       y4: Float = 34 @ jun (asdf:"""asdflkjslkjd""")
-        y5: Float = 34 @ jun (asdf:"""asdflkjslkjd""")
-         y6: Float = 34 @ jun (asdf:"""asdflkjslkjd""")
-          y63: Float = 34 @ jun (asdf:"""asdflkjslkjd""")
+  x: Float = 123.23 @ june (asdf:234)
+  y: Float = 34 @ june (asdf:"""asdflkjslkjd""")
+   y1: Float = 34 @ june (asdf:"""asdflkjslkjd""")
+     y2: Float = 34 @ june (asdf:"""asdflkjslkjd""")
+       y: Int = 34 @ june (asdf:"""asdflkjslkjd""")
+      y3: Float = 34 @ june (asdf:"""asdflkjslkjd""" dei:234 uio:false)
+       y4: Float = 34 @ june (asdf:"""asdflkjslkjd""")
+        y5: Float = 34 @ june (asdf:"""asdflkjslkjd""")
+         y6: Float = 34 @ june (asdf:"""asdflkjslkjd""")
+          y63: Float = 34 @ june (asdf:"""asdflkjslkjd""")
 }
 `
 	var expectedErr [1]string

@@ -208,13 +208,19 @@ func DBFetch(name NameValue_) (string, error) {
 	//
 	// query on recipe name to get RecipeId and  book name
 	//
+	var sortK string
 	fmt.Printf("DB Fetch name: [%s]\n", name.String())
 
 	if len(name) == 0 {
 		return "", fmt.Errorf("No DB search value provided")
 	}
 	errmsg := "Error in marshall of pKey "
-	pkey := PkRow{PKey: name.String(), SortK: "__"}
+	if name[0] == '@' {
+		sortK = "D"
+	} else {
+		sortK = "__"
+	}
+	pkey := PkRow{PKey: name.String(), SortK: sortK}
 	av, err := dynamodbattribute.MarshalMap(&pkey)
 	if err != nil {
 		return "", fmt.Errorf("%s. MarshalMap: %s", errmsg, err.Error())
@@ -250,7 +256,7 @@ func DBFetch(name NameValue_) (string, error) {
 	}
 	fmt.Println("dbFetch: GetItem: Query ConsumedCapacity: \n", result.ConsumedCapacity)
 	if len(result.Item) == 0 {
-		return "", nil
+		return "", nil //fmt.Errorf(`No type data found in database for "%s"`, name)
 	}
 	rec := &TypeRow{}
 	err = dynamodbattribute.UnmarshalMap(result.Item, rec)

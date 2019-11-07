@@ -226,7 +226,6 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 		p.perror = append(p.perror, program.ErrorMap[v.TypeName()]...)
 	}
 	if p.hasError() {
-		p.perror = nil
 		return program, p.perror
 	}
 	//
@@ -322,6 +321,7 @@ func (p *Parser) fetchAST(name ast.Name_) ast.GQLTypeProvider {
 	if ast_, ok = ast.CacheFetch(name_); !ok {
 		if !typeNotExists[name_] {
 			if typeDef, err := ast.DBFetch(name_); err != nil {
+				fmt.Println("++++++++ NO DATA FROM DB +++++++")
 				p.addErr(err.Error())
 				p.abort = true
 				return nil
@@ -345,6 +345,9 @@ func (p *Parser) fetchAST(name ast.Name_) ast.GQLTypeProvider {
 					ast.Add2Cache(name_, ast_)
 					// now resolve all types in the ast
 					p.ResolveAllTypes(ast_)
+					if p.hasError() {
+						return nil
+					}
 
 				}
 			}
@@ -359,7 +362,7 @@ func (p *Parser) fetchAST(name ast.Name_) ast.GQLTypeProvider {
 // ResolveAllTypes is a validation check performed after parsing completed
 //  unresolved Types from parsed types are then checked in DB.
 //  check performed across nested types until all leaf finsihed or unresolved found
-func (p *Parser) ResolveAllTypes(v ast.GQLTypeProvider) {
+func (p *Parser) ResolveAllTypes(v ast.GQLTypeProvider) []error {
 	//returns slice of unresolved types from the statement passed in
 	unresolved := make(ast.UnresolvedMap)
 	v.CheckUnresolvedTypes(unresolved)
@@ -386,6 +389,7 @@ func (p *Parser) ResolveAllTypes(v ast.GQLTypeProvider) {
 			}
 		}
 	}
+	return p.perror
 }
 
 //  ===================== CheckDirectives ================
@@ -1361,7 +1365,7 @@ func (p *Parser) parseInputValue_() *ast.InputValue_ {
 		if p.curToken.Type == token.RBRACKET {
 			p.nextToken() // ]
 			var null ast.Null_ = true
-			iv := ast.InputValue_{Value: null, Loc: p.Loc()}
+			iv := ast.InputValue_{InputValueProvider: null, Loc: p.Loc()}
 			return &iv
 		}
 		// process list of values - all value types should be the same
@@ -1371,7 +1375,7 @@ func (p *Parser) parseInputValue_() *ast.InputValue_ {
 			vallist = append(vallist, v)
 		}
 		// completed processing values, return List type
-		iv := ast.InputValue_{Value: vallist, Loc: p.Loc()}
+		iv := ast.InputValue_{InputValueProvider: vallist, Loc: p.Loc()}
 		return &iv
 	//
 	//  Object type
@@ -1389,34 +1393,39 @@ func (p *Parser) parseInputValue_() *ast.InputValue_ {
 			}
 			p.nextToken()
 		}
-		iv := ast.InputValue_{Value: ObjList, Loc: p.Loc()}
+		iv := ast.InputValue_{InputValueProvider: ObjList, Loc: p.Loc()}
 		return &iv
 	//
 	//  Standard Scalar types
 	//
 	case token.NULL:
 		var null ast.Null_ = true
-		iv := ast.InputValue_{Value: null, Loc: p.Loc()}
+		iv := ast.InputValue_{InputValueProvider: null, Loc: p.Loc()}
 		return &iv
 	case token.INT:
 		i := ast.Int_(p.curToken.Literal)
-		iv := ast.InputValue_{Value: i, Loc: p.Loc()}
+		iv := ast.InputValue_{InputValueProvider: i, Loc: p.Loc()}
 		return &iv
 	case token.FLOAT:
 		f := ast.Float_(p.curToken.Literal)
-		iv := ast.InputValue_{Value: f, Loc: p.Loc()}
+		iv := ast.InputValue_{InputValueProvider: f, Loc: p.Loc()}
 		return &iv
 	case token.STRING:
 		f := ast.String_(p.curToken.Literal)
-		iv := ast.InputValue_{Value: f, Loc: p.Loc()}
+		iv := ast.InputValue_{InputValueProvider: f, Loc: p.Loc()}
 		return &iv
 	case token.RAWSTRING:
 		f := ast.RawString_(p.curToken.Literal)
-		iv := ast.InputValue_{Value: f, Loc: p.Loc()}
+		iv := ast.InputValue_{InputValueProvider: f, Loc: p.Loc()}
 		return &iv
 	case token.TRUE, token.FALSE: //token.BOOLEAN:
-		b := ast.Bool_(p.curToken.Literal)
-		iv := ast.InputValue_{Value: b, Loc: p.Loc()}
+		var b ast.Bool_
+		if p.curToken.Literal == "true" {
+			b = ast.Bool_(true)
+		} else {
+			b = ast.Bool_(false)
+		}
+		iv := ast.InputValue_{InputValueProvider: b, Loc: p.Loc()}
 		return &iv
 	// case token.Time:
 	// 	b := ast.Time_(p.curToken.Literal)
@@ -1426,7 +1435,7 @@ func (p *Parser) parseInputValue_() *ast.InputValue_ {
 		// possible ENUM value
 		b := &ast.EnumValue_{}
 		b.AssignName(string(p.curToken.Literal), p.Loc(), &p.perror)
-		iv := ast.InputValue_{Value: b, Loc: p.Loc()}
+		iv := ast.InputValue_{InputValueProvider: b, Loc: p.Loc()}
 		return &iv
 	}
 	return nil
