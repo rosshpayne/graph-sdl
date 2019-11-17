@@ -1062,6 +1062,20 @@ func (p *Parser) parseArguments(f ast.ArgumentAppender, optional ...bool) *Parse
 	return p
 }
 
+func (p *Parser) ParseResponse() ast.InputValueProvider {
+
+	//
+	//	for p.nextToken("First Next: "); p.curToken.Type != token.RPAREN; { //p.nextToken(" ParseTOKEN next ") {
+	p.printToken("At beginning")
+	value := p.parseInputValue_()
+	p.nextToken("At end") // read over ]
+
+	fmt.Println("FINISHED parseinputValue_")
+
+	return value.InputValueProvider
+
+}
+
 func (p *Parser) parseColon() *Parser {
 
 	if !(p.curToken.Type == token.COLON) {
@@ -1079,6 +1093,8 @@ func (p *Parser) parseInputValue(v *ast.ArgumentT) *Parser {
 		(p.curToken.Cat == token.VALUE && (p.peekToken.Cat == token.NONVALUE || p.peekToken.Type == token.RPAREN)) ||
 		(p.curToken.Type == token.LBRACKET || p.curToken.Type == token.LBRACE)) { // [  or {
 		p.addErr(fmt.Sprintf(`Expected an argument Value followed by IDENT or RPAREN got an %s:%s:%s %s:%s:%s`, p.curToken.Cat, p.curToken.Type, p.curToken.Literal, p.peekToken.Cat, p.peekToken.Type, p.peekToken.Literal))
+		fmt.Sprintf(`Expected an argument Value followed by IDENT or RPAREN got an %s:%s:%s %s:%s:%s`, p.curToken.Cat, p.curToken.Type, p.curToken.Literal, p.peekToken.Cat, p.peekToken.Type, p.peekToken.Literal)
+
 	}
 	v.Value = p.parseInputValue_()
 
@@ -1305,8 +1321,8 @@ func (p *Parser) parseDefaultVal(v *ast.InputValueDef, optional ...bool) *Parser
 
 // parseObjectArguments - used for input object values
 func (p *Parser) parseObjectArguments(argS []*ast.ArgumentT) []*ast.ArgumentT {
-
-	for p.nextToken(); p.curToken.Type == token.IDENT; {
+	//p.nextToken("begin parseObjectArguments");
+	for p.curToken.Type == token.IDENT {
 		//for p.nextToken(); p.curToken.Type != token.RBRACE ; p.nextToken() { // TODO: use this
 		v := new(ast.ArgumentT)
 
@@ -1314,11 +1330,6 @@ func (p *Parser) parseObjectArguments(argS []*ast.ArgumentT) []*ast.ArgumentT {
 
 		argS = append(argS, v)
 
-		if p.curToken.Type == token.RBRACE {
-			p.nextToken() // read over }
-			break
-		}
-		p.nextToken()
 	}
 	return argS
 }
@@ -1329,6 +1340,8 @@ func (p *Parser) parseObjectArguments(argS []*ast.ArgumentT) []*ast.ArgumentT {
 //  TODO: currently called from parseArgument only. If this continues to be the case then add this func as anonymous func to it.
 //func (p *Parser) parseInputValue_(iv ...*ast.InputValueDef) *ast.InputValue_ { //TODO remove iv argeument now redundant
 func (p *Parser) parseInputValue_() *ast.InputValue_ {
+	defer p.nextToken() // this func will finish paused on next token - always
+
 	if p.curToken.Type == "ILLEGAL" {
 		p.addErr(fmt.Sprintf("Value expected got %s of %s", p.curToken.Type, p.curToken.Literal))
 		p.abort = true
@@ -1370,7 +1383,7 @@ func (p *Parser) parseInputValue_() *ast.InputValue_ {
 		}
 		// process list of values - all value types should be the same
 		var vallist ast.List_
-		for ; p.curToken.Type != token.RBRACKET; p.nextToken() {
+		for p.curToken.Type != token.RBRACKET {
 			v := p.parseInputValue_()
 			vallist = append(vallist, v)
 		}
@@ -1382,16 +1395,14 @@ func (p *Parser) parseInputValue_() *ast.InputValue_ {
 	//
 	case token.LBRACE:
 		//  { name:value name:value ... }
+		p.nextToken()              // read over {
 		var ObjList ast.ObjectVals // []*ArgumentT {Name_,Value *InputValue_}
 		for p.curToken.Type != token.RBRACE {
+
 			ObjList = p.parseObjectArguments(ObjList)
 			if p.hasError() {
 				return &ast.InputValue_{}
 			}
-			if p.curToken.Type == token.RBRACE {
-				break
-			}
-			p.nextToken()
 		}
 		iv := ast.InputValue_{InputValueProvider: ObjList, Loc: p.Loc()}
 		return &iv
@@ -1403,6 +1414,7 @@ func (p *Parser) parseInputValue_() *ast.InputValue_ {
 		iv := ast.InputValue_{InputValueProvider: null, Loc: p.Loc()}
 		return &iv
 	case token.INT:
+		fmt.Println("Int : ", p.curToken.Literal)
 		i := ast.Int_(p.curToken.Literal)
 		iv := ast.InputValue_{InputValueProvider: i, Loc: p.Loc()}
 		return &iv
@@ -1411,6 +1423,7 @@ func (p *Parser) parseInputValue_() *ast.InputValue_ {
 		iv := ast.InputValue_{InputValueProvider: f, Loc: p.Loc()}
 		return &iv
 	case token.STRING:
+		fmt.Println("String: ", p.curToken.Literal)
 		f := ast.String_(p.curToken.Literal)
 		iv := ast.InputValue_{InputValueProvider: f, Loc: p.Loc()}
 		return &iv

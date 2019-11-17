@@ -148,7 +148,7 @@ func TestFieldArgTypeNotFound(t *testing.T) {
 type Person {
   name: String!
   age: Int!
-  inputX(info: [[int!]] = [[1,2,4 56] [345 2342 234 25252 2525223 null]]): Float
+  inputX(info: [[int!]] = [[1,2 ,4 56] [345 2342 234 25252 2525223 null]]): Float
   posts: [Boolean!]!
 }`
 	var expectedErr [1]string

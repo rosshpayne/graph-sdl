@@ -235,6 +235,112 @@ type FieldArgAppender interface {
 	AppendField(f_ *InputValueDef, unresolved *[]error)
 }
 
+// ======== Resolver response ===========
+
+type ResponseAppender interface {
+	//String() string
+	AppendField(f ResponseField)
+}
+
+type ResponseField struct {
+	//( name : value )
+	Name string
+	InputValueProvider
+}
+
+type ResponseFieldS []ResponseField
+
+func (r *ResponseFieldS) AppendField(f ResponseField) {
+	*r = append(*r, f)
+}
+
+func (o ResponseFieldS) ValidateResponseValues(ref *Type_, err *[]error) {
+	//
+	//  ref{ name:value name:value ... } -- ref is the input object type specifed for the argument and { } is the argument data
+	//
+	refFields := make(map[string]*Type_)
+	// check if default input fields has fields not in field Type, PET, MEASURE
+	if ref.isType() != INPUT { // required: donot remove
+		return
+	}
+	// build a map of fields in reference type - which defines the types of each item in ObjectVals
+	if x, ok := ref.AST.(*Object_); ok {
+		// object
+		for _, v := range x.FieldSet { //
+			refFields[v.Name.String()] = v.Type
+		}
+	} else {
+		// scalar
+		refFields["non-object"] = ref
+	}
+	//
+	// loop thru name:value pairs using the ref type spec to match against name and its associated type for each pair.
+	//
+	for _, v := range o { // []*ArgumentT    type ArgumentT struct { Name_, Value *InputValue_}  type InputValue_ struct {Value ValueI,Loc *Loc_}
+		//    ValueI populated by parser.parseInputValue_(): ast.Int_, ast.Flaat_, ast.List_, ast.ObjectVals, ast.EnumValue_ etc
+		if reftype, ok := refFields[v.Name]; !ok {
+			*err = append(*err, fmt.Errorf(`field "%s" does not exist in type %s  %s`, v.Name, ref.TypeName()))
+
+		} else {
+
+			//fmt.Println(v.Value.isType(), reftype.isType())
+
+			if v.isType() != reftype.isType() && v.isType() != LIST { // && v.InputValueProvider.isType() != LIST {
+				if reftype.Depth > 0 && reftype.Constraint == 1 && v.isType() != LIST {
+					*err = append(*err, fmt.Errorf(`Argument type "%s", value should be a List type %s`, ref.Name, reftype.isType()))
+					*err = append(*err, fmt.Errorf(`Argument type "%s", value has type %s should be %s`, ref.Name, v.isType(), reftype.isType()))
+				} else {
+					*err = append(*err, fmt.Errorf(`Argument type "%s", value has type %s should be %s`, ref.Name, v.isType(), reftype.isType()))
+				}
+			} else {
+				if reftype.Depth > 0 && reftype.Constraint == 1 && v.isType() != LIST {
+					*err = append(*err, fmt.Errorf(`Argument type "%s", value should be a List type %s `, ref.Name, reftype.isType()))
+				}
+			}
+
+			// look at argument value type as it may be a list or another input object type
+			switch inobj := v.InputValueProvider.(type) { // y inob:Float_
+
+			case List_:
+				var errSet bool
+				if reftype.Depth == 0 {
+					*err = append(*err, fmt.Errorf(`Field, %s, is not a LIST type but input data is a LIST type`, v.Name))
+					errSet = true
+				}
+				// maxd records maximum depth of list(d=1) [] list of lists [[]](d=2) = [[][][][]] list of lists of lists (d=3) [[[]]] = [[[][][]],[[][][][]],[[]]]
+				d := 0
+				maxd := 0
+				inobj.ValidateListValues(reftype, &d, &maxd, err)
+				d--
+				if maxd != reftype.Depth && !errSet {
+					*err = append(*err, fmt.Errorf(`Argument "%s", nested List type depth different reqired %d, got %d`, v.Name, reftype.Depth, maxd))
+				}
+
+			case ObjectVals:
+				inobj.ValidateInputObjectValues(reftype, err)
+
+			}
+		}
+	}
+	//
+	// check mandatory fields present
+	//
+	for k, v := range refFields { // k Name, v *Type
+		if (v.Constraint>>uint(v.Depth))&1 == 1 { // mandatory field. Check present.
+			found := false
+			for _, v := range o {
+				if v.Name == k {
+					found = true
+				}
+			}
+			if !found {
+				*err = append(*err, fmt.Errorf(`Mandatory field "%s" missing in type "%s" `, k, ref.TypeName()))
+			}
+		}
+	}
+
+}
+
 // ========= Argument ==========
 
 type ArgumentAppender interface {
@@ -253,6 +359,21 @@ func (a *ArgumentT) String(last bool) string {
 		return a.Name_.String() + ":" + a.Value.String()
 	}
 	return a.Name_.String() + ":" + a.Value.String() + " "
+}
+
+type ArgumentS []*ArgumentT // same as type ObjectVals []*ArgumentT
+
+func (a ArgumentS) String() string {
+	var s strings.Builder
+	if len(a) > 0 {
+		s.WriteString("(")
+		for i, v := range a {
+			s.WriteString(v.String(i == len(a)-1))
+		}
+		s.WriteString(")")
+		return s.String()
+	}
+	return ""
 }
 
 type Arguments_ struct {
@@ -283,6 +404,11 @@ type ObjectVals []*ArgumentT
 
 func (o ObjectVals) TypeSystemNode() {}
 func (o ObjectVals) ValueNode()      {}
+
+func (a ObjectVals) AppendArgument(ss *ArgumentT) {
+	a = append(a, ss)
+}
+
 func (o ObjectVals) String() string {
 	var s strings.Builder
 	s.WriteString("{")
@@ -412,7 +538,7 @@ func (f NameS) CheckUnresolvedTypes(unresolved UnresolvedMap) { //TODO rename to
 //			Description-opt Name ArgumentsDefinition- opt : Type Directives-Con
 type Object_ struct {
 	Desc        string
-	Name_             // inherits AssignName  (from Name_). Overidden
+	Name_             // instane name of Object_ type e.g. Person, Pet. inherits fields and method, AssignName from Name_. Overidden
 	Implements  NameS //TODO  = create type NameS []*Name_ and add method AppendField to NameS and then embedded this type in Object_ struct
 	Directives_       // inherits AssignName  (from Name_) + others. Overidden
 	//	Fields      FieldSet // TODO - embed anonymous this FieldSet in Object_
@@ -987,6 +1113,7 @@ type EnumValue_ struct {
 	Desc string
 	Name_
 	Directives_
+	hostValue InputValueProvider
 }
 
 func (e *EnumValue_) ValueNode()      {} // instane of InputValue_
@@ -1456,112 +1583,6 @@ func (d *Directive_) CheckInputValueType(err *[]error) { // TODO try merging wih
 					*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, a.Type.isType(), defType, a.DefaultVal.AtPosition()))
 				}
 			}
-		}
-	}
-}
-
-func (a *InputValue_) CheckInputValueType__(m *Type_, nm Name_, err *[]error) {
-
-	if a == nil {
-		return
-	}
-	// what type is the default value
-	switch defval := a.InputValueProvider.(type) {
-
-	case List_: // [ "ads", "wer" ]
-		if m.Depth == 0 { // required type is not a LIST
-			*err = append(*err, fmt.Errorf(`Argument "%s", type is not a list but default value is a list %s`, nm, a.AtPosition()))
-			return
-		}
-		var d int = 0
-		var maxd int
-		defval.ValidateListValues(m, &d, &maxd, err) // m.Type is the data type of the list items
-		//
-		if maxd != m.Depth {
-			*err = append(*err, fmt.Errorf(`Argument "%s", nested List type depth different reqired %d, got %d %s`, nm, m.Depth, maxd, a.AtPosition()))
-		}
-
-	case ObjectVals:
-		// { x: "ads", y: 234 }
-		defval.ValidateInputObjectValues(m, err)
-
-	case *EnumValue_:
-		// EAST WEST NORHT SOUTH
-		if m.isType() != ENUM {
-			*err = append(*err, fmt.Errorf(`"%s" is an enum like value but the argument type "%s" is not an Enum type %s`, defval.Name, m.Name_, a.AtPosition()))
-		} else {
-			defval.CheckEnumValue(m, err)
-		}
-
-	default:
-		// single instance data
-		fmt.Printf("name: %s\n", m.Name_)
-		fmt.Printf("constrint: %08b\n", m.Constraint)
-		fmt.Printf("depth: %d\n", m.Depth)
-		fmt.Println("defType ", a.isType(), a.IsScalar())
-		fmt.Println("refType ", m.isType())
-
-		// save default type before potential coercing
-		defType := a.isType()
-
-		if a.isType() == NULL {
-			// test case FieldArgListInt3_6 [int]!  null  - value cannot be null
-			if m.Constraint>>uint(m.Depth)&1 == 1 {
-				*err = append(*err, fmt.Errorf(`Value cannot be NULL %s`, a.AtPosition()))
-			}
-
-		} else if m.isType() == SCALAR { //a.IsScalar() {
-			// can the input value be coerced e.g. from string to Time
-			// try coercing default value to the appropriate scalar e.g. string to Time
-			if s, ok := m.AST.(ScalarProvider); ok { // assert interface supported - normal assert type (*Scalar_) would also work just as well because there is only 1 scalar type really
-				if civ, cerr := s.Coerce(a.InputValueProvider); cerr != nil {
-					*err = append(*err, cerr)
-					return
-				} else {
-					a.InputValueProvider = civ
-					defType = a.isType()
-				}
-			}
-			// coerce to a list of appropriate depth. Current value is not a list as this is switch case default - see other cases.
-			if m.Depth > 0 {
-				var coerce2list func(i *InputValue_, depth int) *InputValue_
-				// type List_ []*InputValue_
-
-				coerce2list = func(i *InputValue_, depth int) *InputValue_ {
-					if depth == 0 {
-						return i
-					}
-					vallist := make(List_, 1, 1)
-					vallist[0] = i
-					vi := &InputValue_{InputValueProvider: vallist, Loc: i.Loc}
-					depth--
-					return coerce2list(vi, depth)
-				}
-				a = coerce2list(a, m.Depth)
-			}
-
-		} else {
-			// coerce to a list of appropriate depth. Current value is not a list as this is case default - see other cases.
-			if m.Depth > 0 {
-				var coerce2list func(i *InputValue_, depth int) *InputValue_
-				// type List_ []*InputValue_
-
-				coerce2list = func(i *InputValue_, depth int) *InputValue_ {
-					if depth == 0 {
-						return i
-					}
-					vallist := make(List_, 1, 1)
-					vallist[0] = i
-					vi := &InputValue_{InputValueProvider: vallist, Loc: i.Loc}
-					depth--
-					return coerce2list(vi, depth)
-				}
-				a = coerce2list(a, m.Depth)
-			}
-		}
-
-		if defType != NULL && defType != m.isType() {
-			*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, m.isType(), defType, a.AtPosition()))
 		}
 	}
 }
