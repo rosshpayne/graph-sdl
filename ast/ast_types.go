@@ -235,112 +235,6 @@ type FieldArgAppender interface {
 	AppendField(f_ *InputValueDef, unresolved *[]error)
 }
 
-// ======== Resolver response ===========
-
-type ResponseAppender interface {
-	//String() string
-	AppendField(f ResponseField)
-}
-
-type ResponseField struct {
-	//( name : value )
-	Name string
-	InputValueProvider
-}
-
-type ResponseFieldS []ResponseField
-
-func (r *ResponseFieldS) AppendField(f ResponseField) {
-	*r = append(*r, f)
-}
-
-func (o ResponseFieldS) ValidateResponseValues(ref *Type_, err *[]error) {
-	//
-	//  ref{ name:value name:value ... } -- ref is the input object type specifed for the argument and { } is the argument data
-	//
-	refFields := make(map[string]*Type_)
-	// check if default input fields has fields not in field Type, PET, MEASURE
-	if ref.isType() != INPUT { // required: donot remove
-		return
-	}
-	// build a map of fields in reference type - which defines the types of each item in ObjectVals
-	if x, ok := ref.AST.(*Object_); ok {
-		// object
-		for _, v := range x.FieldSet { //
-			refFields[v.Name.String()] = v.Type
-		}
-	} else {
-		// scalar
-		refFields["non-object"] = ref
-	}
-	//
-	// loop thru name:value pairs using the ref type spec to match against name and its associated type for each pair.
-	//
-	for _, v := range o { // []*ArgumentT    type ArgumentT struct { Name_, Value *InputValue_}  type InputValue_ struct {Value ValueI,Loc *Loc_}
-		//    ValueI populated by parser.parseInputValue_(): ast.Int_, ast.Flaat_, ast.List_, ast.ObjectVals, ast.EnumValue_ etc
-		if reftype, ok := refFields[v.Name]; !ok {
-			*err = append(*err, fmt.Errorf(`field "%s" does not exist in type %s  %s`, v.Name, ref.TypeName()))
-
-		} else {
-
-			//fmt.Println(v.Value.isType(), reftype.isType())
-
-			if v.isType() != reftype.isType() && v.isType() != LIST { // && v.InputValueProvider.isType() != LIST {
-				if reftype.Depth > 0 && reftype.Constraint == 1 && v.isType() != LIST {
-					*err = append(*err, fmt.Errorf(`Argument type "%s", value should be a List type %s`, ref.Name, reftype.isType()))
-					*err = append(*err, fmt.Errorf(`Argument type "%s", value has type %s should be %s`, ref.Name, v.isType(), reftype.isType()))
-				} else {
-					*err = append(*err, fmt.Errorf(`Argument type "%s", value has type %s should be %s`, ref.Name, v.isType(), reftype.isType()))
-				}
-			} else {
-				if reftype.Depth > 0 && reftype.Constraint == 1 && v.isType() != LIST {
-					*err = append(*err, fmt.Errorf(`Argument type "%s", value should be a List type %s `, ref.Name, reftype.isType()))
-				}
-			}
-
-			// look at argument value type as it may be a list or another input object type
-			switch inobj := v.InputValueProvider.(type) { // y inob:Float_
-
-			case List_:
-				var errSet bool
-				if reftype.Depth == 0 {
-					*err = append(*err, fmt.Errorf(`Field, %s, is not a LIST type but input data is a LIST type`, v.Name))
-					errSet = true
-				}
-				// maxd records maximum depth of list(d=1) [] list of lists [[]](d=2) = [[][][][]] list of lists of lists (d=3) [[[]]] = [[[][][]],[[][][][]],[[]]]
-				d := 0
-				maxd := 0
-				inobj.ValidateListValues(reftype, &d, &maxd, err)
-				d--
-				if maxd != reftype.Depth && !errSet {
-					*err = append(*err, fmt.Errorf(`Argument "%s", nested List type depth different reqired %d, got %d`, v.Name, reftype.Depth, maxd))
-				}
-
-			case ObjectVals:
-				inobj.ValidateInputObjectValues(reftype, err)
-
-			}
-		}
-	}
-	//
-	// check mandatory fields present
-	//
-	for k, v := range refFields { // k Name, v *Type
-		if (v.Constraint>>uint(v.Depth))&1 == 1 { // mandatory field. Check present.
-			found := false
-			for _, v := range o {
-				if v.Name == k {
-					found = true
-				}
-			}
-			if !found {
-				*err = append(*err, fmt.Errorf(`Mandatory field "%s" missing in type "%s" `, k, ref.TypeName()))
-			}
-		}
-	}
-
-}
-
 // ========= Argument ==========
 
 type ArgumentAppender interface {
@@ -425,24 +319,32 @@ func (o ObjectVals) Exists() bool {
 	return false
 }
 
-func (o ObjectVals) ValidateInputObjectValues(ref *Type_, err *[]error) {
+// ValidateObjectValues compares the value of the objectVal ie. value in { name:value name:value ... } against its TYPE from the type definition
+func (o ObjectVals) ValidateObjectValues(ref *Type_, err *[]error) {
 	//
-	//  ref{ name:value name:value ... } -- ref is the input object type specifed for the argument and { } is the argument data
-	//
+	var errObj string
+	fmt.Println(" ----------- ValidateObjectValues ------------------")
 	refFields := make(map[NameValue_]*Type_)
-	// check if default input fields has fields not in field Type, PET, MEASURE
-	if ref.isType() != INPUT { // required: donot remove
-		return
-	}
-	// get reference type AST object.
-	refOV := ref.AST.(*Input_)
-	// build a map of fields in reference type - which defines the types of each item in {}
-	for _, v := range refOV.InputValueDefs { //
-		refFields[v.Name] = v.Type
+	//
+	// What is the reference type the objectValue value should match
+	//
+	switch x := ref.AST.(type) {
+	case *Input_:
+		for _, v := range x.InputValueDefs { //
+			refFields[v.Name] = v.Type
+		}
+		errObj = "Argument"
+	case *Object_:
+		for _, v := range x.FieldSet { //
+			refFields[v.Name] = v.Type
+		}
+		errObj = "Object"
+		// default:
+		// 	return
 	}
 	fmt.Println("****** ", refFields)
 	//
-	// loop thru name:value pairs using the ref type spec to match against name and its associated type for each pair.
+	// loop thru name:value pairs using the ref type (object or Input types) to match against name and its associated type for each pair.
 	//
 	for _, v := range o { // []*ArgumentT    type ArgumentT struct { Name_, Value *InputValue_}  type InputValue_ struct {Value ValueI,Loc *Loc_}
 		//    ValueI populated by parser.parseInputValue_(): ast.Int_, ast.Flaat_, ast.List_, ast.ObjectVals, ast.EnumValue_ etc
@@ -451,28 +353,23 @@ func (o ObjectVals) ValidateInputObjectValues(ref *Type_, err *[]error) {
 
 		} else {
 
-			//fmt.Println(v.Value.isType(), reftype.isType())
+			fmt.Println("Field: ", v.Name)
+			fmt.Println("v.Value.isType(), refType.isType2(),  ReqObj: ", v.Value.isType(), reftype.isType2()) // InputValue.isType, *Type_.isType()
 
-			if v.Value.isType() != reftype.isType() && v.Value.isType() != LIST { // && v.Value.isType() != LIST {
-				if reftype.Depth > 0 && reftype.Constraint == 1 && v.Value.isType() != LIST {
-					*err = append(*err, fmt.Errorf(`Argument type "%s", value should be a List type %s %s`, ref.Name, reftype.isType(), v.Value.AtPosition()))
-					*err = append(*err, fmt.Errorf(`Argument type "%s", value has type %s should be %s %s`, ref.Name, v.Value.isType(), reftype.isType(), v.Value.AtPosition()))
-				} else {
-					*err = append(*err, fmt.Errorf(`Argument type "%s", value has type %s should be %s %s`, ref.Name, v.Value.isType(), reftype.isType(), v.Value.AtPosition()))
-				}
-			} else {
-				if reftype.Depth > 0 && reftype.Constraint == 1 && v.Value.isType() != LIST {
-					*err = append(*err, fmt.Errorf(`Argument type "%s", value should be a List type %s %s`, ref.Name, reftype.isType(), v.Value.AtPosition()))
-				}
+			if v.Value.isType() != reftype.isType2() { //&& v.Value.isType() != ReqObj { // && v.Value.isType() != LIST {
+				*err = append(*err, fmt.Errorf(`%s type "%s", value has type %s should be %s %s`, errObj, ref.Name, v.Value.isType(), reftype.isType2(), v.Value.AtPosition()))
 			}
 
 			// look at argument value type as it may be a list or another input object type
 			switch inobj := v.Value.InputValueProvider.(type) { // y inob:Float_
 
 			case List_:
+				fmt.Println(" ----------- ValidateObjectValues --LIST----------------")
 				var errSet bool
 				if reftype.Depth == 0 {
 					*err = append(*err, fmt.Errorf(`Field, %s, is not a LIST type but input data is a LIST type, %s`, v.Name, v.AtPosition()))
+					fmt.Printf(`Field, %s, is not a LIST type but input data is a LIST type, %s`, v.Name, v.AtPosition())
+					fmt.Println()
 					errSet = true
 				}
 				// maxd records maximum depth of list(d=1) [] list of lists [[]](d=2) = [[][][][]] list of lists of lists (d=3) [[[]]] = [[[][][]],[[][][][]],[[]]]
@@ -485,30 +382,12 @@ func (o ObjectVals) ValidateInputObjectValues(ref *Type_, err *[]error) {
 				}
 
 			case ObjectVals:
-				inobj.ValidateInputObjectValues(reftype, err)
+				fmt.Println(" ----------- ValidateObjectValues ------OBJVAL------------")
+				inobj.ValidateObjectValues(reftype, err)
 
 			}
 		}
 	}
-	//
-	// check mandatory fields present
-	//
-	var at string
-	for k, v := range refFields { // k Name, v *Type
-		if (v.Constraint>>uint(v.Depth))&1 == 1 { // mandatory field. Check present.
-			found := false
-			for _, v := range o {
-				if v.Name == k {
-					found = true
-				}
-				at = v.AtPosition()
-			}
-			if !found {
-				*err = append(*err, fmt.Errorf(`Mandatory field "%s" missing in type "%s" %s `, k, ref.TypeName(), at))
-			}
-		}
-	}
-
 }
 
 // =================================================================
@@ -698,7 +577,7 @@ func (f *Object_) CheckInputValueType(err *[]error) {
 
 				case ObjectVals:
 					// { x: "ads", y: 234 }
-					defval.ValidateInputObjectValues(a.Type, err)
+					defval.ValidateObjectValues(a.Type, err)
 
 				case *EnumValue_:
 					// EAST WEST NORHT SOUTH
@@ -1502,7 +1381,7 @@ func (d *Directive_) CheckInputValueType(err *[]error) { // TODO try merging wih
 
 			case ObjectVals:
 				// { x: "ads", y: 234 }
-				defval.ValidateInputObjectValues(a.Type, err)
+				defval.ValidateObjectValues(a.Type, err)
 
 			case *EnumValue_:
 				// EAST WEST NORHT SOUTH

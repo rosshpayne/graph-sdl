@@ -273,7 +273,7 @@ schema {
     subscription: Subscription
 }
 	type Query {
-	  allPersons(last: Int): [Person!]!
+	  allPersons(last: [Int] first: [[String!]]): [Person!]
 	}
 
 	#type Mutation {
@@ -287,28 +287,30 @@ schema {
 	type Person {
 	  name: String!
 	  age: Int!
-	  posts: [Post!]!
+	  other: [String!]!
+	  posts: [Post!]
 	}
 
 	type Post {
 	  title: String!
-	  author: Person!
+	  author: [Person!]!
 	}
 	`
 
 	expectedDoc := `type Person {
 name : String!
 age : Int!
-posts : [Post!]!
+other: [String!]!
+posts : [Post!]
 }
 
 type Post {
 title : String!
-author : Person!
+ author: [Person!]!
 }
 
 type Query {
-allPersons(last : Int ) : [Person!]!
+allPersons(last : Int ) : [Person!]
 }
 schema {
 query : Query 

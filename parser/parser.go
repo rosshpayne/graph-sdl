@@ -1064,13 +1064,7 @@ func (p *Parser) parseArguments(f ast.ArgumentAppender, optional ...bool) *Parse
 
 func (p *Parser) ParseResponse() ast.InputValueProvider {
 
-	//
-	//	for p.nextToken("First Next: "); p.curToken.Type != token.RPAREN; { //p.nextToken(" ParseTOKEN next ") {
-	p.printToken("At beginning")
 	value := p.parseInputValue_()
-	p.nextToken("At end") // read over ]
-
-	fmt.Println("FINISHED parseinputValue_")
 
 	return value.InputValueProvider
 
@@ -1348,22 +1342,6 @@ func (p *Parser) parseInputValue_() *ast.InputValue_ {
 		return nil
 	}
 	switch p.curToken.Type {
-
-	// case token.DOLLAR:
-	// 	// variable supplied - need to fetch value
-	// 	p.nextToken() // IDENT variable name
-	// 	// change category of token to VALUE as previous token was $ - otherwise this step would not be executed.
-	// 	p.curToken.Cat = token.VALUE
-	// 	if p.curToken.Type == token.IDENT {
-	// 		// get variable value....
-	// 		if val, ok := p.getVarValue(p.curToken.Literal); !ok {
-	// 			return ast.InputValue_{}, p.addErr(fmt.Sprintf("Variable, %s not defined ", p.curToken.Literal))
-	// 		} else {
-	// 			return val, nil
-	// 		}
-	// 	} else {
-	// 		return ast.InputValue_{}, p.addErr(fmt.Sprintf("Expected Variable Name Identifer got %s", p.curToken.Type))
-	// 	}
 	//
 	//  List type
 	//
@@ -1414,7 +1392,6 @@ func (p *Parser) parseInputValue_() *ast.InputValue_ {
 		iv := ast.InputValue_{InputValueProvider: null, Loc: p.Loc()}
 		return &iv
 	case token.INT:
-		fmt.Println("Int : ", p.curToken.Literal)
 		i := ast.Int_(p.curToken.Literal)
 		iv := ast.InputValue_{InputValueProvider: i, Loc: p.Loc()}
 		return &iv
@@ -1423,7 +1400,6 @@ func (p *Parser) parseInputValue_() *ast.InputValue_ {
 		iv := ast.InputValue_{InputValueProvider: f, Loc: p.Loc()}
 		return &iv
 	case token.STRING:
-		fmt.Println("String: ", p.curToken.Literal)
 		f := ast.String_(p.curToken.Literal)
 		iv := ast.InputValue_{InputValueProvider: f, Loc: p.Loc()}
 		return &iv
