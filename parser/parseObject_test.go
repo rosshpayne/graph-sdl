@@ -3061,9 +3061,9 @@ type Measure {
 `
 
 	var expectedErr [3]string
-	expectedErr[0] = `Argument type "Pet", value should be a List type Int at line: 10 column: 38`    //
-	expectedErr[1] = `Argument type "Pet", value should be a List type Int at line: 10 column: 45`    //
-	expectedErr[2] = `Argument type "Pet", value has type Float should be Int at line: 10 column: 45` //
+	expectedErr[0] = `Argument "y" for type "Pet" expected List at line: 10 column: 38`           //
+	expectedErr[1] = `Argument "y" for type "Pet" expected List at line: 10 column: 45`           //
+	expectedErr[2] = `Argument "y" for type "Pet" expected Int got Float  at line: 10 column: 45` //
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
@@ -3101,17 +3101,20 @@ func TestManadtoryListCheck(t *testing.T) {
 type Measure {
     height: String
     weight: Int
-    form (xarg : [Pet]! = [{x:77.3 y:22} {x:1}]) : Float
+    form (xarg : [Pet]! = [{x:77.3 y:[22]} {x:1}]) : Float
 }
 `
 
 	var expectedErr [2]string
-	expectedErr[0] = `Argument type "Pet", value has type Int should be Float at line: 10 column: 45` //
-	expectedErr[1] = `Mandatory field "y" missing in type "Pet" at line: 10 column: 43 `              //
+	expectedErr[0] = `Argument "x" for type "Pet" expected Float got Int at line: 10 column: 47` //
+	expectedErr[1] = `Mandatory field "y" missing in type "Pet" at line: 10 column: 45 `         //
 
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
+	for _, e := range errs {
+		fmt.Println(e.Error())
+	}
 	for _, ex := range expectedErr {
 		found := false
 		for _, err := range errs {
@@ -3147,9 +3150,11 @@ func TestNonMandatoryListCheck(t *testing.T) {
 type Measure {
     height: String
     weight: Int
-    form (xarg : [Pet]! = [{x:77.3 y:22} {x:1.1}]) : Float
+    form (xarg : [Pet]! = [{x:77.3 y:[22, 23]} {x:1.1}]) : Float
 }
 `
+
+	expectedDoc := `typeMeasure{height:Stringweight:Intform(xarg:[Pet]!=[{x:77.3y:[22 23]}{x:1.1}]):Float}inputPet{x:Floaty:[Int]}`
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
@@ -3160,7 +3165,7 @@ type Measure {
 			t.Errorf(`Unexpected error: %s`, v.Error())
 		}
 	}
-	if compare(d.String(), input) {
+	if compare(d.String(), expectedDoc) {
 		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
 		t.Errorf("Expected: [%s] \n", trimWS(input))
 		t.Errorf(`Unexpected: program.String() wrong. `)
@@ -3183,11 +3188,16 @@ type Measure {
 }
 `
 
-	var expectedErr [1]string
-	expectedErr[0] = `Argument type "Pet", value has type Float should be Int at line: 10 column: 45` //
+	var expectedErr [3]string
+	expectedErr[0] = `Argument "y" for type "Pet" expected Int got Float at line: 10 column: 45`
+	expectedErr[1] = `Argument "y" for type "Pet" expected List at line: 10 column: 38`
+	expectedErr[2] = `Argument "y" for type "Pet" expected List at line: 10 column: 45`
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
+	for _, e := range errs {
+		fmt.Println(e.Error())
+	}
 	for _, ex := range expectedErr {
 		found := false
 		for _, err := range errs {
@@ -3228,13 +3238,16 @@ type Measure {
 `
 
 	var expectedErr [3]string
-	expectedErr[0] = `Field, y, is not a LIST type but input data is a LIST type, at line: 10 column: 43` //
-	expectedErr[1] = `Required type "Int", got "Float" at line: 10 column: 46`
-	expectedErr[2] = `Value 33.9 is not at required nesting of 0 at line: 10 column: 46`
+	expectedErr[0] = `Argument "y" for type "Pet" should not be in List at line: 10 column: 50`
+	expectedErr[1] = `Value 33.9 should not be contained in a List at line: 10 column: 46`
+	expectedErr[2] = `Required type "Int", got "Float" at line: 10 column: 46`
 
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
+	for _, e := range errs {
+		fmt.Println(e.Error())
+	}
 	for _, ex := range expectedErr {
 		found := false
 		for _, err := range errs {
@@ -3273,6 +3286,7 @@ type Measure09 {
     form (xarg : [Pet]!) : Float
 }
 `
+	expectedDoc := `type Measure09 {height:String weight:Int form(xarg:[Pet]!) : Float} input Pet {x:Float  y:Int!}`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -3284,7 +3298,7 @@ type Measure09 {
 			t.Errorf(`Unexpected error: %s`, v.Error())
 		}
 	}
-	if compare(d.String(), input) {
+	if compare(d.String(), expectedDoc) {
 		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
 		t.Errorf("Expected: [%s] \n", trimWS(input))
 		t.Errorf(`Unexpected: program.String() wrong. `)
@@ -3306,6 +3320,8 @@ type Measure {
 }
 `
 
+	expectedDoc := `typeMeasure{height:Stringweight:Intform(xarg:[Pet]=[{x:77.3y:22}{y:23}]):Float}inputPet{x:Floaty:Int!}`
+
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
@@ -3316,7 +3332,7 @@ type Measure {
 			t.Errorf(`Unexpected error: %s`, v.Error())
 		}
 	}
-	if compare(d.String(), input) {
+	if compare(d.String(), expectedDoc) {
 		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
 		t.Errorf("Expected: [%s] \n", trimWS(input))
 		t.Errorf(`Unexpected: program.String() wrong. `)

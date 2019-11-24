@@ -678,7 +678,6 @@ type Person {
 	expectedErr[1] = `Expected name identifer got : of ":" at line: 11, column: 8`
 	expectedErr[2] = `Colon expected got Int of Int at line: 11, column: 10`
 	expectedErr[3] = `Type "extra" does not exist at line: 11 column: 3`
-	//	expectedErr[4] = `Type "extra" does not exist at line: 11 column: 3`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -687,9 +686,9 @@ type Person {
 	if len(errs) != len(expectedErr) {
 		t.Errorf(`***  Expected %d error got %d.`, len(expectedErr), len(errs))
 	}
-	// for _, e := range errs {
-	// 	fmt.Println("*** ", e.Error())
-	// }
+	for _, e := range errs {
+		fmt.Println("*** ", e.Error())
+	}
 	for _, e := range expectedErr {
 		found := false
 		for _, n := range errs {

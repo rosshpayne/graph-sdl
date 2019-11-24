@@ -319,7 +319,8 @@ func (o ObjectVals) Exists() bool {
 	return false
 }
 
-// ValidateObjectValues compares the value of the objectVal ie. value in { name:value name:value ... } against its TYPE from the type definition
+// ValidateObjectValues compares the value of the objectVal ie. value in { name:value name:value ... } againstthe root Object/Input TYPE from the type definition
+// . e.g. {name:"Ross", age:33} ==> root type "Person" {name: String, age: Int}
 func (o ObjectVals) ValidateObjectValues(ref *Type_, err *[]error) {
 	//
 	var errObj string
@@ -339,52 +340,76 @@ func (o ObjectVals) ValidateObjectValues(ref *Type_, err *[]error) {
 			refFields[v.Name] = v.Type
 		}
 		errObj = "Object"
-		// default:
-		// 	return
+	default:
+		*err = append(*err, fmt.Errorf(`Mismatched types. The input data (object values in this case) does not match a Object or Input type. The reference type is a %s`, ref.TypeName())) //TODO location required
+		return
 	}
 	fmt.Println("****** ", refFields)
 	//
 	// loop thru name:value pairs using the ref type (object or Input types) to match against name and its associated type for each pair.
 	//
-	for _, v := range o { // []*ArgumentT    type ArgumentT struct { Name_, Value *InputValue_}  type InputValue_ struct {Value ValueI,Loc *Loc_}
-		//    ValueI populated by parser.parseInputValue_(): ast.Int_, ast.Flaat_, ast.List_, ast.ObjectVals, ast.EnumValue_ etc
+	for _, v := range o {
+
+		// reference type of the object/input field
 		if reftype, ok := refFields[v.Name]; !ok {
 			*err = append(*err, fmt.Errorf(`field "%s" does not exist in type %s  %s`, v.Name, ref.TypeName(), v.AtPosition()))
 
 		} else {
+			// compare reference type against field  data
 
-			fmt.Println("Field: ", v.Name)
-			fmt.Println("v.Value.isType(), refType.isType2(),  ReqObj: ", v.Value.isType(), reftype.isType2()) // InputValue.isType, *Type_.isType()
-
-			if v.Value.isType() != reftype.isType2() { //&& v.Value.isType() != ReqObj { // && v.Value.isType() != LIST {
-				*err = append(*err, fmt.Errorf(`%s type "%s", value has type %s should be %s %s`, errObj, ref.Name, v.Value.isType(), reftype.isType2(), v.Value.AtPosition()))
+			fmt.Printf("Field, , v.Value.isType(), refType.isType2(): %s, %T %T, %s, %s, %s\n", v.Name, v.Value, reftype, v.Value.isType(), reftype.isType2(), reftype.isType()) // InputValue.isType, *Type_.isType()
+			// value == LIST isType2 == LIST isType == INT	    // LIST appropriate but no check for internal types made in ValidateListValues.
+			// value == LIST isTYpe2 == INT  isType == INT		// should not be in list
+			// value == INT  isType2 == LIST isType = INT       // must be in list
+			if v.Value.isType() != reftype.isType2() {
+				if v.Value.isType() == LIST && reftype.isType2() != LIST {
+					*err = append(*err, fmt.Errorf(`%s "%s" for type "%s" should not be in List %s`, errObj, v.Name, ref.Name, v.Value.AtPosition()))
+				} else if v.Value.isType() != LIST && reftype.isType2() == LIST {
+					*err = append(*err, fmt.Errorf(`%s "%s" for type "%s" expected %s %s`, errObj, v.Name, ref.Name, reftype.isType2(), v.Value.AtPosition()))
+				}
 			}
-
-			// look at argument value type as it may be a list or another input object type
-			switch inobj := v.Value.InputValueProvider.(type) { // y inob:Float_
+			// when value not LIST check types
+			if v.Value.isType() != reftype.isType() {
+				if v.Value.isType() != LIST {
+					*err = append(*err, fmt.Errorf(`%s "%s" for type "%s" expected %s got %s %s`, errObj, v.Name, ref.Name, reftype.isType(), v.Value.isType(), v.Value.AtPosition()))
+				}
+			}
+			// look at  value type as it may be a list or another object/input type
+			switch iv := v.Value.InputValueProvider.(type) { // y inob:Float_
 
 			case List_:
 				fmt.Println(" ----------- ValidateObjectValues --LIST----------------")
-				var errSet bool
-				if reftype.Depth == 0 {
-					*err = append(*err, fmt.Errorf(`Field, %s, is not a LIST type but input data is a LIST type, %s`, v.Name, v.AtPosition()))
-					fmt.Printf(`Field, %s, is not a LIST type but input data is a LIST type, %s`, v.Name, v.AtPosition())
-					fmt.Println()
-					errSet = true
-				}
 				// maxd records maximum depth of list(d=1) [] list of lists [[]](d=2) = [[][][][]] list of lists of lists (d=3) [[[]]] = [[[][][]],[[][][][]],[[]]]
 				d := 0
 				maxd := 0
-				inobj.ValidateListValues(reftype, &d, &maxd, err)
+				iv.ValidateListValues(reftype, &d, &maxd, err)
 				d--
-				if maxd != reftype.Depth && !errSet {
+				if maxd != reftype.Depth && reftype.Depth != 0 { // reftype.Depth == 0 check performed above
 					*err = append(*err, fmt.Errorf(`Argument "%s", nested List type depth different reqired %d, got %d %s`, v.Name, reftype.Depth, maxd, v.AtPosition()))
 				}
 
 			case ObjectVals:
 				fmt.Println(" ----------- ValidateObjectValues ------OBJVAL------------")
-				inobj.ValidateObjectValues(reftype, err)
+				iv.ValidateObjectValues(reftype, err)
 
+			}
+		}
+	}
+	//
+	// check mandatory fields present
+	//
+	var at string
+	for k, v := range refFields { // k Name, v *Type
+		if (v.Constraint>>uint(v.Depth))&1 == 1 { // mandatory field. Check present.
+			found := false
+			for _, v := range o {
+				if v.Name == k {
+					found = true
+				}
+				at = v.AtPosition()
+			}
+			if !found {
+				*err = append(*err, fmt.Errorf(`Mandatory field "%s" missing in type "%s" %s `, k, ref.TypeName(), at))
 			}
 		}
 	}
@@ -446,7 +471,7 @@ func (o *Object_) CheckDirectiveLocation(err *[]error) {
 
 func (f *Object_) CheckImplements(err *[]error) {
 	for _, v := range f.Implements {
-		// check name represents a interface type in repo
+		// check name represents a interface type in ast
 		if itf, ok, str := fetchInterface(v); !ok {
 			*err = append(*err, errors.New(fmt.Sprintf(str)))
 		} else {
@@ -1076,7 +1101,7 @@ func (i *Interface_) CheckDirectiveLocation(err *[]error) {
 	i.checkDirectiveLocation_(INTERFACE_DL, err)
 }
 
-//func (i *Interface_) AssignUnresolvedTypes(repo TypeRepo) error {}
+//func (i *Interface_) AssignUnresolvedTypes(ast TypeRepo) error {}
 func (i *Interface_) AssignName(input string, loc *Loc_, unresolved *[]error) {
 	i.Name_.AssignName(input, loc, unresolved)
 }

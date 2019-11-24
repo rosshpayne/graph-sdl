@@ -15,6 +15,7 @@ const (
 	cErrLimit  = 8 // how many parse errors are permitted before processing stops
 	Executable = 'E'
 	TypeSystem = 'T'
+	defaultDoc = "DefaultDoc"
 )
 
 type (
@@ -87,7 +88,7 @@ func New(l *lexer.Lexer) *Parser {
 	return p
 }
 
-// repository of all types defined in the graph
+// astsitory of all types defined in the graph
 
 func init() {
 	//	enumRepo = make(ast.EnumRepo_)
@@ -151,7 +152,7 @@ func (p *Parser) nextToken(s ...string) {
 
 // ==================== Start =========================
 
-func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
+func (p *Parser) ParseDocument(doc ...string) (program *ast.Document, errs []error) {
 	var holderr []error
 	program = &ast.Document{}
 	program.Statements = []ast.GQLTypeProvider{} // slice is initialised  with no elements - each element represents an interface value of type ast.GQLTypeProvider
@@ -176,7 +177,15 @@ func (p *Parser) ParseDocument() (program *ast.Document, errs []error) {
 		//	ast.CacheClear()
 		errs = p.perror
 	}()
-
+	//
+	// set document
+	//
+	ast.SetDefaultDoc(defaultDoc)
+	if len(doc) == 0 {
+		ast.SetDocument(defaultDoc)
+	} else {
+		ast.SetDocument(doc[0])
+	}
 	//
 	// parse phase - 	build AST from GraphQL SDL script
 	//
@@ -839,7 +848,6 @@ func (p *Parser) parseName(f ast.NameAssigner) *Parser {
 	if p.hasError() {
 		return p
 	}
-
 	if p.curToken.Type == token.IDENT {
 		f.AssignName(p.curToken.Literal, p.Loc(), &p.perror)
 	} else {
@@ -1010,6 +1018,7 @@ func (p *Parser) parseDirectives(f ast.DirectiveAppender, optional ...bool) *Par
 	}
 
 	for p.curToken.Type == token.ATSIGN {
+		p.printToken("should be @")
 		p.nextToken() // read over @
 		a := []*ast.ArgumentT{}
 		d := &ast.DirectiveT{Arguments_: ast.Arguments_{Arguments: a}}
@@ -1051,7 +1060,7 @@ func (p *Parser) parseArguments(f ast.ArgumentAppender, optional ...bool) *Parse
 		}
 	}
 	//
-	for p.nextToken(); p.curToken.Type != token.RPAREN; p.nextToken() {
+	for p.nextToken(); p.curToken.Type != token.RPAREN; { // p.nextToken() is now redundant as parseInputValue handles nexttoken()
 		v := new(ast.ArgumentT)
 
 		p.parseName(v).parseColon().parseInputValue(v)
@@ -1144,6 +1153,7 @@ func (p *Parser) parseType(f ast.AssignTyper) *Parser {
 	} else {
 		p.addErr(fmt.Sprintf("Colon expected got %s of %s", p.curToken.Type, p.curToken.Literal))
 	}
+
 	if !p.curToken.IsScalarType { // ie not a Int, Float, String, Boolean, ID, <namedType>
 		if !(p.curToken.Type == token.IDENT || p.curToken.Type == token.LBRACKET) {
 			p.addErr(fmt.Sprintf("Expected a Type, got %s, %s", p.curToken.Type, p.curToken.Literal))
@@ -1156,7 +1166,7 @@ func (p *Parser) parseType(f ast.AssignTyper) *Parser {
 		bit  byte
 		name string
 		//	ast_ ast.GQLTypeProvider
-		//typedef ast.TypeFlag_ // token defines SCALAR types only. All other types will be populated in repoType map.
+		//typedef ast.TypeFlag_ // token defines SCALAR types only. All other types will be populated in astType map.
 		depth   int
 		nameLoc *ast.Loc_
 	)
@@ -1273,12 +1283,10 @@ func (p *Parser) parseArgumentDefs(f ast.FieldArgAppender, encl [2]token.TokenTy
 	if p.curToken.Type == encl[0] {
 		p.nextToken() // read over ( or {
 		for p.curToken.Type != encl[1] {
-
+			//for p.curToken.Type != ":" { //TODP fix should be encl[1]
 			v := &ast.InputValueDef{}
 			v.Loc = p.Loc()
-
 			p.parseDecription().parseName(v).parseType(v).parseDefaultVal(v, opt).parseDirectives(v, opt)
-
 			if p.hasError() {
 				return p
 			}
@@ -1308,7 +1316,7 @@ func (p *Parser) parseDefaultVal(v *ast.InputValueDef, optional ...bool) *Parser
 		p.nextToken() // read over ASSIGN
 		//v.DefaultVal = p.parseInputValue_(v)
 		v.DefaultVal = p.parseInputValue_()
-		p.nextToken() // read over input value
+		//	p.nextToken() // redundant now that parseInputValue_ performs it
 	}
 	return p
 }

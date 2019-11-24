@@ -3,6 +3,7 @@ package ast
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -12,18 +13,23 @@ import (
 )
 
 const (
-	TableName string = "GraphQL"
+	TableName string = "GraphQL2"
+)
+
+var (
+	document   string
+	defaultDoc string
 )
 
 type TypeRow struct {
 	PKey  string
 	SortK string
 	Stmt  string
-	Type  string
+	Type  string //TODO: is this necessary?  Reason: is saves having to parse stmt in order to determine its "type"
 }
 
 // cache returns the AST type for a given TypeName
-type typeCache map[NameValue_]GQLTypeProvider
+type typeCache map[string]GQLTypeProvider
 
 type PkRow struct {
 	PKey  string
@@ -59,11 +65,23 @@ func CacheClear() {
 	fmt.Println("******************************************")
 	fmt.Println("************ CLEAR CACHE *****************")
 	fmt.Println("******************************************")
-	typeCache_ = map[NameValue_]GQLTypeProvider{} // map literal to zero cache
+	typeCache_ = map[string]GQLTypeProvider{} // map literal to zero cache
+}
+
+func buildKey(input NameValue_) string {
+	var s strings.Builder
+	if len(document) == 0 {
+		document = defaultDoc
+	}
+	s.WriteString(input.String())
+	s.WriteString("/")
+	s.WriteString(document)
+	return s.String()
 }
 func CacheFetch(input NameValue_) (GQLTypeProvider, bool) { // TODO: use GQLTypeProvider instead of GQLTypeProvider?
 	fmt.Printf("** CacheFetch [%s]\n", input)
-	if ast, ok := typeCache_[input]; !ok {
+
+	if ast, ok := typeCache_[buildKey(input)]; !ok {
 		return nil, false
 	} else {
 		return ast, true
@@ -77,11 +95,11 @@ func Persist(input NameValue_, ast GQLTypeProvider) {
 
 func Add2Cache(input NameValue_, obj GQLTypeProvider) {
 	//	fmt.Printf("** Add2Cache  %s [%s]\n", input, obj.String())
-	typeCache_[input] = obj
+	typeCache_[buildKey(input)] = obj
 }
 
 func fetchInterface(input Name_) (*Interface_, bool, string) {
-	if ast, ok := typeCache_[input.Name]; ok {
+	if ast, ok := typeCache_[buildKey(input.Name)]; ok {
 		if ast_, ok := ast.(*Interface_); !ok {
 			return nil, false, fmt.Sprintf(`Implements type "%s" is not an Interface %s`, input, input.AtPosition())
 		} else {
@@ -104,10 +122,12 @@ func dbPersist(pkey NameValue_, ast GQLTypeProvider) error {
 			PKey  string
 			SortK string
 			Stmt  string
-			Dir   string
-			Type  string
+			Dir   string // Part of Secondary index - identifies Directives only
+			Type  string // Type of stmt - saves having to parse stmt to determine type
+			PKey_ string // Object belonging to interface
 		}
-		typeDef := DirRow{PKey: pkey.String(), SortK: "D", Stmt: ast.String(), Dir: "D", Type: "D"}
+		//	typeDef := DirRow{PKey: pkey.String(), SortK: "D", Stmt: ast.String(), Dir: "D", Type: "D"}
+		typeDef := DirRow{PKey: pkey.String(), SortK: document, Stmt: ast.String(), Dir: "D", Type: "D", PKey_: ast.String()}
 		av, err := dynamodbattribute.MarshalMap(typeDef)
 		if err != nil {
 			return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -120,7 +140,8 @@ func dbPersist(pkey NameValue_, ast GQLTypeProvider) error {
 			return fmt.Errorf("%s: %s", "Error: failed to PutItem ", err.Error())
 		}
 	case *Object_:
-		typeDef := TypeRow{PKey: pkey.String(), SortK: "__", Stmt: ast.String(), Type: "O"}
+		//	typeDef := TypeRow{PKey: pkey.String(), SortK: "__", Stmt: ast.String(), Type: "O"}
+		typeDef := TypeRow{PKey: pkey.String(), SortK: document, Stmt: ast.String(), Type: "O"}
 		av, err := dynamodbattribute.MarshalMap(typeDef)
 		if err != nil {
 			return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -136,7 +157,8 @@ func dbPersist(pkey NameValue_, ast GQLTypeProvider) error {
 			PersistImplements(imp.Name, x.TypeName())
 		}
 	default:
-		typeDef := TypeRow{PKey: pkey.String(), SortK: "__", Stmt: ast.String(), Type: isType(ast)}
+		//typeDef := TypeRow{PKey: pkey.String(), SortK: "__", Stmt: ast.String(), Type: isType(ast)}
+		typeDef := TypeRow{PKey: pkey.String(), SortK: document, Stmt: ast.String(), Type: isType(ast)}
 		av, err := dynamodbattribute.MarshalMap(typeDef)
 		if err != nil {
 			return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -151,6 +173,13 @@ func dbPersist(pkey NameValue_, ast GQLTypeProvider) error {
 	}
 	return nil
 }
+func SetDocument(doc string) {
+	document = doc
+}
+
+func SetDefaultDoc(doc string) {
+	defaultDoc = doc
+}
 
 func PersistImplements(pkey NameValue_, sortk NameValue_) error {
 	//
@@ -160,7 +189,8 @@ func PersistImplements(pkey NameValue_, sortk NameValue_) error {
 		In    string
 	}
 	fmt.Println("PersistImplements: ", pkey.String(), sortk.String(), sortk.String())
-	typeDef := ImplementRow{PKey: pkey.String(), SortK: sortk.String(), In: sortk.String()}
+	//typeDef := ImplementRow{PKey: pkey.String(), SortK: sortk.String(), In: sortk.String()}
+	typeDef := ImplementRow{PKey: pkey.String(), SortK: document, In: sortk.String()}
 	av, err := dynamodbattribute.MarshalMap(typeDef)
 	if err != nil {
 		return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -178,7 +208,14 @@ func PersistImplements(pkey NameValue_, sortk NameValue_) error {
 func DeleteType(input string) error {
 
 	//
-	typeDef := PkRow{PKey: input, SortK: "__"}
+	if len(document) == 0 {
+		if len(defaultDoc) == 0 {
+			defaultDoc = "DefaultDoc"
+		}
+		document = defaultDoc
+	}
+	fmt.Println("delete from document: ", document)
+	typeDef := PkRow{PKey: input, SortK: document}
 	av, err := dynamodbattribute.MarshalMap(typeDef)
 	if err != nil {
 		return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -208,19 +245,22 @@ func DBFetch(name NameValue_) (string, error) {
 	//
 	// query on recipe name to get RecipeId and  book name
 	//
-	var sortK string
+	///var sortK string
 	fmt.Printf("DB Fetch name: [%s]\n", name.String())
-
+	if len(document) == 0 {
+		document = defaultDoc
+	}
 	if len(name) == 0 {
 		return "", fmt.Errorf("No DB search value provided")
 	}
 	errmsg := "Error in marshall of pKey "
-	if name[0] == '@' {
-		sortK = "D"
-	} else {
-		sortK = "__"
-	}
-	pkey := PkRow{PKey: name.String(), SortK: sortK}
+	// if name[0] == '@' {
+	// 	sortK = "D"
+	// } else {
+	// 	sortK = "__"
+	// }
+	//pkey := PkRow{PKey: name.String(), SortK: sortK}
+	pkey := PkRow{PKey: name.String(), SortK: document}
 	av, err := dynamodbattribute.MarshalMap(&pkey)
 	if err != nil {
 		return "", fmt.Errorf("%s. MarshalMap: %s", errmsg, err.Error())

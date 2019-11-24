@@ -494,7 +494,11 @@ func (l List_) ValidateListValues(iv *Type_, d *int, maxd *int, err *[]error) {
 			// default values in input object form { name:value name:value ... }: []*ArgumentT type ArgumentT: struct {Name_, InputValueProvider}
 			// reqType is the type of the input object  - which defines the name and associated type for each item in the { }
 			if *d != reqDepth {
-				*err = append(*err, fmt.Errorf(`Value %s is not at required nesting of %d %s`, v, reqDepth, v.AtPosition()))
+				if reqDepth == 0 {
+					*err = append(*err, fmt.Errorf(`Value %s should not be contained in a List %s`, v, v.AtPosition()))
+				} else {
+					*err = append(*err, fmt.Errorf(`Value %s is not at required nesting of %d %s`, v, reqDepth, v.AtPosition()))
+				}
 			}
 			in.ValidateObjectValues(iv, err)
 
@@ -502,7 +506,11 @@ func (l List_) ValidateListValues(iv *Type_, d *int, maxd *int, err *[]error) {
 			fmt.Println("++++++++ ValidateListValues Default ++++++++")
 			// check the item - this is matched against the type specification for the list ie. [type]
 			if *d != reqDepth && v.isType() != NULL {
-				*err = append(*err, fmt.Errorf(`Value %s is not at required nesting of %d %s`, v, reqDepth, v.AtPosition()))
+				if reqDepth == 0 {
+					*err = append(*err, fmt.Errorf(`Value %s should not be contained in a List %s`, v, v.AtPosition()))
+				} else {
+					*err = append(*err, fmt.Errorf(`Value %s is not at required nesting of %d %s`, v, reqDepth, v.AtPosition()))
+				}
 			}
 			if t := v.isType(); t != reqType {
 				if v.isType() == NULL {
@@ -726,52 +734,9 @@ type GQLTypeProvider interface {
 	String() string
 }
 
-var tc = 2
-
 // ======================================================
 
-var blank string = ""
-var errNameChar string = "Invalid character in identifer at line: %d, column: %d"
-var errNameBegin string = "identifer [%s] cannot start with two underscores at line: %d, column: %d"
-
-func ValidateName(name string, errS *[]error, loc *Loc_) {
-	// /[_A-Za-z][_0-9A-Za-z]*/
-	var err error
-	if len(name) == 0 {
-		err = fmt.Errorf("Error: zero length name passed to ValidateName")
-		*errS = append(*errS, err)
-		return
-	}
-
-	ch, _ := utf8.DecodeRuneInString(name[:1])
-	if unicode.IsDigit(ch) {
-		err = fmt.Errorf("identifier cannot start with a number at line: %d, column: %d", loc.Line, loc.Column)
-		*errS = append(*errS, err)
-	}
-
-	for i, v := range name {
-		switch i {
-		case 0:
-			if !(v == '_' || (v >= 'A' || v <= 'Z') || (v >= 'a' && v <= 'z')) {
-				err = fmt.Errorf(errNameChar, loc.Line, loc.Column)
-				*errS = append(*errS, err)
-			}
-		default:
-			if !((v >= '0' && v <= '9') || (v >= 'A' || v <= 'Z') || (v >= 'a' && v <= 'z') || v == '_') {
-				err = fmt.Errorf(errNameChar, loc.Line, loc.Column)
-				*errS = append(*errS, err)
-			}
-		}
-		if err != nil {
-			break
-		}
-	}
-
-	if len(name) > 1 && name[:2] == "__" {
-		err = fmt.Errorf(errNameBegin, name, loc.Line, loc.Column)
-		*errS = append(*errS, err)
-	}
-}
+var tc = 2
 
 type opType byte
 
@@ -828,4 +793,49 @@ func (sc *Schema_) String() string {
 
 func (sc *Schema_) TypeName() NameValue_ {
 	return NameValue_("schema")
+}
+
+// ======================================================
+
+var blank string = ""
+var errNameChar string = "Invalid character in identifer at line: %d, column: %d"
+var errNameBegin string = "identifer [%s] cannot start with two underscores at line: %d, column: %d"
+
+func ValidateName(name string, errS *[]error, loc *Loc_) {
+	// /[_A-Za-z][_0-9A-Za-z]*/
+	var err error
+	if len(name) == 0 {
+		err = fmt.Errorf("Error: zero length name passed to ValidateName")
+		*errS = append(*errS, err)
+		return
+	}
+
+	ch, _ := utf8.DecodeRuneInString(name[:1])
+	if unicode.IsDigit(ch) {
+		err = fmt.Errorf("identifier cannot start with a number at line: %d, column: %d", loc.Line, loc.Column)
+		*errS = append(*errS, err)
+	}
+
+	for i, v := range name {
+		switch i {
+		case 0:
+			if !(v == '_' || (v >= 'A' || v <= 'Z') || (v >= 'a' && v <= 'z')) {
+				err = fmt.Errorf(errNameChar, loc.Line, loc.Column)
+				*errS = append(*errS, err)
+			}
+		default:
+			if !((v >= '0' && v <= '9') || (v >= 'A' || v <= 'Z') || (v >= 'a' && v <= 'z') || v == '_') {
+				err = fmt.Errorf(errNameChar, loc.Line, loc.Column)
+				*errS = append(*errS, err)
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
+
+	if len(name) > 1 && name[:2] == "__" {
+		err = fmt.Errorf(errNameBegin, name, loc.Line, loc.Column)
+		*errS = append(*errS, err)
+	}
 }
