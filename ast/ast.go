@@ -140,6 +140,7 @@ func (iv *InputValue_) IsScalar() bool {
 // nm is the name of the associated argument or input - used for its Loc value
 // err contains all errors caught during validation
 func (a *InputValue_) CheckInputValueType(refType *Type_, nm Name_, err *[]error) {
+
 	fmt.Println("=========== CheckInputValueType ==============")
 	if a == nil {
 		return

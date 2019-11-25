@@ -113,6 +113,25 @@ func (p *Parser) printToken(s ...string) {
 		fmt.Println("** Current Token: ", p.curToken.Type, p.curToken.Literal, p.curToken.Cat, "Next Token:  ", p.peekToken.Type, p.peekToken.Literal)
 	}
 }
+
+// containersErr accepts a "validation" method value and the number of errors that can be generated in its call to abort the process,
+// preventing next validation task from running.
+func (p *Parser) containsErr(mv func(*[]error), num ...int) (b bool) {
+	var delta int
+	var errBefore = len(p.perror)
+	defer func() {
+		b = len(p.perror) > errBefore+delta
+	}()
+	// execute method value, mv
+	mv(&p.perror)
+	if len(num) == 0 {
+		delta = 1
+	} else {
+		delta = num[0]
+	}
+	return
+}
+
 func (p *Parser) hasError() bool {
 	if len(p.perror) > 17 || p.abort {
 		return true
@@ -270,18 +289,31 @@ func (p *Parser) ParseDocument(doc ...string) (program *ast.Document, errs []err
 			case *ast.Input_:
 				x.CheckIsInputType(&p.perror)
 			case *ast.Object_:
-				x.CheckIsOutputType(&p.perror)
-				x.CheckIsInputType(&p.perror)
-				x.CheckInputValueType(&p.perror)
+				if p.containsErr(x.CheckIsOutputType, 5) {
+					continue
+				}
+				if p.containsErr(x.CheckIsInputType, 0) {
+					continue
+				}
+				if p.containsErr(x.CheckInputValueType, 5) {
+					continue
+				}
 				x.CheckImplements(&p.perror) // check implements are interfaces
 			case *ast.Enum_:
 			case *ast.Interface_:
 			case *ast.Union_:
 				p.CheckUnionMembers(x)
 			case *ast.Directive_:
-				x.CheckIsInputType(&p.perror)
-				x.CheckInputValueType(&p.perror)
+				if p.containsErr(x.CheckIsInputType, 5) {
+					continue
+				}
+				if p.containsErr(x.CheckInputValueType, 5) {
+					continue
+				}
 				p.CheckSelfReference(v.TypeName(), x)
+			}
+			if p.hasError() {
+				break
 			}
 		}
 		program.ErrorMap[v.TypeName()] = append(program.ErrorMap[v.TypeName()], p.perror...)
@@ -1018,7 +1050,6 @@ func (p *Parser) parseDirectives(f ast.DirectiveAppender, optional ...bool) *Par
 	}
 
 	for p.curToken.Type == token.ATSIGN {
-		p.printToken("should be @")
 		p.nextToken() // read over @
 		a := []*ast.ArgumentT{}
 		d := &ast.DirectiveT{Arguments_: ast.Arguments_{Arguments: a}}

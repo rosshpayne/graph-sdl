@@ -467,7 +467,7 @@ y(Nm : Float =23.3@exampleDirRef ) : ExampleRefType@exampleDirRef
 
 type exampleTypeOuter2b @exampleDirOK {
 x(Nm : String ={x:"abc" y:1 } @exampleDirOK ) : String
-y(Nm : Float =23.3@exampleDirOK ) : exampleTypeOuter2a@exampleDirOK 
+y(Nm : Float =23.3@exampleDirOK ) : exampleTypeOuter2a @ exampleDirOK 
 }`
 
 	err := ast.DeleteType("exampleDirOK")
@@ -498,7 +498,7 @@ y(Nm : Float =23.3@exampleDirOK ) : exampleTypeOuter2a@exampleDirOK
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	var expectedErr [11]string
+	var expectedErr [12]string
 	expectedErr[0] = `Directive "@exampleDirRef" that references itself, is not permitted at line: 30 column: 46`
 	expectedErr[1] = `Directive "@exampleDirRef" references itself, is not permitted at line: 21 column: 24`
 	expectedErr[2] = `Directive "@exampleDirRef" references itself, is not permitted at line: 16 column: 24`
@@ -510,6 +510,7 @@ y(Nm : Float =23.3@exampleDirOK ) : exampleTypeOuter2a@exampleDirOK
 	expectedErr[8] = `Directive "@exampleDirOK" is not registered for INPUT_OBJECT usage at line: 19 column: 22`
 	expectedErr[9] = `Directive "@exampleDirOK" is not registered for INPUT_FIELD_DEFINITION usage at line: 20 column: 15`
 	expectedErr[10] = `Directive "@exampleDirOK" is not registered for OBJECT usage at line: 24 column: 26`
+	expectedErr[11] = `Type "exampleTypeOuter2a" does not exist at line: 26 column: 40`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -581,13 +582,15 @@ func TestDirectiveLocationCheck(t *testing.T) {
 	input := `
 directive @example on | FIELD_DEFINITION | ARGUMENT_DEFINITION
 
+input SomeInput @example {
+  field: String = "ABC" @example
+}
+
 type SomeType {
   field(arg: Int @example): String @example
 }
 
-input SomeInput @example {
-  field: String = "ABC" @example
-}
+
 `
 
 	err := ast.DeleteType("SomeType")
@@ -603,8 +606,8 @@ input SomeInput @example {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
 	var expectedErr [2]string
-	expectedErr[0] = `Directive "@example" is not registered for INPUT_OBJECT usage at line: 8 column: 18`
-	expectedErr[1] = `Directive "@example" is not registered for INPUT_FIELD_DEFINITION usage at line: 9 column: 26`
+	expectedErr[0] = `Directive "@example" is not registered for INPUT_OBJECT usage at line: 4 column: 18`
+	expectedErr[1] = `Directive "@example" is not registered for INPUT_FIELD_DEFINITION usage at line: 5 column: 26`
 
 	l := lexer.New(input)
 	p := New(l)

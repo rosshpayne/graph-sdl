@@ -366,24 +366,26 @@ type Business implements NamedEntity & ValuedEntity & NamedEntity {
 func TestImplements6(t *testing.T) {
 
 	input := `
-	interface NamedEntity {
-	  name: [[String!]!]!
-	}
-
-	interface ValuedEntity {
-	  value: Int
-	}
-
-	type Person implements NamedEntity {
-	  name: [[String!]!]!
-	  age: Int
-	}
-
+	
 	type Business implements NamedEntity & ValuedEntity {
 	  name: [[String!]!]!
 	  value: Int
 	  employeeCount: Int
 	}
+	
+	interface NamedEntity {
+	  name: [[String!]!]!
+	}
+	
+	type Person implements NamedEntity {
+	  name: [[String!]!]!
+	  age: Int
+	}
+	
+	interface ValuedEntity {
+	  value: Int
+	}
+
 	`
 	err := ast.DeleteType("NamedEntity")
 	if err != nil {
@@ -401,6 +403,11 @@ func TestImplements6(t *testing.T) {
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
+
+	// expectedDoc := `type Business implements NamedEntity & ValuedEntity {name:[[String!]!]!value:Intemployee Count:Int}
+	// 				interface NamedEntity {name:[[String!]!]!}
+	// 				type Person implements NamedEntity{name:[[String!]!]! age:Int}
+	// 				interface ValuedEntity {value:Int}`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -564,6 +571,11 @@ type Business implements NamedEntity & ValuedEntity {
   employeeCount: Int
 }
 `
+	expectedDoc := `type Business implements NamedEntity & ValuedEntity {name:String value:IntemployeeCount:Int}
+				 interface NamedEntity {name:String} 
+				 type Person implements NamedEntity {name:String age:Int} 
+				 interface ValuedEntity {value:Int}`
+
 	err := ast.DeleteType("NamedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
@@ -591,9 +603,9 @@ type Business implements NamedEntity & ValuedEntity {
 			t.Errorf(`Unexpected error: %s`, v.Error())
 		}
 	}
-	if compare(d.String(), input) {
+	if compare(d.String(), expectedDoc) {
 		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
-		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf("Expected: [%s] \n", trimWS(expectedDoc))
 		t.Errorf(`Unexpected: program.String() wrong. `)
 	}
 }

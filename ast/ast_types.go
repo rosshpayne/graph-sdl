@@ -361,7 +361,10 @@ func (o ObjectVals) ValidateObjectValues(ref *Type_, err *[]error) {
 			// value == LIST isType2 == LIST isType == INT	    // LIST appropriate but no check for internal types made in ValidateListValues.
 			// value == LIST isTYpe2 == INT  isType == INT		// should not be in list
 			// value == INT  isType2 == LIST isType = INT       // must be in list
-			if v.Value.isType() != reftype.isType2() {
+			// note: for reftype (ie. *Type) isType2() display LIST when it is a LIST, whereas isType() displays the base type of the LIST ie. its member type.
+			//       for value (ie *InputValue) isType() displays OBJECTVALS, LIST, <SCALARS>, ENUMs of the embedded InputValueProvider
+			if v.Value.isType() != reftype.isType2() { // ie. both are not LISTs or different scalar types
+				// only LIST differences consider here
 				if v.Value.isType() == LIST && reftype.isType2() != LIST {
 					*err = append(*err, fmt.Errorf(`%s "%s" for type "%s" should not be in List %s`, errObj, v.Name, ref.Name, v.Value.AtPosition()))
 				} else if v.Value.isType() != LIST && reftype.isType2() == LIST {
@@ -369,7 +372,7 @@ func (o ObjectVals) ValidateObjectValues(ref *Type_, err *[]error) {
 				}
 			}
 			// when value not LIST check types
-			if v.Value.isType() != reftype.isType() {
+			if v.Value.isType() != reftype.isType() { // if base type differences
 				if v.Value.isType() != LIST {
 					*err = append(*err, fmt.Errorf(`%s "%s" for type "%s" expected %s got %s %s`, errObj, v.Name, ref.Name, reftype.isType(), v.Value.isType(), v.Value.AtPosition()))
 				}
@@ -549,6 +552,7 @@ func (f *Object_) CheckIsInputType(err *[]error) {
 // Type       *Type_
 // DefaultVal *InputValue_
 func (f *Object_) CheckInputValueType(err *[]error) {
+
 	for _, v := range f.FieldSet {
 
 		// for each field in the object check if it has any default values to check
@@ -1384,6 +1388,7 @@ func (d *Directive_) AppendField(f_ *InputValueDef, err *[]error) {
 }
 
 func (d *Directive_) CheckInputValueType(err *[]error) { // TODO try merging wih *Object_ version
+
 	for _, a := range d.ArgumentDefs { // go thru each of the argument field objects [] {} scalar
 
 		if a.DefaultVal != nil {

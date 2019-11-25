@@ -10,8 +10,9 @@ func TestInput1(t *testing.T) {
 	// directive @jun on | FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION | INPUT_OBJECT
 	// directive @june on | INPUT_OBJECT
 	input := `
+		directive @jun on | FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION | INPUT_OBJECT
 	directive @june on | INPUT_OBJECT
-	directive @jun on | FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION | INPUT_OBJECT
+
 	input Point2D  @ june (asdf:234){
   x: Float = 123.23 @ jun (asdf:234)
   y: Float = 34 @ jun (asdf:"""asdflkjslkjd""")
@@ -45,6 +46,7 @@ func TestInput1(t *testing.T) {
 func TestInputDuplicate(t *testing.T) {
 
 	input := `
+	
 	input Point2D  @ june (asdf:234){
   x: Float = 123.23 @ june (asdf:234)
   y: Float = 34 @ june (asdf:"""asdflkjslkjd""")
@@ -57,9 +59,11 @@ func TestInputDuplicate(t *testing.T) {
          y6: Float = 34 @ june (asdf:"""asdflkjslkjd""")
           y63: Float = 34 @ june (asdf:"""asdflkjslkjd""")
 }
+	directive @june on INPUT_FIELD_DEFINITION INPUT_OBJECT
+	
 `
 	var expectedErr [1]string
-	expectedErr[0] = `Duplicate input value name "y" at line: 7, column: 8`
+	expectedErr[0] = `Duplicate input value name "y" at line: 8, column: 8`
 
 	l := lexer.New(input)
 	p := New(l)
