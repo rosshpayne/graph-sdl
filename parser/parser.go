@@ -190,7 +190,9 @@ func (p *Parser) ParseDocument(doc ...string) (program *ast.Document, errs []err
 			if len(program.ErrorMap[v.TypeName()]) == 0 {
 				// TODO - what if another type by that name exists
 				//  auto overrite or raise an error
-				ast.Persist(v.TypeName(), v)
+				if err := ast.Persist(v.TypeName(), v); err != nil {
+					p.addErr(err.Error())
+				}
 			}
 		}
 		//	ast.CacheClear()

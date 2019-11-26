@@ -287,7 +287,7 @@ schema {
 	type Person {
 	  name: String!
 	  age: Int!
-	  other: [String!]!
+	  other: [String!]
 	  posts: [Post!]
 	}
 

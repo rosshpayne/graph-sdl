@@ -88,9 +88,12 @@ func CacheFetch(input NameValue_) (GQLTypeProvider, bool) { // TODO: use GQLType
 	}
 }
 
-func Persist(input NameValue_, ast GQLTypeProvider) {
+func Persist(input NameValue_, ast GQLTypeProvider) error {
 	// save GraphQL statement to Dynamodb
-	dbPersist(input, ast)
+	if err := dbPersist(input, ast); err != nil {
+		return err
+	}
+	return nil
 }
 
 func Add2Cache(input NameValue_, obj GQLTypeProvider) {
@@ -133,8 +136,9 @@ func dbPersist(pkey NameValue_, ast GQLTypeProvider) error {
 			return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
 		}
 		_, err = db.PutItem(&dynamodb.PutItemInput{
-			TableName: aws.String(TableName),
-			Item:      av,
+			TableName:           aws.String(TableName),
+			ConditionExpression: aws.String("attribute_not_exists(Pkey)"),
+			Item:                av,
 		})
 		if err != nil {
 			return fmt.Errorf("%s: %s", "Error: failed to PutItem ", err.Error())
@@ -146,15 +150,25 @@ func dbPersist(pkey NameValue_, ast GQLTypeProvider) error {
 		if err != nil {
 			return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
 		}
+		// Note: attribute_not_exists(Pkey) - means check for the existence of a tuple with the supplied PKey + SortK
+		//  and then check for the existence of the attribute_not_exists attribute ie. PKey - if it exists (meaning an item was found) then return false and prevent insert.
+		// In the case of a non-key field e.g. attribute_not_exists(email), the process is to use the suppled pkey + sortk
+		// to find a tuple and then check to see if the attribute email exists. If it does exit return false and prevent insert.
+		//  so the emphasis is on "find tuple then check to see if attribute exists".
+		// Without the condition expression PutItem will simply overwrite any data. You can prevent the default insert operation using condition express.
+		//
 		_, err = db.PutItem(&dynamodb.PutItemInput{
-			TableName: aws.String(TableName),
-			Item:      av,
+			TableName:           aws.String(TableName),
+			ConditionExpression: aws.String("attribute_not_exists(Pkey)"),
+			Item:                av,
 		})
 		if err != nil {
 			return fmt.Errorf("%s: %s", "Error: failed to PutItem ", err.Error())
 		}
 		for _, imp := range x.Implements {
-			PersistImplements(imp.Name, x.TypeName())
+			if err := persistImplements(imp.Name, x.TypeName()); err != nil {
+				return err
+			}
 		}
 	default:
 		//typeDef := TypeRow{PKey: pkey.String(), SortK: "__", Stmt: ast.String(), Type: isType(ast)}
@@ -181,23 +195,30 @@ func SetDefaultDoc(doc string) {
 	defaultDoc = doc
 }
 
-func PersistImplements(pkey NameValue_, sortk NameValue_) error {
+func persistImplements(interface_ NameValue_, object_ NameValue_) error {
 	//
 	type ImplementRow struct {
 		PKey  string
 		SortK string
-		In    string
 	}
-	fmt.Println("PersistImplements: ", pkey.String(), sortk.String(), sortk.String())
-	//typeDef := ImplementRow{PKey: pkey.String(), SortK: sortk.String(), In: sortk.String()}
-	typeDef := ImplementRow{PKey: pkey.String(), SortK: document, In: sortk.String()}
+	// Key design permits searching for all objects that reference an interface
+	// pkey=? and sortk = startWith("?/")
+	typeDef := ImplementRow{PKey: interface_.String(), SortK: document + "/" + object_.String()}
 	av, err := dynamodbattribute.MarshalMap(typeDef)
 	if err != nil {
 		return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
 	}
+	// Note: attribute_not_exists(Pkey) - means check for the existence of a tuple with the supplied PKey + SortK
+	//  and then check for the existence of the PKey - if PKey exists (meaning an item was found) then return false and prevent insert.
+	// In the case of a non-key field e.g. attribute_not_exists(email), the process is to use the suppled pkey + sortk
+	// to find a tuple and then check to see if the attribute email exists. If it does exit return false and prevent insert.
+	//  so the emphasis is on "find tuple then check to see if attribute exists".
+	// Without the condition expression PutItem will simply overwrite any data. You can prevent the default insert operation using condition express.
+	//
 	_, err = db.PutItem(&dynamodb.PutItemInput{
-		TableName: aws.String(TableName),
-		Item:      av,
+		TableName:           aws.String(TableName),
+		ConditionExpression: aws.String("attribute_not_exists(Pkey)"),
+		Item:                av,
 	})
 	if err != nil {
 		return fmt.Errorf("%s: %s", "Error: failed to PutItem ", err.Error())
@@ -246,10 +267,11 @@ func DBFetch(name NameValue_) (string, error) {
 	// query on recipe name to get RecipeId and  book name
 	//
 	///var sortK string
-	fmt.Printf("DB Fetch name: [%s]\n", name.String())
+	fmt.Printf("XX DB Fetch name: [%s]\n", name.String())
 	if len(document) == 0 {
 		document = defaultDoc
 	}
+	fmt.Println("DBFetch document : ", document)
 	if len(name) == 0 {
 		return "", fmt.Errorf("No DB search value provided")
 	}

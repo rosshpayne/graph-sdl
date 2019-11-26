@@ -363,7 +363,7 @@ type Business implements NamedEntity & ValuedEntity & NamedEntity {
 	}
 }
 
-func TestImplements6(t *testing.T) {
+func TestImplements6x(t *testing.T) {
 
 	input := `
 	
@@ -387,6 +387,7 @@ func TestImplements6(t *testing.T) {
 	}
 
 	`
+	// replace entities with their above definitions.
 	err := ast.DeleteType("NamedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
