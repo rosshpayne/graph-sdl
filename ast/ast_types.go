@@ -73,8 +73,7 @@ const (
 	LIST
 	INTERFACE
 	UNION
-
-	// error - not available
+	//
 	NA
 )
 
@@ -299,6 +298,10 @@ type ObjectVals []*ArgumentT
 func (o ObjectVals) TypeSystemNode() {}
 func (o ObjectVals) ValueNode()      {}
 
+func (o ObjectVals) IsType() TypeFlag_ {
+	return OBJECT
+}
+
 func (a ObjectVals) AppendArgument(ss *ArgumentT) {
 	a = append(a, ss)
 }
@@ -319,7 +322,7 @@ func (o ObjectVals) Exists() bool {
 	return false
 }
 
-// ValidateObjectValues compares the value of the objectVal ie. value in { name:value name:value ... } againstthe root Object/Input TYPE from the type definition
+// ValidateObjectValues compares the value of the objectVal ie. value in { name:value name:value ... } againstt he root Object/Input TYPE from the type definition
 // . e.g. {name:"Ross", age:33} ==> root type "Person" {name: String, age: Int}
 func (o ObjectVals) ValidateObjectValues(ref *Type_, err *[]error) {
 	//
@@ -399,20 +402,22 @@ func (o ObjectVals) ValidateObjectValues(ref *Type_, err *[]error) {
 		}
 	}
 	//
-	// check mandatory fields present
+	// check mandatory fields present - for Input types only.
 	//
 	var at string
-	for k, v := range refFields { // k Name, v *Type
-		if (v.Constraint>>uint(v.Depth))&1 == 1 { // mandatory field. Check present.
-			found := false
-			for _, v := range o {
-				if v.Name == k {
-					found = true
+	if _, ok := ref.AST.(*Input_); ok {
+		for k, v := range refFields { // k Name, v *Type
+			if (v.Constraint>>uint(v.Depth))&1 == 1 { // mandatory field. Check present.
+				found := false
+				for _, v := range o {
+					if v.Name == k {
+						found = true
+					}
+					at = v.AtPosition()
 				}
-				at = v.AtPosition()
-			}
-			if !found {
-				*err = append(*err, fmt.Errorf(`Mandatory field "%s" missing in type "%s" %s `, k, ref.TypeName(), at))
+				if !found {
+					*err = append(*err, fmt.Errorf(`Mandatory field "%s" missing in type "%s" %s `, k, ref.TypeName(), at))
+				}
 			}
 		}
 	}
@@ -453,7 +458,8 @@ type Object_ struct {
 }
 
 func (o *Object_) TypeSystemNode() {}
-func (o *Object_) ValueNode()      {}
+
+//func (o *Object_) ValueNode()      {}
 func (o *Object_) TypeName() NameValue_ {
 	return o.Name
 }
@@ -1024,7 +1030,10 @@ type EnumValue_ struct {
 	hostValue InputValueProvider
 }
 
-func (e *EnumValue_) ValueNode()      {} // instane of InputValue_
+func (e *EnumValue_) ValueNode() {} // instane of InputValue_
+func (e *EnumValue_) IsType() TypeFlag_ {
+	return ENUMVALUE
+}
 func (e *EnumValue_) TypeSystemNode() {}
 func (e *EnumValue_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 	e.Directives_.CheckUnresolvedTypes(unresolved)
@@ -1188,7 +1197,8 @@ func (e *Input_) CheckUnresolvedTypes(unresolved UnresolvedMap) { // TODO check 
 	e.Directives_.CheckUnresolvedTypes(unresolved)
 	e.InputValueDefs.CheckUnresolvedTypes(unresolved)
 }
-func (e *Input_) ValueNode() {}
+
+//func (e *Input_) ValueNode() {}
 
 func (i *Input_) TypeName() NameValue_ {
 	return i.Name
@@ -1242,6 +1252,9 @@ type Scalar_ struct {
 
 func (e *Scalar_) TypeSystemNode() {}
 func (e *Scalar_) ValueNode()      {}
+func (e *Scalar_) IsType() TypeFlag_ {
+	return SCALAR
+}
 func (e *Scalar_) CheckUnresolvedTypes(unresolved UnresolvedMap) { // TODO check this is being executed
 	e.Directives_.CheckUnresolvedTypes(unresolved)
 }
@@ -1327,7 +1340,8 @@ type Directive_ struct {
 }
 
 func (d *Directive_) TypeSystemNode() {}
-func (d *Directive_) ValueNode()      {}
+
+//func (d *Directive_) ValueNode()      {}
 func (d *Directive_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 	d.ArgumentDefs.CheckUnresolvedTypes(unresolved)
 }

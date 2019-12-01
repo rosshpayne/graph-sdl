@@ -281,18 +281,20 @@ schema {
 	#}
 
 	#type Subscription {
-	#  newPerson: Person!
+	#  newPerson: [Person!]
 #}
 
 	type Person {
 	  name: String!
-	  age: Int!
+	  age: [Int!]
 	  other: [String!]
-	  posts: [Post!]
+	  posts (resp: [Int!]) : Post! #resp argument implies response should be passed to this argument, provided types match
+	  #posts  : [Post!]
 	}
 
 	type Post {
 	  title: String!
+	  title2: String!
 	  author: [Person!]!
 	}
 	`

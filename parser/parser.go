@@ -1358,7 +1358,7 @@ func (p *Parser) parseDefaultVal(v *ast.InputValueDef, optional ...bool) *Parser
 func (p *Parser) parseObjectArguments(argS []*ast.ArgumentT) []*ast.ArgumentT {
 	//p.nextToken("begin parseObjectArguments");
 	for p.curToken.Type == token.IDENT {
-		//for p.nextToken(); p.curToken.Type != token.RBRACE ; p.nextToken() { // TODO: use this
+
 		v := new(ast.ArgumentT)
 
 		p.parseName(v).parseColon().parseInputValue(v)

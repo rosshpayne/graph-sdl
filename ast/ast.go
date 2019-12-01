@@ -16,6 +16,7 @@ import (
 //  InputValueProvider represents the Graph QL Input Value types (see parseInputValue:) &Int_, &Float_,...,&Enum_, &List_, &ObjectVals
 type InputValueProvider interface {
 	ValueNode()
+	IsType() TypeFlag_
 	String() string
 	//	Exists() bool
 }
@@ -88,6 +89,9 @@ func (iv *InputValue_) AtPosition() string {
 func (iv *InputValue_) IsType() string {
 	return iv.isType().String()
 }
+func (iv *InputValue_) IsType2() string {
+	return iv.isType().String()
+}
 
 func (iv *InputValue_) isType() TypeFlag_ {
 	// Union are not a valid input value
@@ -107,14 +111,12 @@ func (iv *InputValue_) isType() TypeFlag_ {
 	case *EnumValue_:
 		return ENUM
 		//	case *Union_: // Union is not a valid input value
-	// case *Object_:
-	// 	return OBJECT
+	case ObjectVals:
+		return OBJECT
 	// case *Input_:
 	// 	return INPUT
 	case Null_:
 		return NULL
-	case ObjectVals:
-		return INPUT
 	case List_:
 		return LIST
 	}
@@ -156,6 +158,12 @@ func (a *InputValue_) CheckInputValueType(refType *Type_, nm Name_, err *[]error
 
 	case List_:
 		// [ "ads", "wer" ]
+		// single instance data
+		fmt.Printf("name: %s\n", refType.Name_)
+		fmt.Printf("constrint: %08b\n", refType.Constraint)
+		fmt.Printf("depth: %d\n", refType.Depth)
+		fmt.Println("defType ", a.isType(), a.IsScalar())
+		fmt.Println("refType ", refType.isType())
 		fmt.Println("=========== CheckInputValueType  List_ ==============")
 		if refType.Depth == 0 { // required type is not a LIST
 			*err = append(*err, fmt.Errorf(`Input value  "%s" named "%s"  is not a list but required type is a list %s`, valueType.String(), nm, atPosition))
@@ -364,8 +372,15 @@ func (t *Type_) IsScalar() bool {
 
 }
 
-func (t *Type_) IsType() string {
-	return t.isType().String()
+func (t *Type_) IsType() TypeFlag_ {
+	return t.isType()
+}
+
+func (t *Type_) IsType2() TypeFlag_ {
+	if t.Depth > 0 {
+		return LIST
+	}
+	return t.isType()
 }
 
 // ================= Input Value scalar datatypes ===================
@@ -373,6 +388,9 @@ func (t *Type_) IsType() string {
 type Null_ bool // moved from Scalar to it's own type. No obvious reason why - no obvious advantage at this stage
 
 func (n Null_) ValueNode() {}
+func (n Null_) IsType() TypeFlag_ {
+	return NULL
+}
 func (n Null_) String() string {
 	if n == false {
 		return ""
@@ -383,6 +401,9 @@ func (n Null_) String() string {
 type Int_ string //int
 
 func (i Int_) ValueNode() {}
+func (n Int_) IsType() TypeFlag_ {
+	return INT
+}
 func (i Int_) String() string {
 	//return strconv.FormatInt(int64(i), 10)
 	return string(i)
@@ -391,6 +412,9 @@ func (i Int_) String() string {
 type Float_ string //float64
 
 func (f Float_) ValueNode() {}
+func (f Float_) IsType() TypeFlag_ {
+	return FLOAT
+}
 func (f Float_) String() string {
 	return string(f)
 	//return strconv.FormatFloat(float64(f), 'G', -1, 64)
@@ -399,13 +423,20 @@ func (f Float_) String() string {
 type String_ string
 
 func (s String_) ValueNode() {}
+func (s String_) IsType() TypeFlag_ {
+	return STRING
+}
 func (s String_) String() string {
 	return string(s)
 }
 
 type RawString_ string
 
+func (s RawString_) IsType() TypeFlag_ {
+	return STRING
+}
 func (s RawString_) ValueNode() {}
+
 func (s RawString_) String() string {
 	return string(s)
 }
@@ -413,6 +444,9 @@ func (s RawString_) String() string {
 type Bool_ bool //bool
 
 func (b Bool_) ValueNode() {}
+func (b Bool_) IsType() TypeFlag_ {
+	return BOOLEAN
+}
 func (b Bool_) String() string {
 	//return strconv.FormatBool(bool(i))
 	if b {
@@ -426,14 +460,21 @@ func (b Bool_) String() string {
 type List_ []*InputValue_
 
 func (l List_) ValueNode() {}
+func (l List_) IsType() TypeFlag_ {
+	return LIST
+}
 func (l List_) TypeName() string {
 	return "List"
 }
 func (l List_) String() string {
 	var s strings.Builder
 	s.WriteString("[")
-	for _, v := range l {
-		s.WriteString(v.String() + " ")
+	for i, v := range l {
+		//fmt.Printf("string() len(l)  %d %T  %T %d \n", len(l), v, v.InputValueProvider, i)
+		s.WriteString(v.String())
+		if i < len(l)-1 {
+			s.WriteString(" ")
+		}
 	}
 	s.WriteString("] ")
 	return s.String()
