@@ -286,7 +286,7 @@ schema {
 
 	type Person {
 	  name: String!
-	  age: [Int!]
+	  age: [[Int!]]!
 	  other: [String!]
 	  posts (resp: [Int!]) : Post! #resp argument implies response should be passed to this argument, provided types match
 	  #posts  : [Post!]

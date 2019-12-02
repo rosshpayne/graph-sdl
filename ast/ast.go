@@ -54,45 +54,6 @@ func (iv *InputValue_) AtPosition() string {
 	return iv.Loc.String()
 }
 
-// // dataTypeString - prints the datatype of the input value
-// func (iv *InputValue_) dTString() string {
-// 	switch iv.Value.(type) {
-// 	case Int_:
-// 		return token.INT
-// 	case Float_:
-// 		return token.FLOAT
-// 	case Bool_:
-// 		return token.BOOLEAN
-// 	case *String_:
-// 		return token.STRING
-// 	case *RawString_:
-// 		return token.STRING
-// 	case *Scalar_:
-// 		return token.SCALAR
-// 	case *EnumValue_:
-// 		return token.ENUM
-// 	case *Object_:
-// 		return token.OBJECT
-// 	case *Input_:
-// 		return token.INPUT // input specification used as type in argument
-// 	case ObjectVals:
-// 		return token.INPUT // actual instance of input specification used as default value in argument
-// 	case List_:
-// 		return "xxList"
-// 	case Null_:
-// 		return token.NULL
-// 	}
-// 	return "xxNoTypeFound"
-// }
-
-// dataTypeString - prints the datatype of the input value
-func (iv *InputValue_) IsType() string {
-	return iv.isType().String()
-}
-func (iv *InputValue_) IsType2() string {
-	return iv.isType().String()
-}
-
 func (iv *InputValue_) isType() TypeFlag_ {
 	// Union are not a valid input value
 	switch iv.InputValueProvider.(type) {

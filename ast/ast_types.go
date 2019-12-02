@@ -43,7 +43,7 @@ func (tf TypeFlag_) String() string {
 		return token.ENUM
 	case OBJECT:
 		return token.OBJECT
-	case INPUT: // aka INPUTOBJ
+	case INPUT:
 		return token.INPUT
 	case LIST:
 		return token.LIST
