@@ -854,3 +854,91 @@ type Business2 implements & NamedEntity & ValuedEntity {
 		}
 	}
 }
+
+func TestSetupFragments(t *testing.T) {
+
+	input := `
+enum Episode {
+  NEWHOPE
+  EMPIRE
+  JEDI
+}
+
+type Starship {
+  id: ID!
+  name: String!
+  length(unit: LengthUnit = METER): Float
+}
+
+interface Character {
+  id: ID!
+  name: String!
+  friends: [Character]
+  appearsIn: [Episode]!
+}
+
+type Human implements Character {
+  id: ID!
+  name: String!
+  friends: [Character]
+  appearsIn: [Episode]!
+  starships: [Starship]
+  totalCredits: Int
+}
+
+type Droid implements Character {
+  id: ID!
+  name: String!
+  friends: [Character]
+  appearsIn: [Episode]!
+  primaryFunction: String
+}`
+
+	var expectedErr [3]string
+	expectedErr[0] = `Type "Person" does not implement interface "NamedEntity", missing  "XXX"`
+	expectedErr[1] = `Type "Business" does not implement interface "NamedEntity", missing  "XXX"`
+	expectedErr[2] = `Type "Business" does not implement interface "ValuedEntity", missing  "size" "length"`
+
+	err := ast.DeleteType("NamedEntity")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = ast.DeleteType("ValuedEntity")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = ast.DeleteType("Business")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = ast.DeleteType("Business2")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+
+	l := lexer.New(input)
+	p := New(l)
+	_, errs := p.ParseDocument()
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+}

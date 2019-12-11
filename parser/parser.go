@@ -426,9 +426,9 @@ func (p *Parser) ResolveAllTypes(v ast.GQLTypeProvider) []error {
 		} else {
 			// nil ast_ means not found in db
 			if ty != nil {
-				p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, ty.Name, ty.AtPosition()))
+				p.addErr(fmt.Sprintf(`tt Type "%s" does not exist %s`, ty.Name, ty.AtPosition()))
 			} else {
-				p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, tyName, tyName.AtPosition()))
+				p.addErr(fmt.Sprintf(`rr Type "%s" does not exist %s`, tyName, tyName.AtPosition()))
 			}
 		}
 	}
@@ -1357,6 +1357,7 @@ func (p *Parser) parseDefaultVal(v *ast.InputValueDef, optional ...bool) *Parser
 // parseObjectArguments - used for input object values
 func (p *Parser) parseObjectArguments(argS []*ast.ArgumentT) []*ast.ArgumentT {
 	//p.nextToken("begin parseObjectArguments");
+	fmt.Println("parseObjectArguments....................")
 	for p.curToken.Type == token.IDENT {
 
 		v := new(ast.ArgumentT)
@@ -1375,24 +1376,29 @@ func (p *Parser) parseObjectArguments(argS []*ast.ArgumentT) []*ast.ArgumentT {
 //  TODO: currently called from parseArgument only. If this continues to be the case then add this func as anonymous func to it.
 //func (p *Parser) parseInputValue_(iv ...*ast.InputValueDef) *ast.InputValue_ { //TODO remove iv argeument now redundant
 func (p *Parser) parseInputValue_() *ast.InputValue_ {
-	defer p.nextToken() // this func will finish paused on next token - always
+	defer func() {
+		p.printToken(" defer print ")
+		p.nextToken() // this func will finish paused on next token - always
+	}()
 
 	if p.curToken.Type == "ILLEGAL" {
 		p.addErr(fmt.Sprintf("Value expected got %s of %s", p.curToken.Type, p.curToken.Literal))
 		p.abort = true
 		return nil
 	}
+	fmt.Println("at Switch ", p.curToken.Type)
 	switch p.curToken.Type {
 	//
 	//  List type
 	//
 	case token.LBRACKET:
 		// [ value value value .. ]
-		p.nextToken() // read over [
-		if p.curToken.Cat != token.VALUE {
-			p.addErr(fmt.Sprintf("Expect an Input Value followed by another Input Value or a ], got %s %s ", p.curToken.Literal, p.peekToken.Literal))
-			return &ast.InputValue_{}
-		}
+		p.nextToken("=========== at LBRACKET. next token...") // read over [
+		// if p.curToken.Cat != token.VALUE { // Comment out - as Token can be an ENUMVALUE or an IDENT both of which have a CAT of NONVALUE - so lets ignore this check as its uncessary anyway
+		// 	fmt.Printf("Expect an Input Value followed by another Input Value or a ], got %s %s ", p.curToken.Literal, p.peekToken.Literal)
+		// 	p.addErr(fmt.Sprintf("Expect an Input Value followed by another Input Value or a ], got %s %s ", p.curToken.Literal, p.peekToken.Literal))
+		// 	return &ast.InputValue_{}
+		// }
 		// edge case: empty, []
 		if p.curToken.Type == token.RBRACKET {
 			p.nextToken() // ]
@@ -1441,8 +1447,13 @@ func (p *Parser) parseInputValue_() *ast.InputValue_ {
 		iv := ast.InputValue_{InputValueProvider: f, Loc: p.Loc()}
 		return &iv
 	case token.STRING:
+		fmt.Println("String ", p.curToken.Literal)
 		f := ast.String_(p.curToken.Literal)
 		iv := ast.InputValue_{InputValueProvider: f, Loc: p.Loc()}
+		return &iv
+	case token.ID:
+		id := ast.ID_(p.curToken.Literal)
+		iv := ast.InputValue_{InputValueProvider: id, Loc: p.Loc()}
 		return &iv
 	case token.RAWSTRING:
 		f := ast.RawString_(p.curToken.Literal)
@@ -1463,6 +1474,7 @@ func (p *Parser) parseInputValue_() *ast.InputValue_ {
 	// 	return &iv
 	default:
 		// possible ENUM value
+		fmt.Println("EnumValue ", p.curToken.Literal)
 		b := &ast.EnumValue_{}
 		b.AssignName(string(p.curToken.Literal), p.Loc(), &p.perror)
 		iv := ast.InputValue_{InputValueProvider: b, Loc: p.Loc()}

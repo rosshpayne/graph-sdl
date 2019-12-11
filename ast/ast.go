@@ -57,6 +57,8 @@ func (iv *InputValue_) AtPosition() string {
 func (iv *InputValue_) isType() TypeFlag_ {
 	// Union are not a valid input value
 	switch iv.InputValueProvider.(type) {
+	case ID_:
+		return ID
 	case Int_:
 		return INT
 	case Float_:
@@ -230,7 +232,77 @@ func (a *InputValue_) CheckInputValueType(refType *Type_, nm Name_, err *[]error
 	}
 }
 
-// ================================================================================
+func isType(t GQLTypeProvider) string {
+	//
+	//
+	// non-standard defined types
+	//
+	switch t.(type) {
+	case *Object_:
+		return "O"
+	case *Interface_:
+		return "I"
+	case *Enum_:
+		return "E"
+	case *Input_:
+		return "In"
+	case *Union_:
+		return "U"
+	case *Scalar_:
+		return "S"
+	}
+	//
+	return "X"
+}
+
+// ============================ Type_ ======================
+
+type Type_ struct {
+	Constraint byte            // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
+	AST        GQLTypeProvider // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
+	Depth      int             // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
+	Name_                      // type name. inherit AssignName(). Use Name_ to access AST via cache lookup. ALternatively, use AST above or TypeFlag_ instead of string.
+	//Name      TypeFlag_	- no as we need to have a Name_ type to hold Loc in case of parser error on Type.
+}
+
+func (t Type_) String() string {
+	var s strings.Builder
+	for i := 0; i < t.Depth; i++ {
+		s.WriteString("[")
+	}
+	s.WriteString(t.Name_.String())
+	//s.WriteString("-" + fmt.Sprintf("%08b", t.TypeFlag))
+	var (
+		one byte = 1 << 0
+		bit byte
+	)
+	var i uint
+	if t.Depth == 0 {
+		bit = (t.Constraint >> i) & one // show right most bit only
+		if bit == 1 {
+			s.WriteString("!")
+		}
+	} else {
+		for i = 0; int(i) <= t.Depth+1; i++ {
+			bit = (t.Constraint >> i) & one // show right most bit only
+			if bit == 1 {
+				s.WriteString("!")
+			}
+			if int(i) < t.Depth {
+				s.WriteString("]")
+			}
+		}
+	}
+	return s.String()
+}
+
+func (t Type_) TypeName() string {
+	return t.Name.String()
+}
+
+func (a *Type_) Equals(b *Type_) bool {
+	return a.Name_.String() == b.Name_.String() && a.Constraint == b.Constraint && a.Depth == b.Depth
+}
 
 // dataTypeString - prints the datatype of the type specification
 
@@ -245,6 +317,8 @@ func (t *Type_) isType() TypeFlag_ {
 	//
 	// system scalars
 	//
+	case token.ID:
+		return ID
 	case token.INT:
 		return INT
 	case token.FLOAT:
@@ -300,32 +374,9 @@ func (t *Type_) isType2() TypeFlag_ {
 	}
 }
 
-func isType(t GQLTypeProvider) string {
-	//
-	//
-	// non-standard defined types
-	//
-	switch t.(type) {
-	case *Object_:
-		return "O"
-	case *Interface_:
-		return "I"
-	case *Enum_:
-		return "E"
-	case *Input_:
-		return "In"
-	case *Union_:
-		return "U"
-	case *Scalar_:
-		return "S"
-	}
-	//
-	return "X"
-}
-
 func (t *Type_) IsScalar() bool {
 	switch t.isType() {
-	case INT, FLOAT, STRING, BOOLEAN, SCALAR:
+	case INT, FLOAT, STRING, BOOLEAN, SCALAR, ID:
 		return true
 	default:
 		return false
@@ -368,6 +419,17 @@ func (n Int_) IsType() TypeFlag_ {
 func (i Int_) String() string {
 	//return strconv.FormatInt(int64(i), 10)
 	return string(i)
+}
+
+type ID_ string //float64
+
+func (f ID_) ValueNode() {}
+func (f ID_) IsType() TypeFlag_ {
+	return ID
+}
+func (f ID_) String() string {
+	return string(f)
+	//return strconv.FormatFloat(float64(f), 'G', -1, 64)
 }
 
 type Float_ string //float64
@@ -735,6 +797,7 @@ type GQLTypeProvider interface {
 	CheckDirectiveRef(dir NameValue_, err *[]error)
 	CheckDirectiveLocation(err *[]error)
 	String() string
+	Type() string // equiv to IsType however IsType has been used for Input Types (subset of GQLTypeProvider
 }
 
 // ======================================================
@@ -758,6 +821,10 @@ type Schema_ struct {
 }
 
 func (sc *Schema_) TypeSystemNode() {}
+
+func (sc *Schema_) Type() string {
+	return "Schema"
+}
 
 func (sc *Schema_) AssignName(s string, loc *Loc_, errS *[]error) {
 	switch sc.Op {

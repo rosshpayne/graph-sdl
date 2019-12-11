@@ -3354,3 +3354,20 @@ type Measure {
 		t.Errorf(`Unexpected: program.String() wrong. `)
 	}
 }
+
+func TestInputJson(t *testing.T) {
+
+	//input := `[{id: "jklw2ike", name: "Luke Skywalker", friends: [{id: "xjnJ4", name: "Leia Organa"},{id: "sjnJ5", name: "C-3PO"},{id: "ksejnJ6", name: "R2-D2"}], appearsIn: [NEWHOPE ,JEDI ], starships: [{ name: "Falcon", length: 23.4},{ name: "Cruiser", length: 68.2}] , totalCredits: 5532 },{id: "dfw23e", name: "Leia Organa", friends: [{id: "lwewJ6", name: "Luke Skywalker"},{id: "sjnJ5", name: "C-3PO"},{id: "ksejnJ6", name: "R2-D2"}], appearsIn: [NEWHOPE ,EMPIRE ], starships: [{ name: "BattleStar", length: 138.2}] , totalCredits: 2532 },]`
+	input := `[{id: "jklw2ike", name: "Luke Skywalker", friends: [{id: "xjnJ4", name: "Leia Organa"},{id: "sjnJ5", name: "C-3PO"},{id: "ksejnJ6", name: "R2-D2"}], appearsIn: ["NEWHOPE" ,"JEDI" ], starships: [{ name: "Falcon", length: 23.4},{ name: "Cruiser", length: 68.2}] , totalCredits: 5532 },{id: "dfw23e", name: "Leia Organa", friends: [{id: "lwewJ6", name: "Luke Skywalker"},{id: "sjnJ5", name: "C-3PO"},{id: "ksejnJ6", name: "R2-D2"}], appearsIn: ["NEWHOPE" ,"EMPIRE" ], starships: [{ name: "BattleStar", length: 138.2}] , totalCredits: 2532 },]`
+
+	l := lexer.New(input)
+	p := New(l)
+	d := p.ParseResponse()
+	fmt.Println(d.String())
+
+	if compare(d.String(), input) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}

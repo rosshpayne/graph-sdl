@@ -79,11 +79,12 @@ func buildKey(input NameValue_) string {
 	return s.String()
 }
 func CacheFetch(input NameValue_) (GQLTypeProvider, bool) { // TODO: use GQLTypeProvider instead of GQLTypeProvider?
-	fmt.Printf("** CacheFetch [%s]\n", input)
 
 	if ast, ok := typeCache_[buildKey(input)]; !ok {
+		fmt.Printf("** SDL CacheFetch [%s] NOT FOUND \n", input)
 		return nil, false
 	} else {
+		fmt.Printf("** SDL CacheFetch [%s] found \n", input)
 		return ast, true
 	}
 }
@@ -97,7 +98,7 @@ func Persist(input NameValue_, ast GQLTypeProvider) error {
 }
 
 func Add2Cache(input NameValue_, obj GQLTypeProvider) {
-	//	fmt.Printf("** Add2Cache  %s [%s]\n", input, obj.String())
+	fmt.Printf("** sdl Add2Cache  %s [%s]\n", input, obj.String())
 	typeCache_[buildKey(input)] = obj
 }
 

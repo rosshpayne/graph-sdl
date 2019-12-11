@@ -11,6 +11,7 @@ const (
 	EOF     = "EOF"
 
 	// GQL Input Values types
+	ID        = "ID"
 	INT       = "Int"    // 1343456
 	FLOAT     = "Float"  // 3.42
 	STRING    = "String" // contents between " or """
@@ -97,11 +98,11 @@ var keywords = map[string]struct {
 	Cat          TokenCat
 	IsScalarType bool
 }{
-	"Int":     {INT, NONVALUE, true},
-	"Float":   {FLOAT, NONVALUE, true},
-	"String":  {STRING, NONVALUE, true},
-	"Boolean": {BOOLEAN, NONVALUE, true},
-	//	"ID":      {ID, NONVALUE, true},
+	"Int":          {INT, NONVALUE, true},
+	"Float":        {FLOAT, NONVALUE, true},
+	"String":       {STRING, NONVALUE, true},
+	"Boolean":      {BOOLEAN, NONVALUE, true},
+	"ID":           {ID, NONVALUE, true},
 	"enum":         {ENUM, NONVALUE, false},
 	"schema":       {SCHEMA, NONVALUE, false},
 	"on":           {ON, NONVALUE, false},

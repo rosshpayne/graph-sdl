@@ -22,11 +22,12 @@ import (
 //  2. validate QL - build AST-QL and embed AST-Type for validation and execution
 //  3  execute QL - using both ASTs
 //  4  save AST-QL to dynamodb
-
-type TypeFlag_ uint16
+type TypeFlag_ byte //uint16
 
 func (tf TypeFlag_) String() string {
 	switch tf {
+	case ID:
+		return token.ID
 	case INT:
 		return token.INT
 	case FLOAT:
@@ -57,7 +58,8 @@ type UnresolvedMap map[Name_]*Type_
 
 const (
 	//  input value types
-	_ TypeFlag_ = 1 << iota
+	_ TypeFlag_ = iota //1 << iota
+	ID
 	INT
 	FLOAT
 	BOOLEAN
@@ -176,54 +178,6 @@ func IsOutputType(t *Type_) bool {
 	}
 }
 
-// ============================ Type_ ======================
-
-type Type_ struct {
-	Constraint byte            // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
-	AST        GQLTypeProvider // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
-	Depth      int             // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
-	Name_                      // type name. inherit AssignName(). Use Name_ to access AST via cache lookup. ALternatively, use AST above.
-}
-
-func (t Type_) String() string {
-	var s strings.Builder
-	for i := 0; i < t.Depth; i++ {
-		s.WriteString("[")
-	}
-	s.WriteString(t.Name_.String())
-	//s.WriteString("-" + fmt.Sprintf("%08b", t.TypeFlag))
-	var (
-		one byte = 1 << 0
-		bit byte
-	)
-	var i uint
-	if t.Depth == 0 {
-		bit = (t.Constraint >> i) & one // show right most bit only
-		if bit == 1 {
-			s.WriteString("!")
-		}
-	} else {
-		for i = 0; int(i) <= t.Depth+1; i++ {
-			bit = (t.Constraint >> i) & one // show right most bit only
-			if bit == 1 {
-				s.WriteString("!")
-			}
-			if int(i) < t.Depth {
-				s.WriteString("]")
-			}
-		}
-	}
-	return s.String()
-}
-
-func (t Type_) TypeName() string {
-	return t.Name.String()
-}
-
-func (a *Type_) Equals(b *Type_) bool {
-	return a.Name_.String() == b.Name_.String() && a.Constraint == b.Constraint && a.Depth == b.Depth
-}
-
 // ==================== interfaces ======================
 
 type FieldAppender interface {
@@ -300,6 +254,10 @@ func (o ObjectVals) ValueNode()      {}
 
 func (o ObjectVals) IsType() TypeFlag_ {
 	return OBJECT
+}
+
+func (o ObjectVals) Type() string {
+	return "ObjectVals"
 }
 
 func (a ObjectVals) AppendArgument(ss *ArgumentT) {
@@ -437,6 +395,11 @@ func (f NameS) CheckUnresolvedTypes(unresolved UnresolvedMap) { //TODO rename to
 	}
 }
 
+type SelectionGetter interface {
+	GetSelectionSet() FieldSet
+	TypeName() NameValue_
+}
+
 // ========================= Object_ ===============================
 // object definition:
 // type Person {
@@ -459,11 +422,17 @@ type Object_ struct {
 
 func (o *Object_) TypeSystemNode() {}
 
+func (o *Object_) Type() string {
+	return "Object"
+}
+
 //func (o *Object_) ValueNode()      {}
 func (o *Object_) TypeName() NameValue_ {
 	return o.Name
 }
-
+func (o *Object_) GetSelectionSet() FieldSet {
+	return o.FieldSet
+}
 func (o *Object_) CheckDirectiveRef(dirName NameValue_, err *[]error) {
 
 	o.Directives_.CheckDirectiveRef(dirName, err)
@@ -992,6 +961,10 @@ func (e *Enum_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 	}
 }
 
+func (e *Enum_) Type() string {
+	return "Enum"
+}
+
 func (e *Enum_) TypeName() NameValue_ {
 	return e.Name
 }
@@ -1037,6 +1010,10 @@ func (e *EnumValue_) IsType() TypeFlag_ {
 func (e *EnumValue_) TypeSystemNode() {}
 func (e *EnumValue_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 	e.Directives_.CheckUnresolvedTypes(unresolved)
+}
+
+func (e *EnumValue_) Type() string {
+	return "EnumValue"
 }
 func (e *EnumValue_) CheckDirectiveLocation(err *[]error) {
 	e.checkDirectiveLocation_(ENUM_VALUE_DL, err)
@@ -1106,8 +1083,15 @@ func (i *Interface_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
 	i.Directives_.CheckUnresolvedTypes(unresolved)
 	i.FieldSet.CheckUnresolvedTypes(unresolved)
 }
+
+func (i *Interface_) Type() string {
+	return "Interface"
+}
 func (i *Interface_) TypeName() NameValue_ {
 	return i.Name
+}
+func (i *Interface_) GetSelectionSet() FieldSet {
+	return i.FieldSet
 }
 
 func (i *Interface_) CheckDirectiveLocation(err *[]error) {
@@ -1144,6 +1128,9 @@ func (u *Union_) CheckUnresolvedTypes(unresolved UnresolvedMap) { // TODO check 
 	u.Directives_.CheckUnresolvedTypes(unresolved)
 }
 
+func (u *Union_) Type() string {
+	return "Union"
+}
 func (u *Union_) TypeName() NameValue_ {
 	return u.Name
 }
@@ -1196,6 +1183,10 @@ func (e *Input_) TypeSystemNode() {}
 func (e *Input_) CheckUnresolvedTypes(unresolved UnresolvedMap) { // TODO check this is being executed
 	e.Directives_.CheckUnresolvedTypes(unresolved)
 	e.InputValueDefs.CheckUnresolvedTypes(unresolved)
+}
+
+func (e *Input_) Type() string {
+	return "Input"
 }
 
 //func (e *Input_) ValueNode() {}
@@ -1254,6 +1245,10 @@ func (e *Scalar_) TypeSystemNode() {}
 func (e *Scalar_) ValueNode()      {}
 func (e *Scalar_) IsType() TypeFlag_ {
 	return SCALAR
+}
+
+func (e *Scalar_) Type() string {
+	return "scalar"
 }
 func (e *Scalar_) CheckUnresolvedTypes(unresolved UnresolvedMap) { // TODO check this is being executed
 	e.Directives_.CheckUnresolvedTypes(unresolved)
@@ -1340,6 +1335,10 @@ type Directive_ struct {
 }
 
 func (d *Directive_) TypeSystemNode() {}
+
+func (d *Directive_) Type() string {
+	return "Directive"
+}
 
 //func (d *Directive_) ValueNode()      {}
 func (d *Directive_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
