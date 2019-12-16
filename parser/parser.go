@@ -358,7 +358,8 @@ func (p *Parser) ParseStatement() ast.GQLTypeProvider {
 func (p *Parser) fetchAST(name ast.Name_) ast.GQLTypeProvider {
 	var (
 		ast_ ast.GQLTypeProvider
-		ok   bool
+		//base string // short name for type e.g. ENUM is "E", type foo is "O", Input foo is "In", Inteface is "I"
+		ok bool
 	)
 	name_ := name.Name
 	if ast_, ok = ast.CacheFetch(name_); !ok {
@@ -369,6 +370,7 @@ func (p *Parser) fetchAST(name ast.Name_) ast.GQLTypeProvider {
 				p.abort = true
 				return nil
 			} else {
+				//base := base
 				if len(typeDef) == 0 { // no type found in DB
 					// mark type as being nonexistent
 					typeNotExists[name_] = true
@@ -384,6 +386,7 @@ func (p *Parser) fetchAST(name ast.Name_) ast.GQLTypeProvider {
 						// error in parsing stmt from db - this should not happen as only valid stmts are saved.
 						p.perror = append(p.perror, p2.perror...)
 					}
+					//
 					// save to cache
 					ast.Add2Cache(name_, ast_)
 					// now resolve all types in the ast
@@ -1357,7 +1360,6 @@ func (p *Parser) parseDefaultVal(v *ast.InputValueDef, optional ...bool) *Parser
 // parseObjectArguments - used for input object values
 func (p *Parser) parseObjectArguments(argS []*ast.ArgumentT) []*ast.ArgumentT {
 	//p.nextToken("begin parseObjectArguments");
-	fmt.Println("parseObjectArguments....................")
 	for p.curToken.Type == token.IDENT {
 
 		v := new(ast.ArgumentT)
@@ -1376,24 +1378,20 @@ func (p *Parser) parseObjectArguments(argS []*ast.ArgumentT) []*ast.ArgumentT {
 //  TODO: currently called from parseArgument only. If this continues to be the case then add this func as anonymous func to it.
 //func (p *Parser) parseInputValue_(iv ...*ast.InputValueDef) *ast.InputValue_ { //TODO remove iv argeument now redundant
 func (p *Parser) parseInputValue_() *ast.InputValue_ {
-	defer func() {
-		p.printToken(" defer print ")
-		p.nextToken() // this func will finish paused on next token - always
-	}()
+	defer p.nextToken() // this func will finish paused on next token - always
 
 	if p.curToken.Type == "ILLEGAL" {
 		p.addErr(fmt.Sprintf("Value expected got %s of %s", p.curToken.Type, p.curToken.Literal))
 		p.abort = true
 		return nil
 	}
-	fmt.Println("at Switch ", p.curToken.Type)
 	switch p.curToken.Type {
 	//
 	//  List type
 	//
 	case token.LBRACKET:
 		// [ value value value .. ]
-		p.nextToken("=========== at LBRACKET. next token...") // read over [
+		p.nextToken() // read over [
 		// if p.curToken.Cat != token.VALUE { // Comment out - as Token can be an ENUMVALUE or an IDENT both of which have a CAT of NONVALUE - so lets ignore this check as its uncessary anyway
 		// 	fmt.Printf("Expect an Input Value followed by another Input Value or a ], got %s %s ", p.curToken.Literal, p.peekToken.Literal)
 		// 	p.addErr(fmt.Sprintf("Expect an Input Value followed by another Input Value or a ], got %s %s ", p.curToken.Literal, p.peekToken.Literal))
@@ -1447,7 +1445,6 @@ func (p *Parser) parseInputValue_() *ast.InputValue_ {
 		iv := ast.InputValue_{InputValueProvider: f, Loc: p.Loc()}
 		return &iv
 	case token.STRING:
-		fmt.Println("String ", p.curToken.Literal)
 		f := ast.String_(p.curToken.Literal)
 		iv := ast.InputValue_{InputValueProvider: f, Loc: p.Loc()}
 		return &iv
@@ -1474,7 +1471,6 @@ func (p *Parser) parseInputValue_() *ast.InputValue_ {
 	// 	return &iv
 	default:
 		// possible ENUM value
-		fmt.Println("EnumValue ", p.curToken.Literal)
 		b := &ast.EnumValue_{}
 		b.AssignName(string(p.curToken.Literal), p.Loc(), &p.perror)
 		iv := ast.InputValue_{InputValueProvider: b, Loc: p.Loc()}

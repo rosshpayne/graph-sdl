@@ -232,6 +232,10 @@ func (a *InputValue_) CheckInputValueType(refType *Type_, nm Name_, err *[]error
 	}
 }
 
+func BaseType(t GQLTypeProvider) string {
+	return isType(t)
+}
+
 func isType(t GQLTypeProvider) string {
 	//
 	//
@@ -262,7 +266,7 @@ type Type_ struct {
 	AST        GQLTypeProvider // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
 	Depth      int             // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
 	Name_                      // type name. inherit AssignName(). Use Name_ to access AST via cache lookup. ALternatively, use AST above or TypeFlag_ instead of string.
-	//Name      TypeFlag_	- no as we need to have a Name_ type to hold Loc in case of parser error on Type.
+	Base       string          // base type e.g. Name_ = "Episode" has Base = E(num)
 }
 
 func (t Type_) String() string {

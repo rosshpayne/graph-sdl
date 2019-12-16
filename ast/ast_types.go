@@ -42,6 +42,8 @@ func (tf TypeFlag_) String() string {
 		return token.SCALAR
 	case ENUM:
 		return token.ENUM
+	case ENUMVALUE:
+		return token.ENUM
 	case OBJECT:
 		return token.OBJECT
 	case INPUT:
@@ -1110,6 +1112,30 @@ func (i *Interface_) String() string {
 	s.WriteString(" " + i.Directives_.String())
 	s.WriteString(" " + i.FieldSet.String())
 	return s.String()
+}
+
+func (i *Interface_) Conform(obj GQLTypeProvider) bool {
+	obj_, ok := obj.(*Object_)
+	if !ok {
+		return false
+	}
+	if len(i.FieldSet) > len(obj_.FieldSet) {
+		return false
+	}
+	for _, fld := range i.FieldSet {
+		var found bool
+		for _, objFld := range obj_.FieldSet {
+			if fld.Name.Equals(objFld.Name) {
+				found = true
+				break
+			}
+			if !found {
+				return false
+			}
+
+		}
+	}
+	return true
 }
 
 // ======================  Union =========================

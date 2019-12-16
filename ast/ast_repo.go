@@ -19,13 +19,17 @@ const (
 var (
 	document   string
 	defaultDoc string
+
+	typeCache_ typeCache
+
+	db *dynamodb.DynamoDB
 )
 
 type TypeRow struct {
 	PKey  string
 	SortK string
 	Stmt  string
-	Type  string //TODO: is this necessary?  Reason: is saves having to parse stmt in order to determine its "type"
+	Type  string //this maps to ast.Type.Base - reqired for ENUM types but maybe useful for others
 }
 
 // cache returns the AST type for a given TypeName
@@ -35,9 +39,6 @@ type PkRow struct {
 	PKey  string
 	SortK string
 }
-
-var typeCache_ typeCache
-var db *dynamodb.DynamoDB
 
 func init() {
 	typeCache_ = make(typeCache)
@@ -79,7 +80,6 @@ func buildKey(input NameValue_) string {
 	return s.String()
 }
 func CacheFetch(input NameValue_) (GQLTypeProvider, bool) { // TODO: use GQLTypeProvider instead of GQLTypeProvider?
-
 	if ast, ok := typeCache_[buildKey(input)]; !ok {
 		fmt.Printf("** SDL CacheFetch [%s] NOT FOUND \n", input)
 		return nil, false
@@ -98,7 +98,7 @@ func Persist(input NameValue_, ast GQLTypeProvider) error {
 }
 
 func Add2Cache(input NameValue_, obj GQLTypeProvider) {
-	fmt.Printf("** sdl Add2Cache  %s [%s]\n", input, obj.String())
+	fmt.Printf("** sdl Add2Cache  %s\n", input)
 	typeCache_[buildKey(input)] = obj
 }
 
@@ -330,3 +330,13 @@ func DBFetch(name NameValue_) (string, error) {
 	fmt.Printf("DBfetch result: [%s] \n", rec.Stmt)
 	return rec.Stmt, nil
 }
+
+// does type_ implement interface i
+// func IsInterface(i *Interface_, type_ string) bool {
+// 	// search db for  Pkey = i, SortK = <doc>/type_, if found then cache in set interfaceCache[i/type_]
+// 	if _, ok := interfaceCache[i.Name.String()+"/"+type_]; ok {
+// 		return true
+// 	}
+// 	// search DB
+
+// }
