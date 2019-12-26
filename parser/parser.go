@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/graph-sdl/ast"
+	"github.com/graph-sdl/db"
 	"github.com/graph-sdl/lexer"
 	"github.com/graph-sdl/token"
 )
@@ -26,6 +27,8 @@ type (
 
 		extend bool
 
+		cache *Cache_
+
 		abort     bool
 		stmtType  string
 		curToken  token.Token
@@ -37,8 +40,7 @@ type (
 )
 
 var (
-	//	enumRepo      ast.EnumRepo_
-	typeNotExists map[ast.NameValue_]bool
+	//	enumRepo      ast.EnumRepo
 
 	directiveLocation map[string]ast.DirectiveLoc = map[string]ast.DirectiveLoc{
 		//	Executable DirectiveLocation
@@ -69,6 +71,8 @@ func New(l *lexer.Lexer) *Parser {
 		l: l,
 	}
 
+	p.cache = NewCache()
+
 	p.parseFns = make(map[token.TokenType]parseFn)
 	p.registerFn(token.TYPE, p.ParseObjectType)
 	p.registerFn(token.ENUM, p.ParseEnumType)
@@ -90,11 +94,6 @@ func New(l *lexer.Lexer) *Parser {
 
 // astsitory of all types defined in the graph
 
-func init() {
-	//	enumRepo = make(ast.EnumRepo_)
-	typeNotExists = make(map[ast.NameValue_]bool)
-}
-
 func (p *Parser) Getperror() []error {
 	return p.perror
 }
@@ -104,7 +103,7 @@ func (p *Parser) Loc() *ast.Loc_ {
 }
 
 func (p *Parser) ClearCache() {
-	ast.CacheClear()
+	p.cache.CacheClear()
 }
 func (p *Parser) printToken(s ...string) {
 	if len(s) > 0 {
@@ -190,7 +189,7 @@ func (p *Parser) ParseDocument(doc ...string) (program *ast.Document, errs []err
 			if len(program.ErrorMap[v.TypeName()]) == 0 {
 				// TODO - what if another type by that name exists
 				//  auto overrite or raise an error
-				if err := ast.Persist(v.TypeName(), v); err != nil {
+				if err := db.Persist(v.TypeName().String(), v); err != nil {
 					p.addErr(err.Error())
 				}
 			}
@@ -201,14 +200,14 @@ func (p *Parser) ParseDocument(doc ...string) (program *ast.Document, errs []err
 	//
 	// set document
 	//
-	ast.SetDefaultDoc(defaultDoc)
+	db.SetDefaultDoc(defaultDoc)
 	if len(doc) == 0 {
-		ast.SetDocument(defaultDoc)
+		db.SetDocument(defaultDoc)
 	} else {
-		ast.SetDocument(doc[0])
+		db.SetDocument(doc[0])
 	}
 	//
-	// parse phase - 	build AST from GraphQL SDL script
+	// parse phase - 	build AST from GraphQL document
 	//
 	for p.curToken.Type != token.EOF {
 		stmtAST := p.ParseStatement()
@@ -223,8 +222,9 @@ func (p *Parser) ParseDocument(doc ...string) (program *ast.Document, errs []err
 			name := stmtAST.TypeName()
 			program.StatementsMap[name] = stmtAST
 			program.ErrorMap[name] = p.perror
+			fmt.Println(" parsed  ", name, " with errors: ", len(p.perror))
 			if len(p.perror) == 0 {
-				ast.Add2Cache(stmtAST.TypeName(), stmtAST)
+				p.cache.AddEntry(stmtAST.TypeName(), stmtAST) // stmts define GL types
 			}
 			p.perror = nil
 
@@ -242,7 +242,7 @@ func (p *Parser) ParseDocument(doc ...string) (program *ast.Document, errs []err
 	//                    and  *Type.AST assigned where applicable
 	//
 	for _, v := range program.Statements {
-		p.ResolveAllTypes(v)
+		p.ResolveAllTypes(v, p.cache)
 		if len(p.perror) > 0 {
 			program.ErrorMap[v.TypeName()] = append(program.ErrorMap[v.TypeName()], p.perror...)
 			p.perror = nil
@@ -350,88 +350,59 @@ func (p *Parser) ParseStatement() ast.GQLTypeProvider {
 	return nil
 }
 
-// ====================  fetchAST  =============================
-// fetchAST should only be used after all statements have been passed
-//  As each statement is parsed its types are added to the cache
-//  During validation phase each type is checked for existence using this func.
-//  if not in cache then looks at DB for types that have been predefined.
-func (p *Parser) fetchAST(name ast.Name_) ast.GQLTypeProvider {
-	var (
-		ast_ ast.GQLTypeProvider
-		//base string // short name for type e.g. ENUM is "E", type foo is "O", Input foo is "In", Inteface is "I"
-		ok bool
-	)
-	name_ := name.Name
-	if ast_, ok = ast.CacheFetch(name_); !ok {
-		if !typeNotExists[name_] {
-			if typeDef, err := ast.DBFetch(name_); err != nil {
-				fmt.Println("++++++++ NO DATA FROM DB +++++++")
-				p.addErr(err.Error())
-				p.abort = true
-				return nil
-			} else {
-				//base := base
-				if len(typeDef) == 0 { // no type found in DB
-					// mark type as being nonexistent
-					typeNotExists[name_] = true
-					return nil
-				} else {
-					// generate the AST
-					fmt.Println()
-					l := lexer.New(typeDef)
-					fmt.Println()
-					p2 := New(l)
-					ast_ = p2.ParseStatement()
-					if len(p2.perror) > 0 {
-						// error in parsing stmt from db - this should not happen as only valid stmts are saved.
-						p.perror = append(p.perror, p2.perror...)
-					}
-					//
-					// save to cache
-					ast.Add2Cache(name_, ast_)
-					// now resolve all types in the ast
-					p.ResolveAllTypes(ast_)
-					if p.hasError() {
-						return nil
-					}
-
-				}
-			}
-		} else {
-			return nil
-		}
-	}
-	return ast_
-}
-
 // ===================  ResolveAllTypes  ==========================
 // ResolveAllTypes is a validation check performed after parsing completed
-//  unresolved Types from parsed types are then checked in DB.
-//  check performed across nested types until all leaf finsihed or unresolved found
-func (p *Parser) ResolveAllTypes(v ast.GQLTypeProvider) []error {
-	//returns slice of unresolved types from the statement passed in
-	unresolved := make(ast.UnresolvedMap)
-	v.CheckUnresolvedTypes(unresolved)
-
-	//  unresolved should only contain non-scalar types known upto that point.
-	for tyName, ty := range unresolved { // unresolvedMap: [name]*Type
-		ast_ := p.fetchAST(tyName)
+//  otherNonScalarTypes Types from parsed types are then checked in DB.
+//  check performed across nested types until all leaf finsihed or otherNonScalarTypes found
+func (p *Parser) ResolveAllTypes(v ast.GQLTypeProvider, t *Cache_) []error {
+	fmt.Println(" ======================================== ResolveAllTypes ======================", len(t.Cache))
+	//returns slice of otherNonScalarTypes types from the statement passed in
+	otherNonScalarTypes := make(ast.UnresolvedMap)
+	//
+	// find all otherNonScalarTypes nested within the current type
+	//
+	v.SolicitNonScalarTypes(otherNonScalarTypes)
+	//
+	// get all resolved types from the cache
+	//
+	t.Lock()
+	resolved := make(ast.UnresolvedMap)
+	for tyName := range otherNonScalarTypes {
+		if _, ok := t.Cache[tyName.String()]; ok {
+			resolved[tyName] = nil
+			if tyName.Name == v.TypeName() {
+				// remove type that is under consideration from list of types to be resolved.
+				delete(otherNonScalarTypes, tyName)
+			}
+		}
+	}
+	t.Unlock()
+	//
+	//  otherNonScalarTypes should now contain non-scalar types except current type under investigation. We need all types as we use loop to poluates the field "Type" attribute, AST when it exists.
+	//
+	for tyName, ty := range otherNonScalarTypes {
+		fmt.Println(" tyName : ", tyName)
+		// resolve type
+		ast_, err := t.FetchAST(tyName.Name)
 		// type ENUM values will have nil *Type
 		if ast_ != nil {
 			if ty != nil {
 				ty.AST = ast_
-				// if not scalar then check for unresolved types in nested type
+				// if not scalar then check for otherNonScalarTypes types in nested type
 				if !ty.IsScalar() {
-					p.ResolveAllTypes(ast_)
+					if _, ok := resolved[tyName]; !ok {
+						fmt.Println(" for any type not resolved to date,  run again...", v.TypeName().String(), tyName.String())
+						p.ResolveAllTypes(ast_, t)
+					}
 				}
 			}
 
 		} else {
 			// nil ast_ means not found in db
-			if ty != nil {
-				p.addErr(fmt.Sprintf(`tt Type "%s" does not exist %s`, ty.Name, ty.AtPosition()))
+			if err == nil {
+				p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, ty.Name, ty.AtPosition()))
 			} else {
-				p.addErr(fmt.Sprintf(`rr Type "%s" does not exist %s`, tyName, tyName.AtPosition()))
+				p.addErr(fmt.Sprintf(`%s. Type "%s" does not exist %s`, err, tyName, tyName.AtPosition()))
 			}
 		}
 	}
@@ -485,13 +456,24 @@ func (p *Parser) CheckSelfReference(directive ast.NameValue_, x *ast.Directive_)
 func (p *Parser) CheckUnionMembers(x *ast.Union_) {
 	//
 	for _, m := range x.NameS {
-		ast_ := p.fetchAST(m)
-		if ast_ == nil {
-			p.addErr(fmt.Sprintf(`Union member "%s" does not exist %s`, m, m.AtPosition()))
+		ast_, err := p.cache.FetchAST(m.Name)
+		if ast_ == nil || err != nil {
+			p.addErr(fmt.Sprintf(`%s. Union member "%s" does not exist %s`, err, m, m.AtPosition()))
 		} else {
-			if _, ok := ast_.(*ast.Object_); !ok {
-				p.addErr(fmt.Sprintf(`Union member "%s" must be an object type %s`, m, m.AtPosition()))
+			switch ast_.(type) {
+			case *ast.Object_, *ast.Union_, *ast.Interface_, *ast.Scalar_: //, *ast.Int_, *ast.Float_, *ast.String_, *ast.Boolean_, *ast.ID_:
+			default:
+				if x, ok := ast_.(ast.InputValueProvider); ok {
+					switch x.(type) {
+					case *ast.Int_, *ast.Float_, *ast.String_, *ast.Bool_, *ast.ID_:
+					default:
+						p.addErr(fmt.Sprintf(`Union member "%s" must be an object based type %s`, m, m.AtPosition()))
+					}
+				} else {
+					p.addErr(fmt.Sprintf(`Union member "%s" must be an object based type %s`, m, m.AtPosition()))
+				}
 			}
+
 		}
 	}
 }
@@ -915,7 +897,10 @@ func (p *Parser) parseExtendName() (ast.GQLTypeProvider, ast.Name_) {
 		}
 	}
 	name_ := ast.Name_{Name: ast.NameValue_(extName), Loc: p.Loc()}
-	ast := p.fetchAST(name_)
+	ast, err := p.cache.FetchAST(name_.Name)
+	if err != nil {
+		p.addErr(err.Error())
+	}
 	if ast != nil {
 		p.nextToken() // read over name
 	}

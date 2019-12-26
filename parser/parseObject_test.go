@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/graph-sdl/ast"
+	"github.com/graph-sdl/db"
 	"github.com/graph-sdl/lexer"
 )
 
@@ -2537,7 +2537,7 @@ extend type Person2 @addedDirective34
 
 	// `
 
-	err := ast.DeleteType("Person2")
+	err := db.DeleteType("Person2")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
@@ -2612,7 +2612,7 @@ extend type Person2 {
 extend type Person2 { NewColumn : [[String!]!] }
 
 `
-	err := ast.DeleteType("Person2")
+	err := db.DeleteType("Person2")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
@@ -2892,7 +2892,7 @@ type Measure66 {
 }
 `
 
-	err := ast.DeleteType("Myobject66")
+	err := db.DeleteType("Myobject66")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}

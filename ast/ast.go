@@ -233,10 +233,10 @@ func (a *InputValue_) CheckInputValueType(refType *Type_, nm Name_, err *[]error
 }
 
 func BaseType(t GQLTypeProvider) string {
-	return isType(t)
+	return IsGLType(t)
 }
 
-func isType(t GQLTypeProvider) string {
+func IsGLType(t GQLTypeProvider) string {
 	//
 	//
 	// non-standard defined types
@@ -380,7 +380,7 @@ func (t *Type_) isType2() TypeFlag_ {
 
 func (t *Type_) IsScalar() bool {
 	switch t.isType() {
-	case INT, FLOAT, STRING, BOOLEAN, SCALAR, ID:
+	case INT, FLOAT, STRING, BOOLEAN, SCALAR, ID, ENUM, ENUMVALUE:
 		return true
 	default:
 		return false
@@ -652,10 +652,10 @@ func (d *Directives_) Len() int {
 	return len(d.Directives)
 }
 
-func (d *Directives_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
-	for _, v := range d.Directives {
-		unresolved[v.Name_] = nil
-	}
+func (d *Directives_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
+	// for _, v := range d.Directives {
+	// 	unresolved[v.Name_] = nil
+	// }
 }
 
 func (d *Directives_) CheckDirectiveRef(dir NameValue_, err *[]error) {
@@ -667,29 +667,29 @@ func (d *Directives_) CheckDirectiveRef(dir NameValue_, err *[]error) {
 }
 
 func (d *Directives_) checkDirectiveLocation_(input DirectiveLoc, err *[]error) {
-	var found bool
-	for _, v := range d.Directives {
-		// get the use named directive's AST
-		if ast_, ok := CacheFetch(v.Name); ok {
-			found = false
-			if x, ok := ast_.(*Directive_); ok {
-				for _, loc := range x.Location {
-					if loc == input {
-						found = true
-					}
-				}
-				if !found {
-					if dloc, ok := DirectiveLocationMap[input]; ok {
-						*err = append(*err, fmt.Errorf(`Directive "%s" is not registered for %s usage %s`, v.Name, dloc, v.Name_.AtPosition()))
-					} else {
-						*err = append(*err, fmt.Errorf(`System Error: Directive %s not found in map `, v.Name, dloc, v.Name_.AtPosition()))
-					}
-				}
-			} else {
-				*err = append(*err, fmt.Errorf(`AST for type %s is not a Directive_ type %s`, v.Name, v.Name_.AtPosition()))
-			}
-		}
-	}
+	// 	var found bool
+	// 	for _, v := range d.Directives {
+	// 		// get the use named directive's AST
+	// 		// if e, ok := CacheFetch(v.Name); ok {	//TODO - should not access CacheFetch from within AST methods - cache should only be available to parser and executor
+	// 		// 	found = false
+	// 		// 	if x, ok := ast_.(*Directive_); ok {
+	// 		// 		for _, loc := range x.Location {
+	// 		// 			if loc == input {
+	// 		// 				found = true
+	// 		// 			}
+	// 		// 		}
+	// 		// 		if !found {
+	// 		// 			if dloc, ok := DirectiveLocationMap[input]; ok {
+	// 		// 				*err = append(*err, fmt.Errorf(`Directive "%s" is not registered for %s usage %s`, v.Name, dloc, v.Name_.AtPosition()))
+	// 		// 			} else {
+	// 		// 				*err = append(*err, fmt.Errorf(`System Error: Directive %s not found in map `, v.Name, dloc, v.Name_.AtPosition()))
+	// 		// 			}
+	// 		// 		}
+	// 		// 	} else {
+	// 		// 		*err = append(*err, fmt.Errorf(`AST for type %s is not a Directive_ type %s`, v.Name, v.Name_.AtPosition()))
+	// 		// 	}
+	// 		// }
+	// 	}
 }
 
 // =========== Loc_ =============================
@@ -797,7 +797,7 @@ func (d Document) String() string {
 type GQLTypeProvider interface {
 	TypeSystemNode()
 	TypeName() NameValue_
-	CheckUnresolvedTypes(unresolved UnresolvedMap) // while not all Types contain nested types that need to be resolved e.g scalar must still include this method
+	SolicitNonScalarTypes(UnresolvedMap) // while not all Types contain nested types that need to be resolved e.g scalar must still include this method
 	CheckDirectiveRef(dir NameValue_, err *[]error)
 	CheckDirectiveLocation(err *[]error)
 	String() string

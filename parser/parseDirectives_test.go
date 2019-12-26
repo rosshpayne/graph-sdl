@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/graph-sdl/ast"
+	"github.com/graph-sdl/db"
 	"github.com/graph-sdl/lexer"
 )
 
@@ -470,31 +470,31 @@ x(Nm : String ={x:"abc" y:1 } @exampleDirOK ) : String
 y(Nm : Float =23.3@exampleDirOK ) : exampleTypeOuter2a @ exampleDirOK 
 }`
 
-	err := ast.DeleteType("exampleDirOK")
+	err := db.DeleteType("exampleDirOK")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("ExampleRefType")
+	err = db.DeleteType("ExampleRefType")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("ExampleInput")
+	err = db.DeleteType("ExampleInput")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("exampleTypeOuter")
+	err = db.DeleteType("exampleTypeOuter")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("exampleInput2")
+	err = db.DeleteType("exampleInput2")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("exampleTypeOuter2b")
+	err = db.DeleteType("exampleTypeOuter2b")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("exampleDirRef")
+	err = db.DeleteType("exampleDirRef")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
@@ -547,31 +547,31 @@ y(Nm : Float =23.3@exampleDirOK ) : exampleTypeOuter2a @ exampleDirOK
 		t.Errorf("Expected: [%s] \n", trimWS(expectedDoc))
 		t.Errorf(`Unexpected: program.String() wrong. `)
 	}
-	err = ast.DeleteType("exampleDirOK")
+	err = db.DeleteType("exampleDirOK")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("ExampleRefType")
+	err = db.DeleteType("ExampleRefType")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("ExampleInput")
+	err = db.DeleteType("ExampleInput")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("exampleTypeOuter")
+	err = db.DeleteType("exampleTypeOuter")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("exampleInput2")
+	err = db.DeleteType("exampleInput2")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("exampleTypeOuter2b")
+	err = db.DeleteType("exampleTypeOuter2b")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("exampleDirRef")
+	err = db.DeleteType("exampleDirRef")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
@@ -593,15 +593,15 @@ type SomeType {
 
 `
 
-	err := ast.DeleteType("SomeType")
+	err := db.DeleteType("SomeType")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("SomeInput")
+	err = db.DeleteType("SomeInput")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("exampleDirRef")
+	err = db.DeleteType("exampleDirRef")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}

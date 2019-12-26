@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/graph-sdl/ast"
+	"github.com/graph-sdl/db"
 	"github.com/graph-sdl/lexer"
 )
 
@@ -164,7 +164,7 @@ func TestScalarUsage(t *testing.T) {
 		Joined:Time
 	}`
 
-	err := ast.DeleteType("Customer")
+	err := db.DeleteType("Customer")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
@@ -209,21 +209,21 @@ func TestScalarCheckx(t *testing.T) {
 	}
 `
 
-	// err := ast.DeleteType("Time")
+	// err := db.DeleteType("Time")
 	// if err != nil {
 	// 	t.Errorf(`Not expected Error =[%q]`, err.Error())
 	// }
-	err := ast.DeleteType("Foo")
+	err := db.DeleteType("Foo")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	} else {
 		fmt.Println("Success deleted...")
 	}
-	// err = ast.DeleteType("Address")
+	// err = db.DeleteType("Address")
 	// if err != nil {
 	// 	t.Errorf(`Not expected Error =[%q]`, err.Error())
 	// }
-	// err = ast.DeleteType("Customer")
+	// err = db.DeleteType("Customer")
 	// if err != nil {
 	// 	t.Errorf(`Not expected Error =[%q]`, err.Error())
 	// }
@@ -268,19 +268,19 @@ func TestScalarCheckNoType(t *testing.T) {
 	}
 `
 
-	// err := ast.DeleteType("Time")
+	// err := db.DeleteType("Time")
 	// if err != nil {
 	// 	t.Errorf(`Not expected Error =[%q]`, err.Error())
 	// }
-	err := ast.DeleteType("Foo")
+	err := db.DeleteType("Foo")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Address")
+	err = db.DeleteType("Address")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Customer")
+	err = db.DeleteType("Customer")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
@@ -335,19 +335,19 @@ func TestScalarCheckAllOK(t *testing.T) {
 	}
 `
 
-	// err := ast.DeleteType("Time")
+	// err := db.DeleteType("Time")
 	// if err != nil {
 	// 	t.Errorf(`Not expected Error =[%q]`, err.Error())
 	// }
-	err := ast.DeleteType("Foo")
+	err := db.DeleteType("Foo")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Address")
+	err = db.DeleteType("Address")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Customer")
+	err = db.DeleteType("Customer")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
@@ -413,19 +413,19 @@ func TestScalarCheckAllOK2(t *testing.T) {
 `
 	var expectedErr [1]string
 	expectedErr[0] = ``
-	// err := ast.DeleteType("Time")
+	// err := db.DeleteType("Time")
 	// if err != nil {
 	// 	t.Errorf(`Not expected Error =[%q]`, err.Error())
 	// }
-	err := ast.DeleteType("Foo")
+	err := db.DeleteType("Foo")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Address")
+	err = db.DeleteType("Address")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Customer")
+	err = db.DeleteType("Customer")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
@@ -478,7 +478,7 @@ func TestScalarNestedTypeCheck2(t *testing.T) {
 
 	// *** unrealistic delete, but its purpose is to check that the program is performing nested type checking.
 
-	err := ast.DeleteType("Time")
+	err := db.DeleteType("Time")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}

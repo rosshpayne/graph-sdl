@@ -1,7 +1,7 @@
 package ast
 
 import (
-	"errors"
+	_ "errors"
 	"fmt"
 	"log"
 	"strings"
@@ -149,13 +149,20 @@ func init() {
 
 func IsInputType(t *Type_) bool {
 	// determine inputType from t.Name
+	fmt.Println("***** IsInputType ***** ", t.Name)
+	if t.AST == nil {
+		fmt.Println("AST IS nil so cannot determine input type")
+	}
 	if t.IsScalar() {
+		fmt.Println(" IsScalar true")
 		return true
 	}
 	switch t.isType() {
 	case ENUM, INPUT:
+		fmt.Println(" ENUM, INPUT true")
 		return true
 	default:
+		fmt.Println(" false")
 		return false
 	}
 }
@@ -387,14 +394,9 @@ func (o ObjectVals) ValidateObjectValues(ref *Type_, err *[]error) {
 // Slice of Name_
 type NameS []Name_
 
-// CheckUnresolvedTypes is typically promoted to type that embedds the NameS type.
-func (f NameS) CheckUnresolvedTypes(unresolved UnresolvedMap) { //TODO rename to checkUnresolvedTypes
-	for _, v := range f {
-		// check if the implement type is cached.
-		if _, ok := CacheFetch(v.Name); !ok {
-			unresolved[v] = nil
-		}
-	}
+// SolicitNonScalarTypes is typically promoted to type that embedds the NameS type.
+func (f NameS) SolicitNonScalarTypes(unresolved UnresolvedMap) { //TODO rename to checkUnresolvedTypes
+	//  handled by type in which NameS is nested
 }
 
 type SelectionGetter interface {
@@ -450,50 +452,55 @@ func (o *Object_) CheckDirectiveLocation(err *[]error) {
 }
 
 func (f *Object_) CheckImplements(err *[]error) {
-	for _, v := range f.Implements {
-		// check name represents a interface type in ast
-		if itf, ok, str := fetchInterface(v); !ok {
-			*err = append(*err, errors.New(fmt.Sprintf(str)))
-		} else {
-			// check object implements the interface
-			satisfied := make(map[NameValue_]bool)
-			for _, v := range itf.FieldSet {
-				satisfied[v.Name] = false
-			}
-			for _, ifn := range itf.FieldSet { // interface fields
-				for _, fn := range f.FieldSet { // object fields
-					if ifn.Name_.String() == fn.Name_.String() {
-						if ifn.Type.Equals(fn.Type) {
-							satisfied[fn.Name] = true
-						}
-					}
-				}
-			}
-			//
-			// publish in repeatable order because maps cannot
-			//
-			var s strings.Builder
-			for _, ifn := range itf.FieldSet { // interface fields
-				if v, ok := satisfied[ifn.Name]; ok {
-					if !v {
-						s.WriteString(` "`)
-						s.WriteString(ifn.Name.String())
-						s.WriteString(`"`)
-					}
-				}
-			}
-			if len(s.String()) > 0 {
-				*err = append(*err, fmt.Errorf(`Type "%s" does not implement interface "%s", missing %s`, f.Name_, itf.Name_, s.String()))
-			}
+	//	for _, v := range f.Implements {
+	// check name represents a interface type in ast
+	// TODO - requires fetchInterface to use cache - rethink - MAYBE SHOULD NOT BE A OBJECT METHOD but a check in the parser itself as it has access to the cache.
+	// if itf, ok, str := fetchInterface(v); !ok {
+	// 	*err = append(*err, errors.New(fmt.Sprintf(str)))
+	// } else {
+	// 	// check object implements the interface
+	// 	satisfied := make(map[NameValue_]bool)
+	// 	for _, v := range itf.FieldSet {
+	// 		satisfied[v.Name] = false
+	// 	}
+	// 	for _, ifn := range itf.FieldSet { // interface fields
+	// 		for _, fn := range f.FieldSet { // object fields
+	// 			if ifn.Name_.String() == fn.Name_.String() {
+	// 				if ifn.Type.Equals(fn.Type) {
+	// 					satisfied[fn.Name] = true
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// 	//
+	// 	// publish in repeatable order because maps cannot
+	// 	//
+	// 	var s strings.Builder
+	// 	for _, ifn := range itf.FieldSet { // interface fields
+	// 		if v, ok := satisfied[ifn.Name]; ok {
+	// 			if !v {
+	// 				s.WriteString(` "`)
+	// 				s.WriteString(ifn.Name.String())
+	// 				s.WriteString(`"`)
+	// 			}
+	// 		}
+	// 	}
+	// 	if len(s.String()) > 0 {
+	// 		*err = append(*err, fmt.Errorf(`Type "%s" does not implement interface "%s", missing %s`, f.Name_, itf.Name_, s.String()))
+	// 	}
 
-		}
-	}
+	// }
+	//	}
 }
 
-func (o *Object_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
-	o.FieldSet.CheckUnresolvedTypes(unresolved)
-	o.Implements.CheckUnresolvedTypes(unresolved)
-	o.Directives_.CheckUnresolvedTypes(unresolved)
+func (o *Object_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
+	o.FieldSet.SolicitNonScalarTypes(unresolved)
+	//
+	//	o.Implements.SolicitNonScalarTypes(unresolved)
+	for _, v := range o.Implements {
+		unresolved[v] = nil
+	}
+	//	o.Directives_.SolicitNonScalarTypes(unresolved)
 }
 
 func (f *Object_) CheckIsOutputType(err *[]error) {
@@ -710,9 +717,9 @@ func (f *FieldSet) String() string {
 	return s.String()
 }
 
-func (fs *FieldSet) CheckUnresolvedTypes(unresolved UnresolvedMap) {
+func (fs *FieldSet) SolicitNonScalarTypes(unresolved UnresolvedMap) {
 	for _, v := range *fs {
-		v.CheckUnresolvedTypes(unresolved)
+		v.SolicitNonScalarTypes(unresolved)
 	}
 }
 
@@ -764,24 +771,16 @@ func (f *Field_) CheckDirectiveLocation(err *[]error) {
 // 	return a.Name_.Equals(b.Name_) && a.Type.Equals(b.Type)
 // }
 
-func (f *Field_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
+func (f *Field_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
 	if f.Type == nil {
 		log.Panic(fmt.Errorf("Severe Error - not expected: Field.Type is not assigned for [%s]", f.Name_.String()))
 	}
-	if !f.Type.IsScalar() {
-		if f.Type.AST == nil {
-			// check in cache only at this stage.
-			// When control passes back to parser we resolved the unresolved using the DB and parse stmt if found.
-			if ast, ok := CacheFetch(f.Type.Name); !ok {
-				unresolved[f.Type.Name_] = f.Type
-			} else {
-				f.Type.AST = ast
-			}
-		}
+	if !f.Type.IsScalar() && f.Type.AST == nil {
+		unresolved[f.Type.Name_] = f.Type
 	}
 	//
-	f.ArgumentDefs.CheckUnresolvedTypes(unresolved)
-	f.Directives_.CheckUnresolvedTypes(unresolved)
+	f.ArgumentDefs.SolicitNonScalarTypes(unresolved)
+	//	f.Directives_.SolicitNonScalarTypes(unresolved)
 }
 
 // use following method to override the promoted methods from Name_ and Directives_ fields. Forces use of Name_ method.
@@ -857,10 +856,10 @@ func (fa *InputValueDefs) String(encl [2]token.TokenType) string {
 	return s.String()
 }
 
-func (fa InputValueDefs) CheckUnresolvedTypes(unresolved UnresolvedMap) {
+func (fa InputValueDefs) SolicitNonScalarTypes(unresolved UnresolvedMap) {
 
 	for _, v := range fa {
-		v.CheckUnresolvedTypes(unresolved)
+		v.SolicitNonScalarTypes(unresolved)
 	}
 }
 
@@ -892,7 +891,7 @@ type InputValueDef struct {
 	Directives_
 }
 
-func (fa *InputValueDef) CheckUnresolvedTypes(unresolved UnresolvedMap) { //TODO - check this..should it use unresolvedMap?
+func (fa *InputValueDef) SolicitNonScalarTypes(unresolved UnresolvedMap) { //TODO - check this..should it use unresolvedMap?
 	if fa.Type == nil {
 		err := fmt.Errorf("Severe Error - not expected: InputValueDef.Type is not assigned for [%s]", fa.Name_.String())
 		log.Panic(err)
@@ -900,7 +899,7 @@ func (fa *InputValueDef) CheckUnresolvedTypes(unresolved UnresolvedMap) { //TODO
 	if !fa.Type.IsScalar() && fa.Type.AST == nil {
 		unresolved[fa.Type.Name_] = fa.Type
 	}
-	fa.Directives_.CheckUnresolvedTypes(unresolved)
+	//fa.Directives_.SolicitNonScalarTypes(unresolved)
 }
 
 func (fa *InputValueDef) CheckDirectiveLocation(err *[]error) {
@@ -956,11 +955,11 @@ type Enum_ struct {
 }
 
 func (e *Enum_) TypeSystemNode() {}
-func (e *Enum_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
-	e.Directives_.CheckUnresolvedTypes(unresolved)
-	for _, v := range e.Values {
-		v.CheckUnresolvedTypes(unresolved)
-	}
+func (e *Enum_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
+	//	e.Directives_.SolicitNonScalarTypes(unresolved)
+	// for _, v := range e.Values {
+	// 	v.SolicitNonScalarTypes(unresolved)
+	// }
 }
 
 func (e *Enum_) Type() string {
@@ -1010,8 +1009,8 @@ func (e *EnumValue_) IsType() TypeFlag_ {
 	return ENUMVALUE
 }
 func (e *EnumValue_) TypeSystemNode() {}
-func (e *EnumValue_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
-	e.Directives_.CheckUnresolvedTypes(unresolved)
+func (e *EnumValue_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
+	//	e.Directives_.SolicitNonScalarTypes(unresolved)
 }
 
 func (e *EnumValue_) Type() string {
@@ -1036,29 +1035,30 @@ func (e *EnumValue_) String() string {
 	return s.String()
 }
 
-// CheckUnresolvedTypes checks the ENUM value (as Argument in Field object) is a member of the ENUM Type.
+// SolicitNonScalarTypes checks the ENUM value (as Argument in Field object) is a member of the ENUM Type.
 func (e *EnumValue_) CheckEnumValue(a *Type_, err *[]error) {
 	// get Enum type and compare it against the instance value
-	if ast_, ok := CacheFetch(a.Name); ok {
-		switch enum_ := ast_.(type) {
-		case *Enum_:
-			found := false
-			for _, v := range enum_.Values {
-				if v.Name_.String() == e.Name_.String() {
-					found = true
-					break
-				}
-			}
-			if !found {
-				*err = append(*err, fmt.Errorf(` "%s" is not a member of type Enum %s %s`, e.Name_, a.Name, e.Name_.AtPosition()))
-			}
-		default:
-			*err = append(*err, fmt.Errorf(`Type "%s" is not an ENUM but argument value "%s" is an ENUM value `, a.Name, e.Name_, e.Name_.AtPosition()))
-		}
+	// TODO - rethink this solution - should not use CacheFEtch in type mthod
+	// if ast_, ok := CacheFetch(a.Name); ok {
+	// 	switch enum_ := ast_.(type) {
+	// 	case *Enum_:
+	// 		found := false
+	// 		for _, v := range enum_.Values {
+	// 			if v.Name_.String() == e.Name_.String() {
+	// 				found = true
+	// 				break
+	// 			}
+	// 		}
+	// 		if !found {
+	// 			*err = append(*err, fmt.Errorf(` "%s" is not a member of type Enum %s %s`, e.Name_, a.Name, e.Name_.AtPosition()))
+	// 		}
+	// 	default:
+	// 		*err = append(*err, fmt.Errorf(`Type "%s" is not an ENUM but argument value "%s" is an ENUM value `, a.Name, e.Name_, e.Name_.AtPosition()))
+	// 	}
 
-	} else {
-		*err = append(*err, fmt.Errorf(`Enum type "%s" is not found in cache`, a.Name, e.Name_.AtPosition()))
-	}
+	// } else {
+	// 	*err = append(*err, fmt.Errorf(`Enum type "%s" is not found in cache`, a.Name, e.Name_.AtPosition()))
+	// }
 }
 
 // ======================  Schema =========================
@@ -1081,9 +1081,9 @@ type Interface_ struct {
 }
 
 func (i *Interface_) TypeSystemNode() {}
-func (i *Interface_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
-	i.Directives_.CheckUnresolvedTypes(unresolved)
-	i.FieldSet.CheckUnresolvedTypes(unresolved)
+func (i *Interface_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
+	//i.Directives_.SolicitNonScalarTypes(unresolved)
+	i.FieldSet.SolicitNonScalarTypes(unresolved)
 }
 
 func (i *Interface_) Type() string {
@@ -1150,8 +1150,11 @@ type Union_ struct {
 }
 
 func (u *Union_) TypeSystemNode() {}
-func (u *Union_) CheckUnresolvedTypes(unresolved UnresolvedMap) { // TODO check this is being executed
-	u.Directives_.CheckUnresolvedTypes(unresolved)
+func (u *Union_) SolicitNonScalarTypes(unresolved UnresolvedMap) { // TODO check this is being executed
+	//u.Directives_.SolicitNonScalarTypes(unresolved)
+	for _, v := range u.NameS {
+		unresolved[v] = nil
+	}
 }
 
 func (u *Union_) Type() string {
@@ -1206,9 +1209,9 @@ type Input_ struct {
 }
 
 func (e *Input_) TypeSystemNode() {}
-func (e *Input_) CheckUnresolvedTypes(unresolved UnresolvedMap) { // TODO check this is being executed
-	e.Directives_.CheckUnresolvedTypes(unresolved)
-	e.InputValueDefs.CheckUnresolvedTypes(unresolved)
+func (e *Input_) SolicitNonScalarTypes(unresolved UnresolvedMap) { // TODO check this is being executed
+	//e.Directives_.SolicitNonScalarTypes(unresolved)
+	e.InputValueDefs.SolicitNonScalarTypes(unresolved)
 }
 
 func (e *Input_) Type() string {
@@ -1276,8 +1279,8 @@ func (e *Scalar_) IsType() TypeFlag_ {
 func (e *Scalar_) Type() string {
 	return "scalar"
 }
-func (e *Scalar_) CheckUnresolvedTypes(unresolved UnresolvedMap) { // TODO check this is being executed
-	e.Directives_.CheckUnresolvedTypes(unresolved)
+func (e *Scalar_) SolicitNonScalarTypes(unresolved UnresolvedMap) { // TODO check this is being executed
+	//	e.Directives_.SolicitNonScalarTypes(unresolved)
 }
 func (i *Scalar_) TypeName() NameValue_ {
 	return NameValue_(i.Name)
@@ -1367,8 +1370,8 @@ func (d *Directive_) Type() string {
 }
 
 //func (d *Directive_) ValueNode()      {}
-func (d *Directive_) CheckUnresolvedTypes(unresolved UnresolvedMap) {
-	d.ArgumentDefs.CheckUnresolvedTypes(unresolved)
+func (d *Directive_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
+	d.ArgumentDefs.SolicitNonScalarTypes(unresolved)
 }
 func (d *Directive_) CheckDirectiveRef(dir NameValue_, err *[]error) {
 	for _, v := range d.ArgumentDefs {

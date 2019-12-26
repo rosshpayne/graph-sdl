@@ -3,7 +3,7 @@ package parser
 import (
 	"testing"
 
-	"github.com/graph-sdl/ast"
+	"github.com/graph-sdl/db"
 	"github.com/graph-sdl/lexer"
 )
 
@@ -24,15 +24,15 @@ type Person implements NamedEntity {
 	var expectedErr [1]string
 	expectedErr[0] = `Type "NamedEntity" does not exist at line: 6 column: 24`
 
-	err := ast.DeleteType("ValuedEntity")
+	err := db.DeleteType("ValuedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("NamedEntity")
+	err = db.DeleteType("NamedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Person")
+	err = db.DeleteType("Person")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
@@ -124,15 +124,15 @@ type Person implements NamedEntity & ValuedEntity2 {
   age: Int
 }
 `
-	err := ast.DeleteType("ValuedEntity")
+	err := db.DeleteType("ValuedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Person")
+	err = db.DeleteType("Person")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("NamedEntity")
+	err = db.DeleteType("NamedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
@@ -194,27 +194,27 @@ type Person implements NamedEntity & ValuedEntity {
 	expectedErr[2] = `Type "Bool", does not exist at line: 11 column: 11`
 	expectedErr[3] = `Type "In", does not exist at line: 16 column: 8`
 
-	err := ast.DeleteType("ValuedEntity")
+	err := db.DeleteType("ValuedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Person")
+	err = db.DeleteType("Person")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("NamedEntity")
+	err = db.DeleteType("NamedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Int2")
+	err = db.DeleteType("Int2")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Bool")
+	err = db.DeleteType("Bool")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("In")
+	err = db.DeleteType("In")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
@@ -388,19 +388,19 @@ func TestImplements6x(t *testing.T) {
 
 	`
 	// replace entities with their above definitions.
-	err := ast.DeleteType("NamedEntity")
+	err := db.DeleteType("NamedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("ValuedEntity")
+	err = db.DeleteType("ValuedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Person")
+	err = db.DeleteType("Person")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Business")
+	err = db.DeleteType("Business")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
@@ -454,19 +454,19 @@ func TestImplements6a(t *testing.T) {
 	var expectedErr [1]string
 	expectedErr[0] = `Type "Business" does not implement interface "NamedEntity", missing "name"`
 
-	err := ast.DeleteType("NamedEntity")
+	err := db.DeleteType("NamedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("ValuedEntity")
+	err = db.DeleteType("ValuedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Person")
+	err = db.DeleteType("Person")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Business")
+	err = db.DeleteType("Business")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
@@ -577,19 +577,19 @@ type Business implements NamedEntity & ValuedEntity {
 				 type Person implements NamedEntity {name:String age:Int} 
 				 interface ValuedEntity {value:Int}`
 
-	err := ast.DeleteType("NamedEntity")
+	err := db.DeleteType("NamedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("ValuedEntity")
+	err = db.DeleteType("ValuedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Person")
+	err = db.DeleteType("Person")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Business")
+	err = db.DeleteType("Business")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
@@ -640,19 +640,19 @@ type Business implements & NamedEntity & ValuedEntity {
 	var expectedErr [1]string
 	expectedErr[0] = `Type "Business" does not implement interface "ValuedEntity", missing "size" "length" `
 
-	err := ast.DeleteType("NamedEntity")
+	err := db.DeleteType("NamedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("ValuedEntity")
+	err = db.DeleteType("ValuedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Person")
+	err = db.DeleteType("Person")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Business")
+	err = db.DeleteType("Business")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
@@ -726,19 +726,19 @@ type Business2 implements & NamedEntity & ValuedEntity {
 	expectedErr[2] = `Type "Business" does not implement interface "ValuedEntity", missing  "size" "length"`
 	expectedErr[3] = `Type "Business2" does not implement interface "ValuedEntity", missing  "size"`
 
-	err := ast.DeleteType("NamedEntity")
+	err := db.DeleteType("NamedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("ValuedEntity")
+	err = db.DeleteType("ValuedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Business")
+	err = db.DeleteType("Business")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Business2")
+	err = db.DeleteType("Business2")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
@@ -811,19 +811,19 @@ type Business2 implements & NamedEntity & ValuedEntity {
 	expectedErr[1] = `Type "Business" does not implement interface "NamedEntity", missing  "XXX"`
 	expectedErr[2] = `Type "Business" does not implement interface "ValuedEntity", missing  "size" "length"`
 
-	err := ast.DeleteType("NamedEntity")
+	err := db.DeleteType("NamedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("ValuedEntity")
+	err = db.DeleteType("ValuedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Business")
+	err = db.DeleteType("Business")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Business2")
+	err = db.DeleteType("Business2")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
@@ -899,19 +899,19 @@ type Droid implements Character {
 	expectedErr[1] = `Type "Business" does not implement interface "NamedEntity", missing  "XXX"`
 	expectedErr[2] = `Type "Business" does not implement interface "ValuedEntity", missing  "size" "length"`
 
-	err := ast.DeleteType("NamedEntity")
+	err := db.DeleteType("NamedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("ValuedEntity")
+	err = db.DeleteType("ValuedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Business")
+	err = db.DeleteType("Business")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	err = ast.DeleteType("Business2")
+	err = db.DeleteType("Business2")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
