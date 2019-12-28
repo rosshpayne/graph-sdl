@@ -287,10 +287,12 @@ func (p *Parser) ParseDocument(doc ...string) (program *ast.Document, errs []err
 	for _, v := range program.StatementsMap {
 		// only proceed if zero errors for stmt
 		if len(program.ErrorMap[v.TypeName()]) == 0 {
+			p.checkFieldASTAssigned(v)
 			switch x := v.(type) {
 			case *ast.Input_:
 				x.CheckIsInputType(&p.perror)
 			case *ast.Object_:
+				//		p.checkFieldASTAssigned(v)
 				if p.containsErr(x.CheckIsOutputType, 5) {
 					continue
 				}
@@ -303,6 +305,7 @@ func (p *Parser) ParseDocument(doc ...string) (program *ast.Document, errs []err
 				x.CheckImplements(&p.perror) // check implements are interfaces
 			case *ast.Enum_:
 			case *ast.Interface_:
+				//		p.checkFieldASTAssigned(v)
 			case *ast.Union_:
 				p.CheckUnionMembers(x)
 			case *ast.Directive_:
@@ -559,6 +562,30 @@ func (p *Parser) parseOperation(inp *ast.Schema_) *Parser {
 	p.nextToken() // read over op type
 
 	return p
+}
+
+// ================== checkFieldASTAssigned ======================================
+
+func (p *Parser) checkFieldASTAssigned(stmt ast.GQLTypeProvider) {
+
+	if x, ok := stmt.(ast.SelectionGetter); ok {
+
+		for _, fld := range x.GetSelectionSet() {
+			//
+			// Confirm argument value type against type definition
+			//
+			if !fld.Type.IsScalar() && fld.Type.AST == nil {
+				var err error
+				fld.Type.AST, err = p.cache.FetchAST(fld.Type.Name)
+				if err != nil {
+					p.addErr(err.Error())
+				}
+				if fld.Type.AST == nil {
+					panic(fmt.Sprintf("Type %s not found", fld.Type.Name))
+				}
+			}
+		}
+	}
 }
 
 // ==================== Object Type  ============================

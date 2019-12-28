@@ -135,10 +135,26 @@ type SearchQuery {
   firstSearchResult: SearchResult
 }
 
+type Query {
+  hero(episode: Episode): SearchQuery
+}
+
+enum Episode {
+  NEWHOPE
+  EMPIRE
+  JEDI
+  DRTYPE
+}
+
 `
 
 	expectedDoc := `
-
+enum Episode {
+  NEWHOPE
+  EMPIRE
+  JEDI
+  DRTYPE
+}
 type Person {
   name: String
   age: Int
@@ -148,17 +164,17 @@ type Photo {
   height: Int
   width: Int
 }
+type Query {
+  hero(episode: Episode): SearchQuery
+}
 
 type SearchQuery {
   firstSearchResult: SearchResult
 }
 union SearchResult = |Photo | Person
+`
 
-   `
 	// 	var expectedErr [3]string
-	// 	expectedErr[0] = `Type "Person" does not implement interface "NamedEntity", missing  "XXX"`
-	// 	expectedErr[1] = `Type "Business" does not implement interface "NamedEntity", missing  "XXX"`
-	// 	expectedErr[2] = `Type "Business" does not implement interface "ValuedEntity", missing  "size" "length"`
 
 	err := db.DeleteType("SearchQuery")
 	if err != nil {
