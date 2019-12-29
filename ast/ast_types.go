@@ -10,6 +10,13 @@ import (
 	"github.com/graph-sdl/token"
 )
 
+// Type cache - each type and its associated AST is held in the cache.
+var TyCache map[string]GQLTypeProvider
+
+func InitCache(size int) {
+	TyCache = make(map[string]GQLTypeProvider, size)
+}
+
 // how this works
 //
 //  Load
@@ -1002,6 +1009,8 @@ type EnumValue_ struct {
 	Name_
 	Directives_
 	hostValue InputValueProvider
+	//
+	//parent *Enum_ // is a member to
 }
 
 func (e *EnumValue_) ValueNode() {} // instane of InputValue_
@@ -1035,30 +1044,30 @@ func (e *EnumValue_) String() string {
 	return s.String()
 }
 
-// SolicitNonScalarTypes checks the ENUM value (as Argument in Field object) is a member of the ENUM Type.
+// CheckEnumValue checks the ENUM value (as Argument in Field object) is a member of the ENUM Type.
 func (e *EnumValue_) CheckEnumValue(a *Type_, err *[]error) {
 	// get Enum type and compare it against the instance value
 	// TODO - rethink this solution - should not use CacheFEtch in type mthod
-	// if ast_, ok := CacheFetch(a.Name); ok {
-	// 	switch enum_ := ast_.(type) {
-	// 	case *Enum_:
-	// 		found := false
-	// 		for _, v := range enum_.Values {
-	// 			if v.Name_.String() == e.Name_.String() {
-	// 				found = true
-	// 				break
-	// 			}
-	// 		}
-	// 		if !found {
-	// 			*err = append(*err, fmt.Errorf(` "%s" is not a member of type Enum %s %s`, e.Name_, a.Name, e.Name_.AtPosition()))
-	// 		}
-	// 	default:
-	// 		*err = append(*err, fmt.Errorf(`Type "%s" is not an ENUM but argument value "%s" is an ENUM value `, a.Name, e.Name_, e.Name_.AtPosition()))
-	// 	}
+	if ast_, ok := TyCache[a.Name.String()]; ok {
+		switch enum_ := ast_.(type) {
+		case *Enum_:
+			found := false
+			for _, v := range enum_.Values {
+				if v.Name_.String() == e.Name_.String() {
+					found = true
+					break
+				}
+			}
+			if !found {
+				*err = append(*err, fmt.Errorf(` "%s" is not a member of Enum type %s %s`, e.Name_, a.Name, e.Name_.AtPosition()))
+			}
+		default:
+			*err = append(*err, fmt.Errorf(`Type "%s" is not an ENUM but argument value "%s" is an ENUM value `, a.Name, e.Name_, e.Name_.AtPosition()))
+		}
 
-	// } else {
-	// 	*err = append(*err, fmt.Errorf(`Enum type "%s" is not found in cache`, a.Name, e.Name_.AtPosition()))
-	// }
+	} else {
+		*err = append(*err, fmt.Errorf(`Enum type "%s" is not found in cache`, a.Name, e.Name_.AtPosition()))
+	}
 }
 
 // ======================  Schema =========================

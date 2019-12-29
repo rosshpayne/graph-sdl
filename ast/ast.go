@@ -667,29 +667,29 @@ func (d *Directives_) CheckDirectiveRef(dir NameValue_, err *[]error) {
 }
 
 func (d *Directives_) checkDirectiveLocation_(input DirectiveLoc, err *[]error) {
-	// 	var found bool
-	// 	for _, v := range d.Directives {
-	// 		// get the use named directive's AST
-	// 		// if e, ok := CacheFetch(v.Name); ok {	//TODO - should not access CacheFetch from within AST methods - cache should only be available to parser and executor
-	// 		// 	found = false
-	// 		// 	if x, ok := ast_.(*Directive_); ok {
-	// 		// 		for _, loc := range x.Location {
-	// 		// 			if loc == input {
-	// 		// 				found = true
-	// 		// 			}
-	// 		// 		}
-	// 		// 		if !found {
-	// 		// 			if dloc, ok := DirectiveLocationMap[input]; ok {
-	// 		// 				*err = append(*err, fmt.Errorf(`Directive "%s" is not registered for %s usage %s`, v.Name, dloc, v.Name_.AtPosition()))
-	// 		// 			} else {
-	// 		// 				*err = append(*err, fmt.Errorf(`System Error: Directive %s not found in map `, v.Name, dloc, v.Name_.AtPosition()))
-	// 		// 			}
-	// 		// 		}
-	// 		// 	} else {
-	// 		// 		*err = append(*err, fmt.Errorf(`AST for type %s is not a Directive_ type %s`, v.Name, v.Name_.AtPosition()))
-	// 		// 	}
-	// 		// }
-	// 	}
+	var found bool
+	for _, v := range d.Directives {
+		//	get the use named directive's AST
+		if e, ok := TyCache[v.Name.String()]; ok {
+			found = false
+			if x, ok := e.(*Directive_); ok {
+				for _, loc := range x.Location {
+					if loc == input {
+						found = true
+					}
+				}
+				if !found {
+					if dloc, ok := DirectiveLocationMap[input]; ok {
+						*err = append(*err, fmt.Errorf(`Directive "%s" is not registered for %s usage %s`, v.Name, dloc, v.Name_.AtPosition()))
+					} else {
+						*err = append(*err, fmt.Errorf(`System Error: Directive %s not found in map `, v.Name, dloc, v.Name_.AtPosition()))
+					}
+				}
+			} else {
+				*err = append(*err, fmt.Errorf(`AST for type %s is not a Directive_ type %s`, v.Name, v.Name_.AtPosition()))
+			}
+		}
+	}
 }
 
 // =========== Loc_ =============================

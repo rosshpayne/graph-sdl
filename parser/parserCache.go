@@ -13,11 +13,11 @@ import (
 // for GL types only
 type entry struct {
 	ready chan struct{}       // a channel for each entry - to synchronise access when the data is being sourced
-	data  ast.GQLTypeProvider // this represents the data to be cached. Its value is populated after the entry is saved in the cache.
+	data  ast.GQLTypeProvider // this represents the AST data to be cached. Its value is populated after the entry is saved in the cache.
 }
 
 type Cache_ struct {
-	sync.Mutex // Mutex protects complete cache. Channels protect individual entries.
+	sync.Mutex // Mutex protects whole cache. Channels protect individual cache entries.
 	Cache      map[string]*entry
 }
 

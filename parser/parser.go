@@ -249,6 +249,16 @@ func (p *Parser) ParseDocument(doc ...string) (program *ast.Document, errs []err
 		}
 	}
 	//
+	//  This is a fix because I incorrectly moved the type cache from the ast package to the parser, towards the end of development.
+	//  Fundamentally ast needs this data as does the parser, but because of cyclic dependency ast cannot access the cache when its in the parser.
+	//  TODO: put the cache back in ast. The parser can always access the ast cache.
+	//
+	ast.InitCache(len(p.cache.Cache))
+	for k, v := range p.cache.Cache {
+		ast.TyCache[k] = v.data
+	}
+	fmt.Println("*** cache transfered to ast - ", len(ast.TyCache))
+	//
 	// Build perror from statement errors to use in hasError() counting
 	//
 	p.perror = holderr
@@ -292,7 +302,6 @@ func (p *Parser) ParseDocument(doc ...string) (program *ast.Document, errs []err
 			case *ast.Input_:
 				x.CheckIsInputType(&p.perror)
 			case *ast.Object_:
-				//		p.checkFieldASTAssigned(v)
 				if p.containsErr(x.CheckIsOutputType, 5) {
 					continue
 				}
@@ -305,7 +314,6 @@ func (p *Parser) ParseDocument(doc ...string) (program *ast.Document, errs []err
 				x.CheckImplements(&p.perror) // check implements are interfaces
 			case *ast.Enum_:
 			case *ast.Interface_:
-				//		p.checkFieldASTAssigned(v)
 			case *ast.Union_:
 				p.CheckUnionMembers(x)
 			case *ast.Directive_:
@@ -1346,6 +1354,14 @@ func (p *Parser) parseArgumentDefs(f ast.FieldArgAppender, encl [2]token.TokenTy
 	return p
 }
 
+// type InputValueDef struct {
+// 	Desc string
+// 	Name_
+// 	Type       *Type_          // ENUM
+// 	DefaultVal *InputValue_    // ENUMVALUE
+// 	Directives_
+// }
+
 func (p *Parser) parseDefaultVal(v *ast.InputValueDef, optional ...bool) *Parser {
 
 	if p.hasError() {
@@ -1365,6 +1381,20 @@ func (p *Parser) parseDefaultVal(v *ast.InputValueDef, optional ...bool) *Parser
 		//v.DefaultVal = p.parseInputValue_(v)
 		v.DefaultVal = p.parseInputValue_()
 		//	p.nextToken() // redundant now that parseInputValue_ performs it
+		// if ev, ok := v.DefaultVal.InputValueProvider.(*ast.EnumValue_); ok {
+		// 	enum := p.Cache.FetchAST(v.Type.Name_)
+		// 	// check def value is member of ENUM
+		// 	var found bool
+		// 	for _, e := range enum.Values {
+		// 		if ev.Name_.Equals(e.Name_) {
+		// 			found = true
+		// 			break
+		// 		}
+		// 	}
+		// 	if !found {
+		// 		p.addErr(`Default value "%s", not a member of ENUM %s %s`, ev.Name, enum.Name_, ev.Name.AtPosition())
+		// 	}
+		// }
 	}
 	return p
 }
