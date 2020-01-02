@@ -13,30 +13,38 @@ func TestDirectiveMultiple(t *testing.T) {
 	input := `
 input ExampleInputObjectDirective @ june (asdf:234) @ june2 (aesdf:234) @ june3 (as2df:"abc") {
   a: String = "AbcDef" @ ref (if:123) @ jack (sd: "abc") @ june (asdf:234) @ ju (asdf:234) @ judkne (asdf:234) @ junse (asdf:234) @ junqe (asdf:234) 
-  b: Int!@june(asdf:234) @ ju (asdf:234)
+  b: Int! @june(asdf:234)  @ ju (asdf:234)
 }
-directive @june on | FIELD_DEFINITION| ARGUMENT_DEFINITION | INPUT_OBJECT
+directive @june (asdf : Int = 66) on | FIELD_DEFINITION| ARGUMENT_DEFINITION | INPUT_OBJECT
 
 `
-	var expectedErr [12]string
 
-	expectedErr[0] = `Type "@june2" does not exist at line: 2 column: 55`
-	expectedErr[1] = `Type "@june3" does not exist at line: 2 column: 75`
-	expectedErr[2] = `Type "@ref" does not exist at line: 3 column: 26`
-	expectedErr[3] = `Type "@ref" does not exist at line: 3 column: 26`
-	expectedErr[4] = `Type "@jack" does not exist at line: 3 column: 41`
-	expectedErr[5] = `Type "@ju" does not exist at line: 3 column: 78`
-	expectedErr[6] = `Type "@judkne" does not exist at line: 3 column: 94`
-	expectedErr[7] = `Type "@junqe" does not exist at line: 3 column: 133`
-	expectedErr[8] = `Type "@ju" does not exist at line: 4 column: 28`
-	expectedErr[9] = `Type "@junse" does not exist at line: 3 column: 114`
-	expectedErr[10] = `Directive "@june" is not registered for INPUT_FIELD_DEFINITION usage at line: 3 column: 60`
-	expectedErr[11] = `Directive "@june" is not registered for INPUT_FIELD_DEFINITION usage at line: 4 column: 11`
+	var expectedDoc = `
+	directive @june (asdf : Int = 66) on | FIELD_DEFINITION| ARGUMENT_DEFINITION | INPUT_OBJECT
+input ExampleInputObjectDirective @ june (asdf:234) @ june2 (aesdf:234) @ june3 (as2df:"abc") {
+  a: String = "AbcDef" @ ref (if:123) @ jack (sd: "abc") @ june (asdf:234) @ ju (asdf:234) @ judkne (asdf:234) @ junse (asdf:234) @ junqe (asdf:234) 
+  b: Int! @june(asdf:234)  @ ju (asdf:234)
+}
+`
+	var expectedErr [11]string
+
+	expectedErr[0] = `Directive definition not found "@june2" at line: 2 column: 55`
+	expectedErr[1] = `Directive definition not found "@june3" at line: 2 column: 75`
+	expectedErr[2] = `Directive definition not found "@ref" at line: 3 column: 26`
+	expectedErr[3] = `Directive definition not found "@jack" at line: 3 column: 41`
+	expectedErr[4] = `Directive definition not found "@ju" at line: 3 column: 78`
+	expectedErr[5] = `Directive definition not found "@judkne" at line: 3 column: 94`
+	expectedErr[6] = `Directive definition not found "@junqe" at line: 3 column: 133`
+	expectedErr[7] = `Directive definition not found "@ju" at line: 4 column: 30`
+	expectedErr[8] = `Directive definition not found "@junse" at line: 3 column: 114`
+	expectedErr[9] = `Directive "@june" is not registered for INPUT_FIELD_DEFINITION usage at line: 3 column: 60`
+	expectedErr[10] = `Directive "@june" is not registered for INPUT_FIELD_DEFINITION usage at line: 4 column: 12`
 
 	l := lexer.New(input)
 	p := New(l)
 	p.ClearCache()
-	_, errs := p.ParseDocument()
+	d, errs := p.ParseDocument()
+	fmt.Println("Statement: ", d.String())
 	for _, ex := range expectedErr {
 		found := false
 		for _, err := range errs {
@@ -59,6 +67,13 @@ directive @june on | FIELD_DEFINITION| ARGUMENT_DEFINITION | INPUT_OBJECT
 			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
+
+	if compare(d.String(), expectedDoc) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(expectedDoc))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+
 }
 
 func TestDirectiveDoesnotExist(t *testing.T) {
@@ -67,12 +82,15 @@ func TestDirectiveDoesnotExist(t *testing.T) {
 extend input ExampleInputXYZ @ june (asdf:234) 
 `
 	var expectedErr [1]string
-	expectedErr[0] = `Type "ExampleInputXYZ" does not exist at line: 2 column: 14`
+	expectedErr[0] = `Type "ExampleInputXYZ" not found at line: 2, column: 14`
 
 	l := lexer.New(input)
 	p := New(l)
 	p.ClearCache()
 	_, errs := p.ParseDocument()
+	for _, v := range errs {
+		fmt.Println("error: ", v.Error())
+	}
 	for _, ex := range expectedErr {
 		found := false
 		for _, err := range errs {
@@ -145,12 +163,12 @@ extend input ExampleInputObjectDirective2 @ june (asdf:234)
 	}
 }
 
-func TestDirectiveStmt(t *testing.T) {
+func TestDirectiveStmtx(t *testing.T) {
 
 	input := `
-directive @example on FIELD_DEFINITION | ARGUMENT_DEFINITION
+directive @example (arg1: Int = 123 arg2: String = "ABCdef") on |FIELD_DEFINITION | ARGUMENT_DEFINITION
 `
-	expectedDoc := `directive@exampleon|FIELD_DEFINITION|ARGUMENT_DEFINITION`
+
 	var expectedErr [1]string
 	expectedErr[0] = ``
 
@@ -183,9 +201,9 @@ directive @example on FIELD_DEFINITION | ARGUMENT_DEFINITION
 			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
-	if compare(d.String(), expectedDoc) {
+	if compare(d.String(), input) {
 		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
-		t.Errorf("Expected: [%s] \n", trimWS(expectedDoc))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
 		t.Errorf(`Unexpected: program.String() wrong. `)
 	}
 }
@@ -440,7 +458,6 @@ input exampleInput2 @exampleDirOK {
 
 type exampleTypeOuter2b @exampleDirOK {
 	x (Nm: String = {x:"abc", y:1} @exampleDirOK ) : String 
-	y  (Nm: Float = 23.3 @exampleDirOK) : exampleTypeOuter2a @exampleDirOK
 }
 
 	
@@ -467,7 +484,6 @@ y(Nm : Float =23.3@exampleDirRef ) : ExampleRefType@exampleDirRef
 
 type exampleTypeOuter2b @exampleDirOK {
 x(Nm : String ={x:"abc" y:1 } @exampleDirOK ) : String
-y(Nm : Float =23.3@exampleDirOK ) : exampleTypeOuter2a @ exampleDirOK 
 }`
 
 	err := db.DeleteType("exampleDirOK")
@@ -498,8 +514,8 @@ y(Nm : Float =23.3@exampleDirOK ) : exampleTypeOuter2a @ exampleDirOK
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	var expectedErr [12]string
-	expectedErr[0] = `Directive "@exampleDirRef" that references itself, is not permitted at line: 30 column: 46`
+	var expectedErr [13]string
+	expectedErr[0] = `Directive "@exampleDirRef" that references itself, is not permitted at line: 29 column: 46`
 	expectedErr[1] = `Directive "@exampleDirRef" references itself, is not permitted at line: 21 column: 24`
 	expectedErr[2] = `Directive "@exampleDirRef" references itself, is not permitted at line: 16 column: 24`
 	expectedErr[3] = `Directive "@exampleDirRef" references itself, is not permitted at line: 16 column: 58`
@@ -510,7 +526,8 @@ y(Nm : Float =23.3@exampleDirOK ) : exampleTypeOuter2a @ exampleDirOK
 	expectedErr[8] = `Directive "@exampleDirOK" is not registered for INPUT_OBJECT usage at line: 19 column: 22`
 	expectedErr[9] = `Directive "@exampleDirOK" is not registered for INPUT_FIELD_DEFINITION usage at line: 20 column: 15`
 	expectedErr[10] = `Directive "@exampleDirOK" is not registered for OBJECT usage at line: 24 column: 26`
-	expectedErr[11] = `Type "exampleTypeOuter2a" does not exist at line: 26 column: 40`
+	expectedErr[11] = `Mismatched types. The input data (object values in this case) does not match a Object or Input type. The reference type is a String`
+	expectedErr[12] = `Field "y" of input type "exampleTypeOuter", must be an input type at line: 21 column: 6`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -580,7 +597,556 @@ y(Nm : Float =23.3@exampleDirOK ) : exampleTypeOuter2a @ exampleDirOK
 func TestDirectiveLocationCheck(t *testing.T) {
 
 	input := `
-directive @example on | FIELD_DEFINITION | ARGUMENT_DEFINITION
+directive @example (arg1: Int = 123 ) on | FIELD_DEFINITION | ARGUMENT_DEFINITION
+
+input SomeInput @example (arg1: 23) {
+  field: String = "ABC" @example
+}
+
+type SomeType {
+  field(arg: Int @example): String @example
+}
+
+
+`
+
+	err := db.DeleteType("SomeType")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("SomeInput")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("exampleDirRef")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	var expectedErr [2]string
+	expectedErr[0] = `Directive "@example" is not registered for INPUT_OBJECT usage at line: 4 column: 18`
+	expectedErr[1] = `Directive "@example" is not registered for INPUT_FIELD_DEFINITION usage at line: 5 column: 26`
+
+	l := lexer.New(input)
+	p := New(l)
+	p.ClearCache()
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+	if compare(d.String(), input) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
+func TestDirectiveErrArgName(t *testing.T) {
+
+	input := `
+directive @example (arg1: Int = 123 ) on | FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_OBJECT | INPUT_FIELD_DEFINITION
+
+input SomeInput @example (arg2: 23) {
+  field: String = "ABC" @example
+}
+
+type SomeType {
+  field(arg: Int @example): String @example
+}
+
+`
+
+	err := db.DeleteType("SomeType")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("SomeInput")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("exampleDirRef")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	var expectedErr [1]string
+	expectedErr[0] = `Argument "arg2" is not a valid argument for directive  "@example" at line: 4 column: 27`
+
+	l := lexer.New(input)
+	p := New(l)
+	p.ClearCache()
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+	if compare(d.String(), input) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
+func TestDirectiveErrArgValue(t *testing.T) {
+
+	input := `
+directive @example (arg1: Int = 123 ) on | FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_OBJECT | INPUT_FIELD_DEFINITION
+
+input SomeInput @example (arg1: "ABC") {
+  field: String = "ABC" @example
+}
+
+type SomeType {
+  field(arg: Int @example): String @example
+}
+
+`
+
+	err := db.DeleteType("SomeType")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("SomeInput")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("exampleDirRef")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	var expectedErr [1]string
+	expectedErr[0] = `Required type "Int", got "String" at line: 4 column: 33`
+
+	l := lexer.New(input)
+	p := New(l)
+	p.ClearCache()
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+	if compare(d.String(), input) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
+func TestFieldDirectiveExtraArg(t *testing.T) {
+
+	input := `
+directive @example (arg1: Int = 123 ) on | FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_OBJECT | INPUT_FIELD_DEFINITION
+
+input SomeInput @example {
+  field: String = "ABC" @example
+}
+
+type SomeType {
+  field(arg: Int @example (arg1: 123 arg2: "ABC")): String @example
+}
+
+`
+
+	err := db.DeleteType("SomeType")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("SomeInput")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("exampleDirRef")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	var expectedErr [1]string
+	expectedErr[0] = `Argument "arg2" is not a valid argument for directive "@example" at line: 9 column: 38`
+
+	l := lexer.New(input)
+	p := New(l)
+	p.ClearCache()
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+	if compare(d.String(), input) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
+func TestFieldDirectiveArgTypeErr(t *testing.T) {
+
+	input := `
+directive @example (arg1: Int = 123 ) on | FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_OBJECT | INPUT_FIELD_DEFINITION
+
+input SomeInput @example {
+  field: String = "ABC" @example
+}
+
+type SomeType {
+  field(arg: Int @example (arg1: "ABC" )): String @example
+}
+
+`
+
+	err := db.DeleteType("SomeType")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("SomeInput")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("exampleDirRef")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	var expectedErr [1]string
+	expectedErr[0] = `Required type "Int", got "String" at line: 9 column: 34`
+
+	l := lexer.New(input)
+	p := New(l)
+	p.ClearCache()
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+	if compare(d.String(), input) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+func TestFieldDirectiveArgNonDefault(t *testing.T) {
+
+	input := `
+directive @example (arg1: Int = 123 ) on | FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_OBJECT | INPUT_FIELD_DEFINITION
+
+input SomeInput @example {
+  field: String = "ABC" @example
+}
+
+type SomeType {
+  field(arg: Int @example (arg1 : 33)): String @example
+}
+
+`
+
+	err := db.DeleteType("SomeType")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("SomeInput")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("exampleDirRef")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	var expectedErr [1]string
+	expectedErr[0] = ``
+
+	l := lexer.New(input)
+	p := New(l)
+	p.ClearCache()
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+	if compare(d.String(), input) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
+func TestFieldDirectiveNoArgs(t *testing.T) {
+
+	input := `
+directive @example (arg1: Int = 123 ) on | FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_OBJECT | INPUT_FIELD_DEFINITION
+
+input SomeInput @example {
+  field: String = "ABC" @example
+}
+
+type SomeType {
+  field(arg: Int @example): String @example
+}
+
+`
+	//
+	// query {SomeType {field }}			# uses arg default from type definition or if none specified from directive stmt. Requires all args to have defaults.
+	// query {SomeType {field (arg1: 22)}}	# specify arg value in field query. All other args use defaults. Errors is not all args are specified that don't have defaults.
+
+	err := db.DeleteType("SomeType")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("SomeInput")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("exampleDirRef")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	var expectedErr [1]string
+	expectedErr[0] = ``
+
+	l := lexer.New(input)
+	p := New(l)
+	p.ClearCache()
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+	if compare(d.String(), input) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
+func TestDirectiveDefaultErr(t *testing.T) {
+
+	input := `
+directive @example (arg1: Int = "ABC" ) on | FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_OBJECT | INPUT_FIELD_DEFINITION
+
+input SomeInput @example {
+  field: String = "ABC" @example
+}
+
+type SomeType {
+  field(arg: Int @example (arg1: "ABC" )): String @example
+}
+
+`
+
+	err := db.DeleteType("SomeType")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("SomeInput")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("exampleDirRef")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	var expectedErr [2]string
+	expectedErr[0] = `Required type "Int", got "String" at line: 2 column: 33`
+	expectedErr[1] = `Required type "Int", got "String" at line: 9 column: 34`
+
+	l := lexer.New(input)
+	p := New(l)
+	p.ClearCache()
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+	if compare(d.String(), input) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
+func TestDirectiveWithArgs(t *testing.T) {
+
+	input := `
+directive @example (arg1 : Int = 5 arg2 : String = "ABC" ) on | FIELD_DEFINITION | ARGUMENT_DEFINITION
 
 input SomeInput @example {
   field: String = "ABC" @example
@@ -608,6 +1174,149 @@ type SomeType {
 	var expectedErr [2]string
 	expectedErr[0] = `Directive "@example" is not registered for INPUT_OBJECT usage at line: 4 column: 18`
 	expectedErr[1] = `Directive "@example" is not registered for INPUT_FIELD_DEFINITION usage at line: 5 column: 26`
+
+	l := lexer.New(input)
+	p := New(l)
+	p.ClearCache()
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+	if compare(d.String(), input) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
+func TestSetup4DirectiveQueriesArgs3(t *testing.T) {
+
+	input := `
+directive @example3 (arg1 : Int = 5 arg2 : String = "ABC" arg3: Float = 23.44 ) on | INPUT_OBJECT| FIELD_DEFINITION | ARGUMENT_DEFINITION| INPUT_FIELD_DEFINITION
+
+type Query {
+  hero: [SomeType3]
+}
+input SomeInput3 @example3 (arg2: "DEF" ) {
+  field: String = "ABC" @example3
+}
+
+type SomeType3 {
+  somefield(arg: Int @example3 (arg1 : 234)) : String @example3
+}
+
+
+
+`
+
+	err := db.DeleteType("SomeType3")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("SomeInput3")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("@example3")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	var expectedErr [1]string
+	expectedErr[0] = ``
+
+	l := lexer.New(input)
+	p := New(l)
+	p.ClearCache()
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+	if compare(d.String(), input) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
+func TestSetup4DirectiveQueriesArg4(t *testing.T) {
+
+	input := `
+directive @example4 (arg1 : Int = 5 arg2 : String = "ABC" arg3: Float = 23.44 arg4: Int) on |INPUT_OBJECT| FIELD_DEFINITION | ARGUMENT_DEFINITION| INPUT_FIELD_DEFINITION
+
+input SomeInput4 @example4 (arg2: "DEF" ) {
+  field: String = "ABC" @example4
+}
+
+type SomeType4 {
+  somefield(arg: Int @example4 (arg1 : 234)): String @example4
+}
+
+type Query {
+  hero: [SomeType4]
+}
+
+`
+
+	err := db.DeleteType("SomeType4")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("SomeInput4")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("@example4")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	var expectedErr [1]string
+	expectedErr[0] = ``
 
 	l := lexer.New(input)
 	p := New(l)

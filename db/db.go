@@ -287,7 +287,7 @@ func DBFetch(name string) (string, error) {
 	}
 	fmt.Println("dbFetch: GetItem: Query ConsumedCapacity: \n", result.ConsumedCapacity)
 	if len(result.Item) == 0 {
-		return "", fmt.Errorf(`Type "%s" not found in database`, name)
+		return "", fmt.Errorf(`Type "%s" not found`, name)
 	}
 	rec := &TypeRow{}
 	err = dynamodbattribute.UnmarshalMap(result.Item, rec)

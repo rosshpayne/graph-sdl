@@ -59,30 +59,37 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 	if len(name) == 0 {
 		return nil, ErrnoName
 	}
+	// check if name has been registered as non-existent from previous query
+	if typeNotExists[name_] {
+		return nil, ErrnonExistent
+	}
 	t.Lock()
-	e := t.Cache[name_]
+	e := t.Cache[name_] // e will be nil only when name_ is not in the cache. Nil has no other meaning.
 
 	if e == nil {
-		if typeNotExists[name_] { // sync
-			return nil, ErrnonExistent
-		}
 
 		e = &entry{ready: make(chan struct{})}
 		// save pointer entry struct to cache now. The AST struct field will be assigned to struct soon. Channel comms will comunicate when AST is populated
 		t.Cache[name_] = e
-		// cache populated with bare minimum of data.  Release the lock and source remaining data to be cached while the channel synchronises access to the current entry.
 		t.Unlock()
+		// cache populated with bare minimum of data.  Release the lock and source remaining data to be cached while the channel synchronises access to the current entry.
 		// access db for definition of type (string value)
 		if typeSDL, err := db.DBFetch(name_); err != nil {
+			fmt.Println("DB err: ", err.Error())
+			typeNotExists[name_] = true
+			delete(t.Cache, name_)
 			close(e.ready)
 			return nil, err
 		} else {
 			if len(typeSDL) == 0 { // no type found in DB
 				// mark type as being nonexistent
+				fmt.Println("Type not found ")
 				typeNotExists[name_] = true
+				delete(t.Cache, name_)
 				close(e.ready)
 				return nil, ErrnotFound
 			} else {
+				fmt.Printf("Found in DB: %q\n", typeSDL)
 				// generate AST for the resolved type
 				fmt.Println(" in parseCache about to generate AST.")
 				l := lexer.New(typeSDL)
@@ -95,12 +102,16 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 			}
 		}
 	} else {
-		fmt.Println("waiting on channel comm")
 		t.Unlock()
 		<-e.ready // AST is now populated in cache for this named type
 	}
-	fmt.Println("**** FetchAST returned with data ", e.data.TypeName())
-	return e.data, nil
+	if e.data == nil {
+		// concurrency issue  (when currency applies) - two queries on same object within short time interval - before typeNotExists is updated.
+		return nil, ErrnotFound
+	} else {
+		fmt.Println("**** FetchAST returned with data ", e.data.TypeName())
+		return e.data, nil
+	}
 }
 
 func (t *Cache_) CacheClear() {

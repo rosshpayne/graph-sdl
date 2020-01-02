@@ -11,6 +11,20 @@ import (
 	"github.com/graph-sdl/token"
 )
 
+// ======== type statements ==========
+
+// GQLTypeProvider reperesents all the GraphQL types, SCALAR (user defined), OBJECTS, UNIONS, INTERFACES, ENUMS, INPUTOBJECTS, LISTS
+type GQLTypeProvider interface {
+	TypeSystemNode()
+	TypeName() NameValue_
+	SolicitNonScalarTypes(UnresolvedMap) // while not all Types contain nested types that need to be resolved e.g scalar must still include this method
+	CheckDirectiveRef(dir NameValue_, err *[]error)
+	CheckDirectiveLocation(err *[]error)
+	CheckInputValueType(err *[]error)
+	String() string
+	Type() string // equiv to IsType however IsType has been used for Input Types (subset of GQLTypeProvider
+}
+
 // =================  InputValueProvider =================================
 
 //  InputValueProvider represents the Graph QL Input Value types (see parseInputValue:) &Int_, &Float_,...,&Enum_, &List_, &ObjectVals
@@ -97,11 +111,12 @@ func (iv *InputValue_) IsScalar() bool {
 	return false
 }
 
-// CheckInputValueType__ called from graphql package to validate
-// * default values of variables
-// * arguments in fields and directives .
-// * output from field resolvers
-// refType is the type definition the value of the InputValue_ must match
+// CheckInputValueType called from graphql package to validate input values as well as during type creation, for the following circumstances:
+// * default values of variables in operational stmt, field argument definition, directive argument definition i.e. at the specification stage
+// * field arguments in query stmts (checking name and value against definition) during validation/execution
+// * directive arguments in query stmts (checking name and value against its definition from the directive stmt) during validation/execution
+//
+// refType is the reference type (i.e. for directive arguments, the directive stmt def, for field args the Object stmt def) the value of the InputValue_ must match
 // nm is the name of the associated argument or input - used for its Loc value
 // err contains all errors caught during validation
 func (a *InputValue_) CheckInputValueType(refType *Type_, nm Name_, err *[]error) {
@@ -640,6 +655,63 @@ func (d *Directives_) AppendDirective(s *DirectiveT) error {
 	return nil
 }
 
+// type Arguments_ struct {
+// 	Arguments []*ArgumentT
+// }
+// type ArgumentT struct {
+// 	//( name : value )
+// 	Name_
+// 	Value *InputValue_
+// }
+
+// type InputValue_ struct {
+// 	InputValueProvider // Important: this is an Interface (embedded value|type), so the type of the input value is defined in the interface value.
+// 	Loc                *Loc_
+// }
+
+// type InputValueDef struct {
+// 	Desc string
+// 	Name_
+// 	Type       *Type_
+// 	DefaultVal *InputValue_
+// 	Directives_
+// }
+
+// type Name_ struct {
+// 	Name NameValue_
+// 	Loc  *Loc_
+// }
+
+func (d *Directives_) CheckInputValueType(err *[]error) {
+
+	for _, v := range d.Directives {
+		// get directive definition
+		if dirDef, ok := TyCache[v.Name.String()]; !ok {
+			*err = append(*err, fmt.Errorf(`Directive definition not found "%s" %s`, v.Name, v.AtPosition()))
+		} else {
+			if dir, ok := dirDef.(*Directive_); ok {
+				var ivdef *InputValueDef
+				// verify argument names against directive definition
+				for _, arg := range v.Arguments {
+					var found bool
+					for _, ivdef = range dir.ArgumentDefs {
+						if arg.Name_.Equals(ivdef.Name_) {
+							found = true
+							break
+						}
+					}
+					if !found {
+						*err = append(*err, fmt.Errorf(`Argument "%s" is not a valid argument for directive "%s" %s`, arg.Name, dir.Name, arg.Name_.AtPosition()))
+					} else {
+						// verify argument input value against formal argument spec in directive stmt
+						arg.Value.CheckInputValueType(ivdef.Type, arg.Name_, err)
+					}
+				}
+			}
+		}
+	}
+}
+
 func (d *Directives_) String() string {
 	var s strings.Builder
 	for _, v := range d.Directives {
@@ -653,9 +725,9 @@ func (d *Directives_) Len() int {
 }
 
 func (d *Directives_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
-	// for _, v := range d.Directives {
-	// 	unresolved[v.Name_] = nil
-	// }
+	for _, v := range d.Directives {
+		unresolved[v.Name_] = nil
+	}
 }
 
 func (d *Directives_) CheckDirectiveRef(dir NameValue_, err *[]error) {
@@ -789,19 +861,6 @@ func (d Document) String() string {
 		s.WriteString("\n")
 	}
 	return s.String()
-}
-
-// ======== type statements ==========
-
-// GQLTypeProvider reperesents all the GraphQL types, SCALAR (user defined), OBJECTS, UNIONS, INTERFACES, ENUMS, INPUTOBJECTS, LISTS
-type GQLTypeProvider interface {
-	TypeSystemNode()
-	TypeName() NameValue_
-	SolicitNonScalarTypes(UnresolvedMap) // while not all Types contain nested types that need to be resolved e.g scalar must still include this method
-	CheckDirectiveRef(dir NameValue_, err *[]error)
-	CheckDirectiveLocation(err *[]error)
-	String() string
-	Type() string // equiv to IsType however IsType has been used for Input Types (subset of GQLTypeProvider
 }
 
 // ======================================================

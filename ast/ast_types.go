@@ -157,9 +157,6 @@ func init() {
 func IsInputType(t *Type_) bool {
 	// determine inputType from t.Name
 	fmt.Println("***** IsInputType ***** ", t.Name)
-	if t.AST == nil {
-		fmt.Println("AST IS nil so cannot determine input type")
-	}
 	if t.IsScalar() {
 		fmt.Println(" IsScalar true")
 		return true
@@ -242,6 +239,9 @@ func (a ArgumentS) String() string {
 type Arguments_ struct {
 	Arguments []*ArgumentT
 }
+
+// func (a *Arguments_) CheckInputValueType(err *) {
+// }
 
 func (a *Arguments_) AppendArgument(ss *ArgumentT) {
 	a.Arguments = append(a.Arguments, ss)
@@ -507,7 +507,7 @@ func (o *Object_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
 	for _, v := range o.Implements {
 		unresolved[v] = nil
 	}
-	//	o.Directives_.SolicitNonScalarTypes(unresolved)
+	o.Directives_.SolicitNonScalarTypes(unresolved)
 }
 
 func (f *Object_) CheckIsOutputType(err *[]error) {
@@ -520,167 +520,19 @@ func (f *Object_) CheckIsOutputType(err *[]error) {
 }
 
 func (f *Object_) CheckIsInputType(err *[]error) {
+	//
 	for _, v := range f.FieldSet {
 		for _, p := range v.ArgumentDefs {
 			if !IsInputType(p.Type) {
 				*err = append(*err, fmt.Errorf(`Argument "%s" type "%s", is not an input type %s`, p.Name_, p.Type.Name, p.Type.Name_.AtPosition()))
 			}
-			//	_ := p.DefaultVal.isType() // e.g. scalar, int | List
 		}
 	}
 }
 
-// type InputValue_ struct {
-// 	Value InputValueProvider //  IV:type|value = assert type to determine InputValue_'s type
-// 	Loc   *Loc_
-// // }
-// type Type_ struct {
-// 	Constraint byte          // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
-// 	AST        GQLTypeProvider // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
-// 	Depth      int           // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
-// 	Name_                    // type name. inherit AssignName()
-// }
-// Type       *Type_
-// DefaultVal *InputValue_
 func (f *Object_) CheckInputValueType(err *[]error) {
-
-	for _, v := range f.FieldSet {
-
-		// for each field in the object check if it has any default values to check
-		// type Input_ struct {                                       <== Input Object
-		// 	Desc string
-		// 	Name_
-		// 	Directives_
-		// 	InputValueDefs // []*InputValueDef                          <== fields of input object
-		// }
-		// type Field_ struct {
-		// 	Desc string
-		// 	Name_
-		// 	ArgumentDefs InputValueDefs //[]*InputValueDef      		<== arguments in field in object
-		// 	// :
-		// 	Type *Type_
-		// 	Directives_
-		// }
-		// type InputValueDef struct {  								<== an ArgumentDef
-		// 	Desc string
-		// 	Name_
-		// 	Type       *Type_   	// ** argument type specification   	<==== required type of argument
-		// 	DefaultVal *InputValue_ // ** input value(s) type(s)        	<==== instance data to check against required type
-		// 	Directives_
-		// }
-		// type InputValue_ struct {
-		// 	Value InputValueProvider
-		// 	Loc   *Loc_
-		// }
-		// a.Type is argument type -  check it against a.DefaultVal.Value.isType()
-		for _, a := range v.ArgumentDefs { // go thru each of the argument field objects [] {} scalar
-
-			if a.DefaultVal != nil {
-
-				//a.DefaultVal.CheckInputValueType(a.Type, err)
-
-				// what type is the default value
-				switch defval := a.DefaultVal.InputValueProvider.(type) {
-
-				case List_: // [ "ads", "wer" ]
-					if a.Type.Depth == 0 { // required type is not a LIST
-						*err = append(*err, fmt.Errorf(`Argument "%s", type is not a list but default value is a list %s`, a.Name_, a.DefaultVal.AtPosition()))
-						return
-					}
-					var d int = 0
-					var maxd int
-					defval.ValidateListValues(a.Type, &d, &maxd, err) // a.Type is the data type of the list items
-					//
-					if maxd != a.Type.Depth {
-						*err = append(*err, fmt.Errorf(`Argument "%s", nested List type depth different reqired %d, got %d %s`, a.Name_, a.Type.Depth, maxd, a.DefaultVal.AtPosition()))
-					}
-
-				case ObjectVals:
-					// { x: "ads", y: 234 }
-					defval.ValidateObjectValues(a.Type, err)
-
-				case *EnumValue_:
-					// EAST WEST NORHT SOUTH
-					if a.Type.isType() != ENUM {
-						*err = append(*err, fmt.Errorf(`"%s" is an enum like value but the argument type "%s" is not an Enum type %s`, defval.Name, a.Type.Name_, a.DefaultVal.AtPosition()))
-					} else {
-						defval.CheckEnumValue(a.Type, err)
-					}
-
-				default:
-					// single instance data
-					fmt.Printf("name: %s\n", a.Type.Name_)
-					fmt.Printf("constrint: %08b\n", a.Type.Constraint)
-					fmt.Printf("depth: %d\n", a.Type.Depth)
-					fmt.Println("defType ", a.DefaultVal.isType(), a.DefaultVal.IsScalar())
-					fmt.Println("refType ", a.Type.isType())
-
-					// save default type before potential coercing
-					defType := a.DefaultVal.isType()
-
-					if a.DefaultVal.isType() == NULL {
-						// test case FieldArgListInt3_6 [int]!  null  - value cannot be null
-						if a.Type.Constraint>>uint(a.Type.Depth)&1 == 1 {
-							*err = append(*err, fmt.Errorf(`Value cannot be NULL %s`, a.DefaultVal.AtPosition()))
-						}
-
-					} else if a.Type.isType() == SCALAR { //a.DefaultVal.IsScalar() {
-						// can the input value be coerced e.g. from string to Time
-						// try coercing default value to the appropriate scalar e.g. string to Time
-						if s, ok := a.Type.AST.(ScalarProvider); ok { // assert interface supported - normal assert type (*Scalar_) would also work just as well because there is only 1 scalar type really
-							if civ, cerr := s.Coerce(a.DefaultVal.InputValueProvider); cerr != nil {
-								*err = append(*err, cerr)
-								return
-							} else {
-								a.DefaultVal.InputValueProvider = civ
-								defType = a.DefaultVal.isType()
-							}
-						}
-						// coerce to a list of appropriate depth. Current value is not a list as this is switch case default - see other cases.
-						if a.Type.Depth > 0 {
-							var coerce2list func(i *InputValue_, depth int) *InputValue_
-							// type List_ []*InputValue_
-
-							coerce2list = func(i *InputValue_, depth int) *InputValue_ {
-								if depth == 0 {
-									return i
-								}
-								vallist := make(List_, 1, 1)
-								vallist[0] = i
-								vi := &InputValue_{InputValueProvider: vallist, Loc: i.Loc}
-								depth--
-								return coerce2list(vi, depth)
-							}
-							a.DefaultVal = coerce2list(a.DefaultVal, a.Type.Depth)
-						}
-
-					} else {
-						// coerce to a list of appropriate depth. Current value is not a list as this is case default - see other cases.
-						if a.Type.Depth > 0 {
-							var coerce2list func(i *InputValue_, depth int) *InputValue_
-							// type List_ []*InputValue_
-
-							coerce2list = func(i *InputValue_, depth int) *InputValue_ {
-								if depth == 0 {
-									return i
-								}
-								vallist := make(List_, 1, 1)
-								vallist[0] = i
-								vi := &InputValue_{InputValueProvider: vallist, Loc: i.Loc}
-								depth--
-								return coerce2list(vi, depth)
-							}
-							a.DefaultVal = coerce2list(a.DefaultVal, a.Type.Depth)
-						}
-					}
-
-					if defType != NULL && defType != a.Type.isType() {
-						*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, a.Type.isType(), defType, a.DefaultVal.AtPosition()))
-					}
-				}
-			}
-		}
-	}
+	f.Directives_.CheckInputValueType(err)
+	f.FieldSet.CheckInputValueType(err)
 }
 
 // use following method to disambiguate the promoted AssignName method from Name_ and Directives_ fields. Forces use of Name_ method.
@@ -722,6 +574,12 @@ func (f *FieldSet) String() string {
 		}
 	}
 	return s.String()
+}
+func (fs *FieldSet) CheckInputValueType(err *[]error) {
+	for _, v := range *fs {
+		v.ArgumentDefs.CheckInputValueType(err)
+		v.CheckInputValueType(err)
+	}
 }
 
 func (fs *FieldSet) SolicitNonScalarTypes(unresolved UnresolvedMap) {
@@ -765,6 +623,8 @@ type Field_ struct {
 	Directives_
 }
 
+//TODO  - check argumentsDefs
+
 func (f *Field_) AssignType(t *Type_) {
 	f.Type = t
 }
@@ -787,7 +647,7 @@ func (f *Field_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
 	}
 	//
 	f.ArgumentDefs.SolicitNonScalarTypes(unresolved)
-	//	f.Directives_.SolicitNonScalarTypes(unresolved)
+	f.Directives_.SolicitNonScalarTypes(unresolved)
 }
 
 // use following method to override the promoted methods from Name_ and Directives_ fields. Forces use of Name_ method.
@@ -855,6 +715,9 @@ func (fa *InputValueDefs) String(encl [2]token.TokenType) string {
 		}
 		//s.WriteString("\n")
 		s.WriteString(v.String())
+		if i != len(*fa)-1 {
+			s.WriteString(" ")
+		}
 		if i == len(*fa)-1 {
 			//	s.WriteString("\n")
 			s.WriteString(string(encl[1]))
@@ -879,9 +742,15 @@ func (fa InputValueDefs) CheckDirectiveRef(dirName NameValue_, err *[]error) {
 func (fa InputValueDefs) CheckIsInputType(err *[]error) {
 	for _, p := range fa {
 		if !IsInputType(p.Type) {
-			*err = append(*err, fmt.Errorf(`Argument "%s" type "%s", is not an input type %s`, p.Name_, p.Type.Name, p.Type.Name_.AtPosition()))
+			*err = append(*err, fmt.Errorf(`Field "%s" of input type "%s", must be an input type %s`, p.Name_, p.Type.Name, p.Type.Name_.AtPosition()))
 		}
 		//	_ := p.DefaultVal.isType() // e.g. scalar, int | List
+	}
+}
+
+func (fa InputValueDefs) CheckInputValueType(err *[]error) {
+	for _, a := range fa { // go thru each of the argument field objects [] {} scalar
+		a.CheckInputValueType(err)
 	}
 }
 
@@ -906,7 +775,7 @@ func (fa *InputValueDef) SolicitNonScalarTypes(unresolved UnresolvedMap) { //TOD
 	if !fa.Type.IsScalar() && fa.Type.AST == nil {
 		unresolved[fa.Type.Name_] = fa.Type
 	}
-	//fa.Directives_.SolicitNonScalarTypes(unresolved)
+	fa.Directives_.SolicitNonScalarTypes(unresolved)
 }
 
 func (fa *InputValueDef) CheckDirectiveLocation(err *[]error) {
@@ -946,6 +815,12 @@ func (fa *InputValueDef) String() string {
 	}
 	s.WriteString(fa.Directives_.String())
 	return s.String()
+}
+
+func (a *InputValueDef) CheckInputValueType(err *[]error) {
+	//
+	a.DefaultVal.CheckInputValueType(a.Type, a.Name_, err)
+	a.Directives_.CheckInputValueType(err)
 }
 
 // ======================  Enum =========================
@@ -997,6 +872,12 @@ func (e *Enum_) CheckDirectiveLocation(err *[]error) {
 	e.checkDirectiveLocation_(ENUM_DL, err)
 	for _, v := range e.Values {
 		v.CheckDirectiveLocation(err)
+	}
+}
+
+func (e *Enum_) CheckInputValueType(err *[]error) {
+	for _, v := range e.Values {
+		v.CheckInputValueType(err)
 	}
 }
 
@@ -1147,6 +1028,11 @@ func (i *Interface_) Conform(obj GQLTypeProvider) bool {
 	return true
 }
 
+func (i *Interface_) CheckInputValueType(err *[]error) {
+	i.Directives_.CheckInputValueType(err)
+	i.FieldSet.CheckInputValueType(err)
+}
+
 // ======================  Union =========================
 
 // InterfaceTypeDefinition
@@ -1207,6 +1093,11 @@ func (u *Union_) String() string {
 	return s.String()
 }
 
+// Union inherits this from Directive_
+// func (u *Union_) CheckInputValueType(err *[]error) {
+// 	u.CheckInputValueType(err)
+// }
+
 // ======================  Input_ =========================
 // InputObjectTypeDefinition
 //		Description-opt	input	Name	DirectivesConst-opt	InputFieldsDefinition-opt
@@ -1219,7 +1110,7 @@ type Input_ struct {
 
 func (e *Input_) TypeSystemNode() {}
 func (e *Input_) SolicitNonScalarTypes(unresolved UnresolvedMap) { // TODO check this is being executed
-	//e.Directives_.SolicitNonScalarTypes(unresolved)
+	e.Directives_.SolicitNonScalarTypes(unresolved)
 	e.InputValueDefs.SolicitNonScalarTypes(unresolved)
 }
 
@@ -1253,6 +1144,11 @@ func (u *Input_) String() string {
 	s.WriteString(" " + u.Directives_.String())
 	s.WriteString(u.InputValueDefs.String(encl))
 	return s.String()
+}
+
+func (i *Input_) CheckInputValueType(err *[]error) {
+	i.Directives_.CheckInputValueType(err)
+	i.InputValueDefs.CheckInputValueType(err)
 }
 
 // ======================  ScalarProvider =========================
@@ -1437,6 +1333,8 @@ func (d *Directive_) CheckIsInputType(err *[]error) {
 func (d *Directive_) AppendField(f_ *InputValueDef, err *[]error) {
 	d.ArgumentDefs.AppendField(f_, err)
 }
+
+// CheckInputValueType on directive stmt, used to check the default value is appropriate ie. matches the type of the argument.
 
 func (d *Directive_) CheckInputValueType(err *[]error) { // TODO try merging wih *Object_ version
 

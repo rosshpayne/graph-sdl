@@ -296,39 +296,36 @@ func (p *Parser) ParseDocument(doc ...string) (program *ast.Document, errs []err
 	p.perror = nil
 	for _, v := range program.StatementsMap {
 		// only proceed if zero errors for stmt
-		if len(program.ErrorMap[v.TypeName()]) == 0 {
-			p.checkFieldASTAssigned(v)
-			switch x := v.(type) {
-			case *ast.Input_:
-				x.CheckIsInputType(&p.perror)
-			case *ast.Object_:
-				if p.containsErr(x.CheckIsOutputType, 5) {
-					continue
-				}
-				if p.containsErr(x.CheckIsInputType, 0) {
-					continue
-				}
-				if p.containsErr(x.CheckInputValueType, 5) {
-					continue
-				}
-				x.CheckImplements(&p.perror) // check implements are interfaces
-			case *ast.Enum_:
-			case *ast.Interface_:
-			case *ast.Union_:
-				p.CheckUnionMembers(x)
-			case *ast.Directive_:
-				if p.containsErr(x.CheckIsInputType, 5) {
-					continue
-				}
-				if p.containsErr(x.CheckInputValueType, 5) {
-					continue
-				}
-				p.CheckSelfReference(v.TypeName(), x)
-			}
-			if p.hasError() {
-				break
-			}
+		//		if len(program.ErrorMap[v.TypeName()]) == 0 {
+		p.checkFieldASTAssigned(v)
+		if p.containsErr(v.CheckInputValueType, 5) {
+			continue
 		}
+		switch x := v.(type) {
+		case *ast.Input_:
+			x.CheckIsInputType(&p.perror)
+		case *ast.Object_:
+			if p.containsErr(x.CheckIsOutputType, 5) {
+				continue
+			}
+			if p.containsErr(x.CheckIsInputType, 0) {
+				continue
+			}
+			x.CheckImplements(&p.perror) // check implements are interfaces
+		case *ast.Enum_:
+		case *ast.Interface_:
+		case *ast.Union_:
+			p.CheckUnionMembers(x)
+		case *ast.Directive_:
+			if p.containsErr(x.CheckIsInputType, 5) {
+				continue
+			}
+			p.CheckSelfReference(v.TypeName(), x)
+		}
+		if p.hasError() {
+			break
+		}
+		//		}
 		program.ErrorMap[v.TypeName()] = append(program.ErrorMap[v.TypeName()], p.perror...)
 		p.perror = nil
 	}
@@ -413,7 +410,8 @@ func (p *Parser) ResolveAllTypes(v ast.GQLTypeProvider, t *Cache_) []error {
 			if err == nil {
 				p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, ty.Name, ty.AtPosition()))
 			} else {
-				p.addErr(fmt.Sprintf(`%s. Type "%s" does not exist %s`, err, tyName, tyName.AtPosition()))
+				//	p.addErr(err.Error())
+				p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, tyName, tyName.AtPosition()))
 			}
 		}
 	}
