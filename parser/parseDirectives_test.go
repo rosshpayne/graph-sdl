@@ -1218,14 +1218,14 @@ func TestSetup4DirectiveQueriesArgs3(t *testing.T) {
 directive @example3 (arg1 : Int = 5 arg2 : String = "ABC" arg3: Float = 23.44 ) on | INPUT_OBJECT| FIELD_DEFINITION | ARGUMENT_DEFINITION| INPUT_FIELD_DEFINITION
 
 type Query {
-  hero: [SomeType3]
+  hero(argx1: [Int]! = [67 55] @example3 (arg1 : 234), argx2: String! = "ABCDEF", argy3: Float ) : SomeType3
 }
 input SomeInput3 @example3 (arg2: "DEF" ) {
   field: String = "ABC" @example3
 }
 
 type SomeType3 {
-  somefield(arg: Int @example3 (arg1 : 234)) : String @example3
+  somefield : String @example3
 }
 
 

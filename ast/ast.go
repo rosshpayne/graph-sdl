@@ -277,7 +277,7 @@ func IsGLType(t GQLTypeProvider) string {
 // ============================ Type_ ======================
 
 type Type_ struct {
-	Constraint byte            // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
+	Constraint byte            // each bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001, [type]! 00000010
 	AST        GQLTypeProvider // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
 	Depth      int             // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
 	Name_                      // type name. inherit AssignName(). Use Name_ to access AST via cache lookup. ALternatively, use AST above or TypeFlag_ instead of string.
@@ -315,6 +315,27 @@ func (t Type_) String() string {
 	return s.String()
 }
 
+func (t *Type_) IsList() bool {
+	return t.Depth > 0
+}
+
+func (t *Type_) IsNullable() bool {
+	return !(t.Constraint>>uint(t.Depth) == 1)
+}
+
+func (t *Type_) IsNullableAtDepth(depth uint) (bool, error) {
+	if t.Depth < int(depth) || int(depth) < 0 {
+		return false, fmt.Errorf("depth is out of range")
+	}
+	r := t.Constraint
+	r &= 1 << uint(depth)
+	return r == 0, nil
+}
+
+// func (t *Type_) TypeName() string {
+// 	return t.Name.String()
+// }
+//TODO what is using non-pointer receiver?
 func (t Type_) TypeName() string {
 	return t.Name.String()
 }
@@ -703,7 +724,7 @@ func (d *Directives_) CheckInputValueType(err *[]error) {
 					if !found {
 						*err = append(*err, fmt.Errorf(`Argument "%s" is not a valid argument for directive "%s" %s`, arg.Name, dir.Name, arg.Name_.AtPosition()))
 					} else {
-						// verify argument input value against formal argument spec in directive stmt
+						// verify argument input value
 						arg.Value.CheckInputValueType(ivdef.Type, arg.Name_, err)
 					}
 				}
