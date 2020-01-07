@@ -115,19 +115,19 @@ func (p *Parser) printToken(s ...string) {
 
 // containersErr accepts a "validation" method value and the number of errors that can be generated in its call to abort the process,
 // preventing next validation task from running.
-func (p *Parser) containsErr(mv func(*[]error), num ...int) (b bool) {
+func (p *Parser) executeWithErrLimit(mv func(*[]error), num ...int) (b bool) {
 	var delta int
-	var errBefore = len(p.perror)
-	defer func() {
-		b = len(p.perror) > errBefore+delta
-	}()
-	// execute method value, mv
-	mv(&p.perror)
 	if len(num) == 0 {
 		delta = 1
 	} else {
 		delta = num[0]
 	}
+	defer func() func() {
+		var errBefore = len(p.perror)
+		return func() { b = len(p.perror) > errBefore+delta }
+	}()()
+	// execute method value, mv
+	mv(&p.perror)
 	return
 }
 
@@ -170,23 +170,23 @@ func (p *Parser) nextToken(s ...string) {
 
 // ==================== Start =========================
 
-func (p *Parser) ParseDocument(doc ...string) (program *ast.Document, errs []error) {
+func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) {
 	var holderr []error
-	program = &ast.Document{}
-	program.Statements = []ast.GQLTypeProvider{} // slice is initialised  with no elements - each element represents an interface value of type ast.GQLTypeProvider
-	program.StatementsMap = make(map[ast.NameValue_]ast.GQLTypeProvider)
-	program.ErrorMap = make(map[ast.NameValue_][]error)
+	api = &ast.Document{}
+	api.Statements = []ast.GQLTypeProvider{} // slice is initialised  with no elements - each element represents an interface value of type ast.GQLTypeProvider
+	api.StatementsMap = make(map[ast.NameValue_]ast.GQLTypeProvider)
+	api.ErrorMap = make(map[ast.NameValue_][]error)
 
 	defer func() {
 		//
 		//p.perror = nil
 		p.perror = append(p.perror, holderr...)
-		for _, v := range program.StatementsMap { //range program.Statements {
-			p.perror = append(p.perror, program.ErrorMap[v.TypeName()]...)
+		for _, v := range api.StatementsMap { //range api.Statements {
+			p.perror = append(p.perror, api.ErrorMap[v.TypeName()]...)
 		}
 		// persist error free statements to db
-		for _, v := range program.StatementsMap { //program.Statements {
-			if len(program.ErrorMap[v.TypeName()]) == 0 {
+		for _, v := range api.StatementsMap { //api.Statements {
+			if len(api.ErrorMap[v.TypeName()]) == 0 {
 				// TODO - what if another type by that name exists
 				//  auto overrite or raise an error
 				if err := db.Persist(v.TypeName().String(), v); err != nil {
@@ -214,15 +214,14 @@ func (p *Parser) ParseDocument(doc ...string) (program *ast.Document, errs []err
 
 		// handle any abort error
 		if p.hasError() {
-			return program, p.perror
+			return api, p.perror
 		}
 		if stmtAST != nil {
-			program.Statements = append(program.Statements, stmtAST)
+			api.Statements = append(api.Statements, stmtAST)
 
 			name := stmtAST.TypeName()
-			program.StatementsMap[name] = stmtAST
-			program.ErrorMap[name] = p.perror
-			fmt.Println(" parsed  ", name, " with errors: ", len(p.perror))
+			api.StatementsMap[name] = stmtAST
+			api.ErrorMap[name] = p.perror
 			if len(p.perror) == 0 {
 				p.cache.AddEntry(stmtAST.TypeName(), stmtAST) // stmts define GL types
 			}
@@ -241,10 +240,10 @@ func (p *Parser) ParseDocument(doc ...string) (program *ast.Document, errs []err
 	// validate phase 1 - resolve ALL types. Once complete all type's AST will reside in the cache
 	//                    and  *Type.AST assigned where applicable
 	//
-	for _, v := range program.Statements {
+	for _, v := range api.Statements {
 		p.ResolveAllTypes(v, p.cache)
 		if len(p.perror) > 0 {
-			program.ErrorMap[v.TypeName()] = append(program.ErrorMap[v.TypeName()], p.perror...)
+			api.ErrorMap[v.TypeName()] = append(api.ErrorMap[v.TypeName()], p.perror...)
 			p.perror = nil
 		}
 	}
@@ -262,20 +261,20 @@ func (p *Parser) ParseDocument(doc ...string) (program *ast.Document, errs []err
 	// Build perror from statement errors to use in hasError() counting
 	//
 	p.perror = holderr
-	for _, v := range program.StatementsMap { //program.Statements {
-		p.perror = append(p.perror, program.ErrorMap[v.TypeName()]...)
+	for _, v := range api.StatementsMap { //api.Statements {
+		p.perror = append(p.perror, api.ErrorMap[v.TypeName()]...)
 	}
 	if p.hasError() {
-		return program, p.perror
+		return api, p.perror
 	}
 	//
 	// validate phase 2 - generic validations
 	//
 	p.perror = nil
-	for _, v := range program.StatementsMap {
+	for _, v := range api.StatementsMap {
 		v.CheckDirectiveLocation(&p.perror)
 		if len(p.perror) > 0 {
-			program.ErrorMap[v.TypeName()] = append(program.ErrorMap[v.TypeName()], p.perror...)
+			api.ErrorMap[v.TypeName()] = append(api.ErrorMap[v.TypeName()], p.perror...)
 			p.perror = nil
 		}
 	}
@@ -283,32 +282,44 @@ func (p *Parser) ParseDocument(doc ...string) (program *ast.Document, errs []err
 	// Build perror from statement errors to use in hasError() counting
 	//
 	p.perror = holderr
-	for _, v := range program.StatementsMap { //program.Statements {
-		p.perror = append(p.perror, program.ErrorMap[v.TypeName()]...)
+	for _, v := range api.StatementsMap { //api.Statements {
+		p.perror = append(p.perror, api.ErrorMap[v.TypeName()]...)
 	}
 	if p.hasError() {
 		p.perror = nil
-		return program, p.perror
+		return api, p.perror
 	}
 	//
 	// validate phase 3 - type specific validations
 	//
+	errCollect := func(typeName ast.NameValue_) {
+		fmt.Println("errCollect ", typeName, len(p.perror))
+		api.ErrorMap[typeName] = append(api.ErrorMap[typeName], p.perror...)
+		p.perror = nil
+	}
+
 	p.perror = nil
-	for _, v := range program.StatementsMap {
+	for _, v := range api.StatementsMap {
+		if p.hasError() {
+			break
+		}
 		// only proceed if zero errors for stmt
-		//		if len(program.ErrorMap[v.TypeName()]) == 0 {
+		//		if len(api.ErrorMap[v.TypeName()]) == 0 {
 		p.checkFieldASTAssigned(v)
-		if p.containsErr(v.CheckInputValueType, 5) {
+		if p.executeWithErrLimit(v.CheckInputValueType, 5) {
+			errCollect(v.TypeName())
 			continue
 		}
 		switch x := v.(type) {
 		case *ast.Input_:
 			x.CheckIsInputType(&p.perror)
 		case *ast.Object_:
-			if p.containsErr(x.CheckIsOutputType, 5) {
+			if p.executeWithErrLimit(x.CheckIsOutputType, 5) {
+				errCollect(v.TypeName())
 				continue
 			}
-			if p.containsErr(x.CheckIsInputType, 0) {
+			if p.executeWithErrLimit(x.CheckIsInputType, 5) {
+				errCollect(v.TypeName())
 				continue
 			}
 			x.CheckImplements(&p.perror) // check implements are interfaces
@@ -317,23 +328,19 @@ func (p *Parser) ParseDocument(doc ...string) (program *ast.Document, errs []err
 		case *ast.Union_:
 			p.CheckUnionMembers(x)
 		case *ast.Directive_:
-			if p.containsErr(x.CheckIsInputType, 5) {
+			if p.executeWithErrLimit(x.CheckIsInputType, 5) {
+				errCollect(v.TypeName())
 				continue
 			}
 			p.CheckSelfReference(v.TypeName(), x)
 		}
-		if p.hasError() {
-			break
-		}
-		//		}
-		program.ErrorMap[v.TypeName()] = append(program.ErrorMap[v.TypeName()], p.perror...)
-		p.perror = nil
+		//
+		errCollect(v.TypeName())
 	}
-
-	return program, p.perror
+	return api, p.perror
 }
 
-// for _, v := range program.ErrorMap {
+// for _, v := range api.ErrorMap {
 // 	for _, x := range v {
 // 		fmt.Println("xErr: ", x.Error())
 // 	}

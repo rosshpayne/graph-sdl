@@ -22,7 +22,7 @@ type GQLTypeProvider interface {
 	CheckDirectiveLocation(err *[]error)
 	CheckInputValueType(err *[]error)
 	String() string
-	Type() string // equiv to IsType however IsType has been used for Input Types (subset of GQLTypeProvider
+	Type() string // used to print type in error message
 }
 
 // =================  InputValueProvider =================================

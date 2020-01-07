@@ -28,7 +28,7 @@ func NewCache() *Cache_ {
 }
 
 // AddEntry is not concurrency safe. Used in non-cconcurrent situations.
-func (t *Cache_) AddEntry(name ast.NameValue_, data ast.GQLTypeProvider) {
+func (t *Cache_) AddEntry(name ast.NameValue_, data ast.GQLTypeProvider) { //ast.NameValue_, data GQLTypeProvider) {
 	e := &entry{data: data, ready: make(chan struct{})}
 	close(e.ready)
 	fmt.Println("**** AddEntry ", name.String())

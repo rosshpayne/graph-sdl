@@ -532,6 +532,9 @@ func (f *Object_) CheckIsInputType(err *[]error) {
 
 func (f *Object_) CheckInputValueType(err *[]error) {
 	f.Directives_.CheckInputValueType(err)
+	// for _, fs := range f.FieldSet {
+	// 	fs.CheckInputValueType(err)
+	// }
 	f.FieldSet.CheckInputValueType(err)
 }
 
@@ -575,9 +578,9 @@ func (f *FieldSet) String() string {
 	}
 	return s.String()
 }
+
 func (fs *FieldSet) CheckInputValueType(err *[]error) {
 	for _, v := range *fs {
-		v.ArgumentDefs.CheckInputValueType(err)
 		v.CheckInputValueType(err)
 	}
 }
@@ -684,6 +687,11 @@ func (f *Field_) CheckDirectiveRef(dir NameValue_, err *[]error) {
 		refCheck(dir, f.Type.AST)
 	}
 
+}
+
+func (f *Field_) CheckInputValueType(err *[]error) {
+	f.ArgumentDefs.CheckInputValueType(err)
+	f.Directives_.CheckInputValueType(err)
 }
 
 // ==================== ArgumentDefs ================================
@@ -1263,13 +1271,14 @@ func (s *Scalar_) Coerce(input InputValueProvider) (InputValueProvider, error) {
 
 type Directive_ struct {
 	Desc         string
-	Name_        // no need to hold Location as its stored in InputValue, parent of this object
-	ArgumentDefs InputValueDefs
+	Name_                       // no need to hold Location as its stored in InputValue, parent of this object
+	ArgumentDefs InputValueDefs //TODO consider making InputValueDefs an embedded type in Directive_ ie. an anonymous field
 	Location     []DirectiveLoc
 }
 
 func (d *Directive_) TypeSystemNode() {}
 
+//
 func (d *Directive_) Type() string {
 	return "Directive"
 }
@@ -1334,113 +1343,6 @@ func (d *Directive_) AppendField(f_ *InputValueDef, err *[]error) {
 	d.ArgumentDefs.AppendField(f_, err)
 }
 
-// CheckInputValueType on directive stmt, used to check the default value is appropriate ie. matches the type of the argument.
-
-func (d *Directive_) CheckInputValueType(err *[]error) { // TODO try merging wih *Object_ version
-
-	for _, a := range d.ArgumentDefs { // go thru each of the argument field objects [] {} scalar
-
-		if a.DefaultVal != nil {
-
-			// what type is the default value
-			switch defval := a.DefaultVal.InputValueProvider.(type) {
-
-			case List_: // [ "ads", "wer" ]
-				if a.Type.Depth == 0 { // required type is not a LIST
-					*err = append(*err, fmt.Errorf(`Argument "%s", type is not a list but default value is a list %s`, a.Name_, a.DefaultVal.AtPosition()))
-					return
-				}
-				var d int = 0
-				var maxd int
-				defval.ValidateListValues(a.Type, &d, &maxd, err) // a.Type is the data type of the list items
-				//
-				if maxd != a.Type.Depth {
-					*err = append(*err, fmt.Errorf(`Argument "%s", nested List type depth different reqired %d, got %d %s`, a.Name_, a.Type.Depth, maxd, a.DefaultVal.AtPosition()))
-				}
-
-			case ObjectVals:
-				// { x: "ads", y: 234 }
-				defval.ValidateObjectValues(a.Type, err)
-
-			case *EnumValue_:
-				// EAST WEST NORHT SOUTH
-				if a.Type.isType() != ENUM {
-					*err = append(*err, fmt.Errorf(`"%s" is an enum like value but the argument type "%s" is not an Enum type %s`, defval.Name, a.Type.Name_, a.DefaultVal.AtPosition()))
-				} else {
-					defval.CheckEnumValue(a.Type, err)
-				}
-
-			default:
-				// single instance data
-				fmt.Printf("name: %s\n", a.Type.Name_)
-				fmt.Printf("constrint: %08b\n", a.Type.Constraint)
-				fmt.Printf("depth: %d\n", a.Type.Depth)
-				fmt.Println("defType ", a.DefaultVal.isType(), a.DefaultVal.IsScalar())
-				fmt.Println("refType ", a.Type.isType())
-
-				// save default type before potential coercing
-				defType := a.DefaultVal.isType()
-
-				if a.DefaultVal.isType() == NULL {
-					// test case FieldArgListInt3_6 [int]!  null  - value cannot be null
-					if a.Type.Constraint>>uint(a.Type.Depth)&1 == 1 {
-						*err = append(*err, fmt.Errorf(`Value cannot be NULL %s`, a.DefaultVal.AtPosition()))
-					}
-
-				} else if a.Type.isType() == SCALAR { //a.DefaultVal.IsScalar() {
-					// can the input value be coerced e.g. from string to Time
-					// try coercing default value to the appropriate scalar e.g. string to Time
-					if s, ok := a.Type.AST.(ScalarProvider); ok { // assert interface supported - normal assert type (*Scalar_) would also work just as well because there is only 1 scalar type really
-						if civ, cerr := s.Coerce(a.DefaultVal.InputValueProvider); cerr != nil {
-							*err = append(*err, cerr)
-							return
-						} else {
-							a.DefaultVal.InputValueProvider = civ
-							defType = a.DefaultVal.isType()
-						}
-					}
-					// coerce to a list of appropriate depth. Current value is not a list as this is switch case default - see other cases.
-					if a.Type.Depth > 0 {
-						var coerce2list func(i *InputValue_, depth int) *InputValue_
-						// type List_ []*InputValue_
-
-						coerce2list = func(i *InputValue_, depth int) *InputValue_ {
-							if depth == 0 {
-								return i
-							}
-							vallist := make(List_, 1, 1)
-							vallist[0] = i
-							vi := &InputValue_{InputValueProvider: vallist, Loc: i.Loc}
-							depth--
-							return coerce2list(vi, depth)
-						}
-						a.DefaultVal = coerce2list(a.DefaultVal, a.Type.Depth)
-					}
-
-				} else {
-					// coerce to a list of appropriate depth. Current value is not a list as this is case default - see other cases.
-					if a.Type.Depth > 0 {
-						var coerce2list func(i *InputValue_, depth int) *InputValue_
-						// type List_ []*InputValue_
-
-						coerce2list = func(i *InputValue_, depth int) *InputValue_ {
-							if depth == 0 {
-								return i
-							}
-							vallist := make(List_, 1, 1)
-							vallist[0] = i
-							vi := &InputValue_{InputValueProvider: vallist, Loc: i.Loc}
-							depth--
-							return coerce2list(vi, depth)
-						}
-						a.DefaultVal = coerce2list(a.DefaultVal, a.Type.Depth)
-					}
-				}
-
-				if defType != NULL && defType != a.Type.isType() {
-					*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, a.Type.isType(), defType, a.DefaultVal.AtPosition()))
-				}
-			}
-		}
-	}
+func (d *Directive_) CheckInputValueType(err *[]error) {
+	d.ArgumentDefs.CheckInputValueType(err)
 }

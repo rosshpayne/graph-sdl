@@ -1212,13 +1212,85 @@ type SomeType {
 	}
 }
 
+func TestQueryBadArgs3(t *testing.T) {
+
+	input := `
+directive @example3 (arg1 : Int = 5 arg2 : String = "ABC" arg3: Float = 23.44 ) on | INPUT_OBJECT| FIELD_DEFINITION | ARGUMENT_DEFINITION| INPUT_FIELD_DEFINITION
+
+type Query {
+  hero(argx1: [Int]! = [67 55 "abc"] @example3 (arg1 : "abc"), argx2: String! = "ABCDEF", argy3: Float ) : SomeType3
+}
+input SomeInput3 @example3 (arg2: "DEF" ) {
+  field: String = "ABC" @example3
+}
+
+type SomeType3 {
+  somefield : String @example3
+}
+
+`
+	var expectedErr []string = []string{`Required type "Int", got "String" at line: 5 column: 31`, `Required type "Int", got "String" at line: 5 column: 56`}
+
+	err := db.DeleteType("SomeType3")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("SomeInput3")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("@example3")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+
+	l := lexer.New(input)
+	p := New(l)
+	p.ClearCache()
+	d, errs := p.ParseDocument()
+	for _, v := range errs {
+		fmt.Println("err: ", v)
+	}
+	fmt.Println(d.String())
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+	if compare(d.String(), input) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}
+
 func TestSetup4DirectiveQueriesArgs3(t *testing.T) {
 
 	input := `
 directive @example3 (arg1 : Int = 5 arg2 : String = "ABC" arg3: Float = 23.44 ) on | INPUT_OBJECT| FIELD_DEFINITION | ARGUMENT_DEFINITION| INPUT_FIELD_DEFINITION
 
 type Query {
-  hero(argx1: [Int]! = [67 55] @example3 (arg1 : 234), argx2: String! = "ABCDEF", argy3: Float ) : SomeType3
+  hero(argx1: [Int]! = [67 55] @example3 (arg1 : 1234), argx2: String! = "ABCDEF", argy3: Float ) : SomeType3
 }
 input SomeInput3 @example3 (arg2: "DEF" ) {
   field: String = "ABC" @example3
