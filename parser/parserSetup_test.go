@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/graph-sdl/db"
@@ -66,7 +67,7 @@ type Query {
 	
 	 type Droid implements,Character{id:ID! name:String! friends:[Character] appearsIn:[Episode!]! primaryFunction:String}
 	 
-	 enum Episode{NEWHOPE EMPIRE JEDI}
+	 enum Episode{NEWHOPE EMPIRE JEDI DRTYPE}
 	 
 	type Human implements Character{id:ID! name:String! friends:[Character] appearsIn:[Episode!]! starships:[Starship] totalCredits:Int}
 
@@ -102,6 +103,9 @@ type Query {
 	p := New(l)
 	d, errs := p.ParseDocument()
 	//fmt.Println(d.String())
+	for _, v := range errs {
+		fmt.Println("*** Error: ", v)
+	}
 	for _, ex := range expectedErr {
 		if len(ex) == 0 {
 			break

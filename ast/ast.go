@@ -708,7 +708,8 @@ func (d *Directives_) CheckInputValueType(err *[]error) {
 	for _, v := range d.Directives {
 		// get directive definition
 		if dirDef, ok := TyCache[v.Name.String()]; !ok {
-			*err = append(*err, fmt.Errorf(`Directive definition not found "%s" %s`, v.Name, v.AtPosition()))
+			// comment out not-exists error as this was generated during FetchAST when cache was populated. No need to reiterate this error.
+			//	*err = append(*err, fmt.Errorf(`Directive definition not found "%s" %s`, v.Name, v.AtPosition()))
 		} else {
 			if dir, ok := dirDef.(*Directive_); ok {
 				var ivdef *InputValueDef

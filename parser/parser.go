@@ -238,7 +238,8 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 	}
 	//
 	// validate phase 1 - resolve ALL types. Once complete all type's AST will reside in the cache
-	//                    and  *Type.AST assigned where applicable
+	//                    and  *Type.AST assigned where applicable. if type does not exist then error will be created for it.
+	//					  if cache returns no value then don't generate error as this was done at cache populate time for that item.
 	//
 	for _, v := range api.Statements {
 		p.ResolveAllTypes(v, p.cache)
@@ -366,7 +367,7 @@ func (p *Parser) ParseStatement() ast.GQLTypeProvider {
 }
 
 // ===================  ResolveAllTypes  ==========================
-// ResolveAllTypes is a validation check performed after parsing completed
+// ResolveAllTypes is a validation check performed after parsing completes.
 //  otherNonScalarTypes Types from parsed types are then checked in DB.
 //  check performed across nested types until all leaf finsihed or otherNonScalarTypes found
 func (p *Parser) ResolveAllTypes(v ast.GQLTypeProvider, t *Cache_) []error {
@@ -378,7 +379,7 @@ func (p *Parser) ResolveAllTypes(v ast.GQLTypeProvider, t *Cache_) []error {
 	//
 	v.SolicitNonScalarTypes(otherNonScalarTypes)
 	//
-	// get all resolved types from the cache
+	// load all resolved types from the cache into a map
 	//
 	t.Lock()
 	resolved := make(ast.UnresolvedMap)
@@ -399,6 +400,7 @@ func (p *Parser) ResolveAllTypes(v ast.GQLTypeProvider, t *Cache_) []error {
 		fmt.Println(" tyName : ", tyName)
 		// resolve type
 		ast_, err := t.FetchAST(tyName.Name)
+
 		// type ENUM values will have nil *Type
 		if ast_ != nil {
 			if ty != nil {
@@ -415,10 +417,17 @@ func (p *Parser) ResolveAllTypes(v ast.GQLTypeProvider, t *Cache_) []error {
 		} else {
 			// nil ast_ means not found in db
 			if err == nil {
-				p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, ty.Name, ty.AtPosition()))
+				if ty != nil {
+					p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, ty.Name, ty.AtPosition()))
+				} else {
+					p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, tyName, ty.AtPosition()))
+				}
 			} else {
-				//	p.addErr(err.Error())
-				p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, tyName, tyName.AtPosition()))
+				if errors.Is(err, ErrNotCached) {
+					p.addErr(fmt.Sprintf(`Item "%s" %s %s`, tyName.Name.String(), err, tyName.AtPosition()))
+				} else {
+					p.addErr(err.Error() + tyName.AtPosition())
+				}
 			}
 		}
 	}
@@ -473,8 +482,12 @@ func (p *Parser) CheckUnionMembers(x *ast.Union_) {
 	//
 	for _, m := range x.NameS {
 		ast_, err := p.cache.FetchAST(m.Name)
-		if ast_ == nil || err != nil {
-			p.addErr(fmt.Sprintf(`%s. Union member "%s" does not exist %s`, err, m, m.AtPosition()))
+		if err != nil { //ast_ == nil || err != nil {
+			if errors.Is(err, ErrNotCached) {
+				p.addErr(fmt.Sprintf(`%s. Union member "%s" does not exist %s`, err, m, m.AtPosition()))
+			} else {
+				p.addErr(fmt.Sprintf(`Union member %s %s %s`, m, err, m.AtPosition()))
+			}
 		} else {
 			switch ast_.(type) {
 			case *ast.Object_, *ast.Union_, *ast.Interface_, *ast.Scalar_: //, *ast.Int_, *ast.Float_, *ast.String_, *ast.Boolean_, *ast.ID_:
@@ -513,7 +526,7 @@ func (p *Parser) ParseSchema(op string) ast.GQLTypeProvider {
 		return inp
 	} else {
 		// return original AST associated with the extend Name.
-		obj, name := p.parseExtendName()
+		obj, name, err := p.parseExtendName()
 		if obj != nil {
 			if inp, ok := obj.(*ast.Schema_); !ok {
 				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
@@ -531,7 +544,7 @@ func (p *Parser) ParseSchema(op string) ast.GQLTypeProvider {
 				return inp
 			}
 		} else {
-			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
+			p.addErr(strings.Replace(err.Error(), "Item", "Schema", 1) + p.Loc().String())
 			return &ast.Object_{Name_: name}
 		}
 	}
@@ -618,7 +631,7 @@ func (p *Parser) ParseObjectType(op string) ast.GQLTypeProvider {
 		return obj
 	} else {
 		// return original AST associated with the extend Name.
-		obj, name := p.parseExtendName()
+		obj, name, err := p.parseExtendName()
 		if obj != nil {
 			if inp, ok := obj.(*ast.Object_); !ok {
 				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
@@ -634,7 +647,7 @@ func (p *Parser) ParseObjectType(op string) ast.GQLTypeProvider {
 				return inp
 			}
 		} else {
-			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
+			p.addErr(strings.Replace(err.Error(), "Item", "Type", 1) + p.Loc().String())
 			return &ast.Object_{Name_: name}
 		}
 	}
@@ -659,7 +672,7 @@ func (p *Parser) ParseEnumType(op string) ast.GQLTypeProvider {
 		return obj
 	} else {
 		// return original AST associated with the extend Name.
-		obj, name := p.parseExtendName()
+		obj, name, err := p.parseExtendName()
 		if obj != nil {
 			if inp, ok := obj.(*ast.Enum_); !ok {
 				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
@@ -675,7 +688,7 @@ func (p *Parser) ParseEnumType(op string) ast.GQLTypeProvider {
 				return inp
 			}
 		} else {
-			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
+			p.addErr(strings.Replace(err.Error(), "Item", "Enum", 1) + p.Loc().String())
 			return &ast.Enum_{Name_: name}
 		}
 	}
@@ -695,7 +708,7 @@ func (p *Parser) ParseInterfaceType(op string) ast.GQLTypeProvider {
 		return obj
 	} else {
 		// return original AST associated with the extend Name.
-		obj, name := p.parseExtendName()
+		obj, name, err := p.parseExtendName()
 		if obj != nil {
 			if inp, ok := obj.(*ast.Interface_); !ok {
 				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
@@ -711,7 +724,7 @@ func (p *Parser) ParseInterfaceType(op string) ast.GQLTypeProvider {
 				return inp
 			}
 		} else {
-			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
+			p.addErr(strings.Replace(err.Error(), "Item", "Interface", 1) + p.Loc().String())
 			return &ast.Interface_{Name_: name}
 		}
 	}
@@ -734,7 +747,7 @@ func (p *Parser) ParseUnionType(op string) ast.GQLTypeProvider {
 		return obj
 	} else {
 		// return original AST associated with the extend Name.
-		obj, name := p.parseExtendName()
+		obj, name, err := p.parseExtendName()
 		if obj != nil {
 			if inp, ok := obj.(*ast.Union_); !ok {
 				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
@@ -750,7 +763,7 @@ func (p *Parser) ParseUnionType(op string) ast.GQLTypeProvider {
 				return inp
 			}
 		} else {
-			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
+			p.addErr(strings.Replace(err.Error(), "Item", "Union", 1) + p.Loc().String())
 			return &ast.Union_{Name_: name}
 		}
 	}
@@ -771,7 +784,7 @@ func (p *Parser) ParseInputValueType(op string) ast.GQLTypeProvider {
 		return inp
 	} else {
 		// return original AST associated with the extend Name.
-		obj, name := p.parseExtendName()
+		obj, name, err := p.parseExtendName()
 		if obj != nil {
 			if inp, ok := obj.(*ast.Input_); !ok {
 				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
@@ -787,7 +800,7 @@ func (p *Parser) ParseInputValueType(op string) ast.GQLTypeProvider {
 				return inp
 			}
 		} else {
-			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
+			p.addErr(strings.Replace(err.Error(), "Item", "Input type", 1) + p.Loc().String())
 			p.abort = true
 			return &ast.Input_{Name_: name}
 		}
@@ -810,7 +823,7 @@ func (p *Parser) ParseScalar(op string) ast.GQLTypeProvider {
 		return inp
 	} else {
 		// return original AST associated with the extend Name.
-		obj, name := p.parseExtendName()
+		obj, name, err := p.parseExtendName()
 		if obj != nil {
 			if inp, ok := obj.(*ast.Input_); !ok {
 				p.addErr(fmt.Sprintf(`specified extend type "%s" is not an Input Value Type`, obj.TypeName()))
@@ -826,7 +839,7 @@ func (p *Parser) ParseScalar(op string) ast.GQLTypeProvider {
 				return inp
 			}
 		} else {
-			p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, p.curToken.Literal, p.Loc()))
+			p.addErr(strings.Replace(err.Error(), "Item", "Scalar", 1) + p.Loc().String())
 			return &ast.Scalar_{Name: name.String()}
 		}
 	}
@@ -849,7 +862,7 @@ func (p *Parser) ParseDirective(op string) ast.GQLTypeProvider {
 
 	inp := &ast.Directive_{}
 
-	p.parseAt().parseName(inp).parseFieldArgumentDefs(inp).parseOn().parseDirectiveLocations(inp)
+	p.parseAtSign().parseName(inp).parseFieldArgumentDefs(inp).parseOn().parseDirectiveLocations(inp)
 
 	inp.CoerceDirectiveName() // prepend @ to name
 
@@ -864,7 +877,7 @@ func (p *Parser) skipComment() {
 	}
 }
 
-func (p *Parser) parseAt() *Parser {
+func (p *Parser) parseAtSign() *Parser {
 	if p.curToken.Type == token.ATSIGN {
 		p.nextToken() // read over @
 	} else {
@@ -922,7 +935,7 @@ func (p *Parser) parseName(f ast.NameAssigner) *Parser {
 
 // ==================== parseExtendName ===============================
 // parseExtendName will consume the type name to be extended. Returns the type's AST.
-func (p *Parser) parseExtendName() (ast.GQLTypeProvider, ast.Name_) {
+func (p *Parser) parseExtendName() (ast.GQLTypeProvider, ast.Name_, error) {
 	// if p.hasError() {
 	// 	return nil,
 	// }
@@ -937,14 +950,12 @@ func (p *Parser) parseExtendName() (ast.GQLTypeProvider, ast.Name_) {
 		}
 	}
 	name_ := ast.Name_{Name: ast.NameValue_(extName), Loc: p.Loc()}
-	ast, err := p.cache.FetchAST(name_.Name)
-	if err != nil {
-		p.addErr(err.Error())
-	}
+	ast, err := p.cache.FetchAST(name_.Name) // ignore error as as ast value of nil means no data found
+	// handle err to calling routine, which can add extra value
 	if ast != nil {
 		p.nextToken() // read over name
 	}
-	return ast, name_
+	return ast, name_, err
 }
 
 func (p *Parser) parseEnumValues(enum *ast.Enum_, optional ...bool) *Parser {

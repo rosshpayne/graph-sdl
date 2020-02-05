@@ -7,12 +7,12 @@ import (
 	"github.com/graph-sdl/lexer"
 )
 
-func TestEnumValid(t *testing.T) {
+func TestEnumValidx(t *testing.T) {
 
 	input := `
 
 directive @deprecated on ENUM_VALUE | ARGUMENT_DEFINITION
-directive @dep on ENUM_VALUE | ARGUMENT_DEFINITION
+directive @dep (if : Int) on ENUM_VALUE | ARGUMENT_DEFINITION
 
 enum Direction {
   NORTH
@@ -27,8 +27,10 @@ type Person {
 }
 `
 
-	var expectedErr [1]string
-	expectedErr[0] = ``
+	var expectedErr []string = []string{`Required type "Int", got "Float" at line: 10 column: 31`,
+		`Argument "fi" is not a valid argument for directive "@dep" at line: 10 column: 37`,
+		`Argument "cat" is not a valid argument for directive "@dep" at line: 10 column: 45`,
+	}
 
 	l := lexer.New(input)
 	p := New(l)

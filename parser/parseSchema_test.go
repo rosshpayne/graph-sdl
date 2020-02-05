@@ -282,7 +282,7 @@ schema {
 
 	#type Subscription {
 	#  newPerson: [Person!]
-#}
+	#}
 
 	type Person {
 	  name: String!

@@ -1,6 +1,7 @@
 package db
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -231,12 +232,58 @@ func DeleteType(input string) error {
 	return nil
 }
 
+var (
+	NoItemFoundErr  = errors.New("")
+	SystemErr       = errors.New("")
+	MarshalingErr   = errors.New("")
+	UnmarshalingErr = errors.New("")
+)
+
+type DBFetchErr struct {
+	pk      string // data key
+	sortk   string // data key
+	routine string // dynamodb statement
+	code    string // aws error code
+	err     string // aws error string
+	cat     error  // application error category
+}
+
+func (e *DBFetchErr) Unwrap() error {
+	return e.cat
+}
+
+func (e *DBFetchErr) Error() string {
+	if errors.Is(e, NoItemFoundErr) {
+		return fmt.Sprintf(`Item "%s" does not exist in document "%s" `, e.pk, e.sortk)
+	}
+	if errors.Is(e, SystemErr) {
+		if len(e.code) > 0 {
+			return fmt.Sprintf(`Database system error in fetch of Pkey: "%s", SortK: "%s". Routine: %s, Code: %s, Error: "%s" `, e.pk, e.sortk, e.routine, e.code, e.err)
+		}
+		return fmt.Sprintf(`Database error in fetch of Pkey: "%s", SortK: "%s". Routine: %s, Error: "%s" `, e.pk, e.sortk, e.routine, e.err)
+	}
+	if errors.Is(e, MarshalingErr) {
+		return fmt.Sprintf(`Database marshaling error for Pkey: "%s", SortK: "%s" `, e.pk, e.sortk)
+	}
+	if errors.Is(e, UnmarshalingErr) {
+		return fmt.Sprintf(`Database unmarshaling error for Pkey: "%s", SortK: "%s". Routine: %s, Code: %s, Error: "%s" `, e.pk, e.sortk, e.routine, e.code, e.err)
+	}
+	return ""
+}
+
+func newDBFetchErr(pk string, sortk string, routine string, code string, err error, cat error) error {
+	if err != nil {
+		return &DBFetchErr{pk: pk, sortk: sortk, routine: routine, code: code, err: err.Error(), cat: cat}
+	}
+	return &DBFetchErr{pk: pk, sortk: sortk, routine: routine, cat: cat}
+}
+
 func DBFetch(name string) (string, error) {
 	//
 	// query on recipe name to get RecipeId and  book name
 	//
 	///var sortK string
-	fmt.Printf("XX DB Fetch name: [%s]\n", name)
+	fmt.Printf("DB Fetch name: [%s]\n", name)
 	if len(document) == 0 {
 		document = defaultDoc
 	}
@@ -244,7 +291,6 @@ func DBFetch(name string) (string, error) {
 	if len(name) == 0 {
 		return "", fmt.Errorf("No DB search value provided")
 	}
-	errmsg := "Error in marshall of pKey "
 	// if name[0] == '@' {
 	// 	sortK = "D"
 	// } else {
@@ -254,7 +300,7 @@ func DBFetch(name string) (string, error) {
 	pkey := PkRow{PKey: name, SortK: document}
 	av, err := dynamodbattribute.MarshalMap(&pkey)
 	if err != nil {
-		return "", fmt.Errorf("%s. MarshalMap: %s", errmsg, err.Error())
+		return "", newDBFetchErr(name, document, "MarshalMap", "", err, MarshalingErr)
 	}
 	input := &dynamodb.GetItemInput{
 		Key:       av,
@@ -264,36 +310,22 @@ func DBFetch(name string) (string, error) {
 	//
 	result, err := db.GetItem(input)
 	if err != nil {
-		fmt.Println("ERROR")
+		var err_ error
 		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case dynamodb.ErrCodeProvisionedThroughputExceededException:
-				fmt.Println(dynamodb.ErrCodeProvisionedThroughputExceededException, aerr.Error())
-			case dynamodb.ErrCodeResourceNotFoundException:
-				fmt.Println(dynamodb.ErrCodeResourceNotFoundException, aerr.Error())
-			//case dynamodb.ErrCodeRequestLimitExceeded:
-			//	fmt.Println(dynamodb.ErrCodeRequestLimitExceeded, aerr.Error())
-			case dynamodb.ErrCodeInternalServerError:
-				fmt.Println(dynamodb.ErrCodeInternalServerError, aerr.Error())
-			default:
-				fmt.Println(aerr.Error())
-			}
+			err_ = newDBFetchErr(name, document, "GetItem", aerr.Code(), err, SystemErr)
 		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			fmt.Println(err.Error())
+			err_ = newDBFetchErr(name, document, "GetItem", "", err, SystemErr)
 		}
-		return "", fmt.Errorf("%s %s: %s", errmsg, "GetItemX", err.Error())
+		return "", err_
 	}
 	fmt.Println("dbFetch: GetItem: Query ConsumedCapacity: \n", result.ConsumedCapacity)
 	if len(result.Item) == 0 {
-		return "", fmt.Errorf(`Type "%s" not found`, name)
+		return "", newDBFetchErr(name, document, "GetItem", "", nil, NoItemFoundErr)
 	}
 	rec := &TypeRow{}
 	err = dynamodbattribute.UnmarshalMap(result.Item, rec)
 	if err != nil {
-		errmsg := "error in unmarshal "
-		return "", fmt.Errorf("%s. UnmarshalMaps:  %s", errmsg, err.Error())
+		return "", newDBFetchErr(name, document, "MarshalMap", "", err, UnmarshalingErr)
 	}
 	fmt.Printf("DBfetch result: [%s] \n", rec.Stmt)
 	return rec.Stmt, nil

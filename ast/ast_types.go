@@ -532,9 +532,6 @@ func (f *Object_) CheckIsInputType(err *[]error) {
 
 func (f *Object_) CheckInputValueType(err *[]error) {
 	f.Directives_.CheckInputValueType(err)
-	// for _, fs := range f.FieldSet {
-	// 	fs.CheckInputValueType(err)
-	// }
 	f.FieldSet.CheckInputValueType(err)
 }
 
@@ -1272,7 +1269,7 @@ func (s *Scalar_) Coerce(input InputValueProvider) (InputValueProvider, error) {
 type Directive_ struct {
 	Desc         string
 	Name_                       // no need to hold Location as its stored in InputValue, parent of this object
-	ArgumentDefs InputValueDefs //TODO consider making InputValueDefs an embedded type in Directive_ ie. an anonymous field
+	ArgumentDefs InputValueDefs //TODO consider making InputValueDefs an embedded type ie. an anonymous field
 	Location     []DirectiveLoc
 }
 

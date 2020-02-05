@@ -28,15 +28,15 @@ input ExampleInputObjectDirective @ june (asdf:234) @ june2 (aesdf:234) @ june3 
 `
 	var expectedErr [11]string
 
-	expectedErr[0] = `Directive definition not found "@june2" at line: 2 column: 55`
-	expectedErr[1] = `Directive definition not found "@june3" at line: 2 column: 75`
-	expectedErr[2] = `Directive definition not found "@ref" at line: 3 column: 26`
-	expectedErr[3] = `Directive definition not found "@jack" at line: 3 column: 41`
-	expectedErr[4] = `Directive definition not found "@ju" at line: 3 column: 78`
-	expectedErr[5] = `Directive definition not found "@judkne" at line: 3 column: 94`
-	expectedErr[6] = `Directive definition not found "@junqe" at line: 3 column: 133`
-	expectedErr[7] = `Directive definition not found "@ju" at line: 4 column: 30`
-	expectedErr[8] = `Directive definition not found "@junse" at line: 3 column: 114`
+	expectedErr[0] = `Item "@june2"  does not exist in document "DefaultDoc" at line: 2 column: 55`
+	expectedErr[1] = `Item "@june3" does not exist in document "DefaultDoc" at line: 2 column: 75`
+	expectedErr[2] = `Item "@ref"  does not exist in document "DefaultDoc" at line: 3 column: 26`
+	expectedErr[3] = `Item "@jack"  does not exist in document "DefaultDoc" at line: 3 column: 41`
+	expectedErr[4] = `Item "@ju" does not exist in document "DefaultDoc" at line: 3 column: 78`
+	expectedErr[5] = `Item "@judkne" does not exist in document "DefaultDoc" at line: 3 column: 94`
+	expectedErr[6] = `Item "@junqe" does not exist in document "DefaultDoc" at line: 3 column: 133`
+	expectedErr[7] = `Item "@ju" does not exist at line: 4 column: 30`
+	expectedErr[8] = `Item "@junse"  does not exist in document "DefaultDoc" at line: 3 column: 114`
 	expectedErr[9] = `Directive "@june" is not registered for INPUT_FIELD_DEFINITION usage at line: 3 column: 60`
 	expectedErr[10] = `Directive "@june" is not registered for INPUT_FIELD_DEFINITION usage at line: 4 column: 12`
 
@@ -45,6 +45,9 @@ input ExampleInputObjectDirective @ june (asdf:234) @ june2 (aesdf:234) @ june3 
 	p.ClearCache()
 	d, errs := p.ParseDocument()
 	fmt.Println("Statement: ", d.String())
+	for _, v := range errs {
+		fmt.Println("**Error: ", v)
+	}
 	for _, ex := range expectedErr {
 		found := false
 		for _, err := range errs {
@@ -76,21 +79,22 @@ input ExampleInputObjectDirective @ june (asdf:234) @ june2 (aesdf:234) @ june3 
 
 }
 
-func TestDirectiveDoesnotExist(t *testing.T) {
+func TestInputDoesnotExist(t *testing.T) {
 
 	input := `
 extend input ExampleInputXYZ @ june (asdf:234) 
 `
 	var expectedErr [1]string
-	expectedErr[0] = `Type "ExampleInputXYZ" not found at line: 2, column: 14`
+	expectedErr[0] = `Input type "ExampleInputXYZ" does not exist in document "DefaultDoc" at line: 2 column: 14`
 
 	l := lexer.New(input)
 	p := New(l)
 	p.ClearCache()
-	_, errs := p.ParseDocument()
-	for _, v := range errs {
-		fmt.Println("error: ", v.Error())
-	}
+	doc, errs := p.ParseDocument()
+	fmt.Println(doc.String())
+	// for _, v := range errs {
+	// 	fmt.Println("**error: ", v.Error())
+	// }
 	for _, ex := range expectedErr {
 		found := false
 		for _, err := range errs {
@@ -127,18 +131,18 @@ input ExampleInputObjectDirective2 @ june {
 
 extend input ExampleInputObjectDirective2 @ june (asdf:234) 
 `
-	var expectedErr [6]string
+	var expectedErr [3]string
 	expectedErr[0] = `Duplicate Directive name "@june" at line: 9, column: 45`
 	expectedErr[1] = `extend for type "ExampleInputObjectDirective2" contains no changes at line: 0, column: 0`
 	expectedErr[2] = `Directive "@june" is not registered for INPUT_OBJECT usage at line: 4 column: 38`
-	expectedErr[3] = `Directive "@june" is not registered for INPUT_OBJECT usage at line: 4 column: 38`
-	expectedErr[4] = `Directive "@june" is not registered for INPUT_OBJECT usage at line: 4 column: 38`
-	expectedErr[5] = `Directive "@june" is not registered for INPUT_OBJECT usage at line: 4 column: 38`
 
 	l := lexer.New(input)
 	p := New(l)
 	p.ClearCache()
 	_, errs := p.ParseDocument()
+	// for _, v := range errs {
+	// 	fmt.Println("Error: ", v)
+	// }
 	for _, ex := range expectedErr {
 		found := false
 		for _, err := range errs {
@@ -163,10 +167,10 @@ extend input ExampleInputObjectDirective2 @ june (asdf:234)
 	}
 }
 
-func TestDirectiveStmtx(t *testing.T) {
+func TestDirectiveStmt(t *testing.T) {
 
 	input := `
-directive @example (arg1: Int = 123 arg2: String = "ABCdef") on |FIELD_DEFINITION | ARGUMENT_DEFINITION
+directive @example (arg1: Int = 1256 arg2: String = "ABCdef") on |FIELD_DEFINITION | ARGUMENT_DEFINITION
 `
 
 	var expectedErr [1]string
@@ -533,6 +537,9 @@ x(Nm : String ={x:"abc" y:1 } @exampleDirOK ) : String
 	p := New(l)
 	p.ClearCache()
 	d, errs := p.ParseDocument()
+	for _, v := range errs {
+		fmt.Println("*** Error: ", v)
+	}
 	fmt.Println(d.String())
 	for _, ex := range expectedErr {
 		if len(ex) == 0 {
@@ -1212,7 +1219,7 @@ type SomeType {
 	}
 }
 
-func TestQueryBadArgs3(t *testing.T) {
+func TestObjectFieldBadArgs3(t *testing.T) {
 
 	input := `
 directive @example3 (arg1 : Int = 5 arg2 : String = "ABC" arg3: Float = 23.44 ) on | INPUT_OBJECT| FIELD_DEFINITION | ARGUMENT_DEFINITION| INPUT_FIELD_DEFINITION

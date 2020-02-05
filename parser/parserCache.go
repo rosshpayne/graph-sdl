@@ -3,6 +3,7 @@ package parser
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/graph-sdl/ast"
@@ -37,11 +38,11 @@ func (t *Cache_) AddEntry(name ast.NameValue_, data ast.GQLTypeProvider) { //ast
 
 var (
 	typeNotExists map[string]bool
+
 	// errors
-	ErrnonExistent error = errors.New("Type does not exist")
-	ErrnotFound    error = errors.New("Type not found in db")
-	ErrnotScalar   error = errors.New("scalars are not permitted for FetchAST")
-	ErrnoName      error = errors.New("No input name supplied to FetchAST")
+	ErrNotCached error = errors.New("does not exist")
+	ErrnotScalar error = errors.New("scalars are not permitted for FetchAST")
+	ErrnoName    error = errors.New("No input name supplied to FetchAST")
 )
 
 // FetchAST is a concurrency safe access method to the cache. If entry not found in the cache searches dynamodb table for the type SDL statement.
@@ -61,7 +62,7 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 	}
 	// check if name has been registered as non-existent from previous query
 	if typeNotExists[name_] {
-		return nil, ErrnonExistent
+		return nil, ErrNotCached
 	}
 	t.Lock()
 	e := t.Cache[name_] // e will be nil only when name_ is not in the cache. Nil has no other meaning.
@@ -75,7 +76,9 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 		// cache populated with bare minimum of data.  Release the lock and source remaining data to be cached while the channel synchronises access to the current entry.
 		// access db for definition of type (string value)
 		if typeSDL, err := db.DBFetch(name_); err != nil {
-			fmt.Println("DB err: ", err.Error())
+			if errors.Is(err, db.SystemErr) {
+				log.Fatal(err)
+			}
 			typeNotExists[name_] = true
 			delete(t.Cache, name_)
 			close(e.ready)
@@ -87,7 +90,7 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 				typeNotExists[name_] = true
 				delete(t.Cache, name_)
 				close(e.ready)
-				return nil, ErrnotFound
+				return nil, err
 			} else {
 				fmt.Printf("Found in DB: %q\n", typeSDL)
 				// generate AST for the resolved type
@@ -107,7 +110,7 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 	}
 	if e.data == nil {
 		// concurrency issue  (when currency applies) - two queries on same object within short time interval - before typeNotExists is updated.
-		return nil, ErrnotFound
+		return nil, ErrNotCached
 	} else {
 		fmt.Println("**** FetchAST returned with data ", e.data.TypeName())
 		return e.data, nil
