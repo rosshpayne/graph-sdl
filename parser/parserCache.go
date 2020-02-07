@@ -32,7 +32,7 @@ func NewCache() *Cache_ {
 func (t *Cache_) AddEntry(name ast.NameValue_, data ast.GQLTypeProvider) { //ast.NameValue_, data GQLTypeProvider) {
 	e := &entry{data: data, ready: make(chan struct{})}
 	close(e.ready)
-	fmt.Println("**** AddEntry ", name.String())
+	fmt.Println("Added to cache ", name.String())
 	t.Cache[name.String()] = e
 }
 
@@ -62,6 +62,7 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 	}
 	// check if name has been registered as non-existent from previous query
 	if typeNotExists[name_] {
+		fmt.Printf("DBFetch of [%s] does not exist", name)
 		return nil, ErrNotCached
 	}
 	t.Lock()
@@ -82,6 +83,9 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 			typeNotExists[name_] = true
 			delete(t.Cache, name_)
 			close(e.ready)
+			if errors.Is(err, db.NoItemFoundErr) {
+				fmt.Printf("DBFetch of [%s] not found", name)
+			}
 			return nil, err
 		} else {
 			if len(typeSDL) == 0 { // no type found in DB

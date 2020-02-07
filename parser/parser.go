@@ -207,7 +207,7 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 		db.SetDocument(doc[0])
 	}
 	//
-	// parse phase - 	build AST from GraphQL document
+	// parse phase - build AST from GraphQL document
 	//
 	for p.curToken.Type != token.EOF {
 		stmtAST := p.ParseStatement()
@@ -217,14 +217,16 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 			return api, p.perror
 		}
 		if stmtAST != nil {
+			fmt.Printf("Parsed statement: %s %s   (errors: %d) ", stmtAST.Type(), stmtAST.TypeName(), len(p.perror))
 			api.Statements = append(api.Statements, stmtAST)
-
 			name := stmtAST.TypeName()
 			api.StatementsMap[name] = stmtAST
 			api.ErrorMap[name] = p.perror
-			if len(p.perror) == 0 {
-				p.cache.AddEntry(stmtAST.TypeName(), stmtAST) // stmts define GL types
-			}
+			// add all stmts to cache (even errored ones). This prevents db searches for errored stmts.
+			p.cache.AddEntry(stmtAST.TypeName(), stmtAST)
+			//	if len(p.perror) == 0 {
+			//		p.cache.AddEntry(stmtAST.TypeName(), stmtAST) // stmts define GL types
+			//	}
 			p.perror = nil
 
 		} else {
@@ -253,11 +255,12 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 	//  Fundamentally ast needs this data as does the parser, but because of cyclic dependency ast cannot access the cache when its in the parser.
 	//  TODO: put the cache back in ast. The parser can always access the ast cache.
 	//
+	//	initialise ast Cache
 	ast.InitCache(len(p.cache.Cache))
 	for k, v := range p.cache.Cache {
 		ast.TyCache[k] = v.data
 	}
-	fmt.Println("*** cache transfered to ast - ", len(ast.TyCache))
+	fmt.Println("*** entries transfered to ast cache - ", len(ast.TyCache))
 	//
 	// Build perror from statement errors to use in hasError() counting
 	//
@@ -294,8 +297,8 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 	// validate phase 3 - type specific validations
 	//
 	errCollect := func(typeName ast.NameValue_) {
-		fmt.Println("errCollect ", typeName, len(p.perror))
 		api.ErrorMap[typeName] = append(api.ErrorMap[typeName], p.perror...)
+		fmt.Println("errCollect ", typeName, len(api.ErrorMap[typeName]))
 		p.perror = nil
 	}
 
@@ -304,9 +307,15 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 		if p.hasError() {
 			break
 		}
-		// only proceed if zero errors for stmt
-		//		if len(api.ErrorMap[v.TypeName()]) == 0 {
-		p.checkFieldASTAssigned(v)
+		// *** only proceed if zero errors for stmt. No. Pushed decision to checkFieldASTAssigned.
+		// *** see test case: testEnumMultiError1.
+		//    checkFieldASTAssigned determines if further checks can safely be perofmed
+		// if len(api.ErrorMap[v.TypeName()]) != 0 {
+		// 	continue
+		// }
+		if !p.checkFieldASTAssigned(v) {
+			continue
+		}
 		if p.executeWithErrLimit(v.CheckInputValueType, 5) {
 			errCollect(v.TypeName())
 			continue
@@ -321,6 +330,7 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 			}
 			if p.executeWithErrLimit(x.CheckIsInputType, 5) {
 				errCollect(v.TypeName())
+
 				continue
 			}
 			x.CheckImplements(&p.perror) // check implements are interfaces
@@ -366,7 +376,6 @@ func (p *Parser) ParseStatement() ast.GQLTypeProvider {
 	return nil
 }
 
-// ===================  ResolveAllTypes  ==========================
 // ResolveAllTypes is a validation check performed after parsing completes.
 //  otherNonScalarTypes Types from parsed types are then checked in DB.
 //  check performed across nested types until all leaf finsihed or otherNonScalarTypes found
@@ -590,9 +599,8 @@ func (p *Parser) parseOperation(inp *ast.Schema_) *Parser {
 	return p
 }
 
-// ================== checkFieldASTAssigned ======================================
-
-func (p *Parser) checkFieldASTAssigned(stmt ast.GQLTypeProvider) {
+// checkFieldASTAssigned return false if AST is not assigned. Further validations should not be carried out if AST is not assigned
+func (p *Parser) checkFieldASTAssigned(stmt ast.GQLTypeProvider) bool {
 
 	if x, ok := stmt.(ast.SelectionGetter); ok {
 
@@ -601,17 +609,15 @@ func (p *Parser) checkFieldASTAssigned(stmt ast.GQLTypeProvider) {
 			// Confirm argument value type against type definition
 			//
 			if !fld.Type.IsScalar() && fld.Type.AST == nil {
-				var err error
-				fld.Type.AST, err = p.cache.FetchAST(fld.Type.Name)
-				if err != nil {
-					p.addErr(err.Error())
-				}
+				//var err error
+				fld.Type.AST, _ = p.cache.FetchAST(fld.Type.Name)
 				if fld.Type.AST == nil {
-					panic(fmt.Sprintf("Type %s not found", fld.Type.Name))
+					return false
 				}
 			}
 		}
 	}
+	return true
 }
 
 // ==================== Object Type  ============================

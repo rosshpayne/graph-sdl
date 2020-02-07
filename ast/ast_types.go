@@ -843,10 +843,10 @@ type Enum_ struct {
 
 func (e *Enum_) TypeSystemNode() {}
 func (e *Enum_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
-	//	e.Directives_.SolicitNonScalarTypes(unresolved)
-	// for _, v := range e.Values {
-	// 	v.SolicitNonScalarTypes(unresolved)
-	// }
+	e.Directives_.SolicitNonScalarTypes(unresolved)
+	for _, v := range e.Values {
+		v.SolicitNonScalarTypes(unresolved)
+	}
 }
 
 func (e *Enum_) Type() string {
@@ -905,7 +905,11 @@ func (e *EnumValue_) IsType() TypeFlag_ {
 }
 func (e *EnumValue_) TypeSystemNode() {}
 func (e *EnumValue_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
-	//	e.Directives_.SolicitNonScalarTypes(unresolved)
+	fmt.Println("******** SolicitNonScalarTypes for ENUM ")
+	// e.Directives_.SolicitNonScalarTypes(unresolved)
+	for _, v := range e.Directives {
+		unresolved[v.Name_] = nil
+	}
 }
 
 func (e *EnumValue_) Type() string {
