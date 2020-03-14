@@ -29,7 +29,7 @@ func InitCache(size int) {
 //  2. validate QL - build AST-QL and embed AST-Type for validation and execution
 //  3  execute QL - using both ASTs
 //  4  save AST-QL to dynamodb
-type TypeFlag_ byte //uint16
+type TypeFlag_ uint8 //byte //uint16
 
 const (
 	INVALID_TYPE string = "invalid type"
