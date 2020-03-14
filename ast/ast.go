@@ -122,6 +122,9 @@ func (iv *InputValue_) IsScalar() bool {
 func (a *InputValue_) CheckInputValueType(refType *Type_, nm Name_, err *[]error) {
 
 	fmt.Println("=========== CheckInputValueType ==============")
+	if refType.isType().String() == token.ILLEGAL {
+		return
+	}
 	if a == nil {
 		return
 	}
@@ -576,6 +579,9 @@ func (l List_) Exists() bool {
 func (l List_) ValidateListValues(iv *Type_, d *int, maxd *int, err *[]error) {
 	reqType := iv.isType() // INT, FLOAT, OBJECT, PET, MEASURE etc            note: OBJECT is for specification of a type, OBJECTVAL is an object literal for input purposes
 	reqDepth := iv.Depth
+	if reqType.String() == token.ILLEGAL {
+		return
+	}
 	//
 	// for each element in the LIST
 	///

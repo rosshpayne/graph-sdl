@@ -12,8 +12,8 @@ import (
 type Lexer struct {
 	//	Eloc  token.Pos // Loc of illegal char
 	input string
-	cLoc  int    // Current rune Loc in input
-	rLoc  int    // Read rune Loc in input
+	cLoc  int    // Current ie. just read, Location (index) of rune in input string
+	rLoc  int    // next read Location (index) of rune in input string
 	ch    rune   // current rune under examination, added to token during lex processings
 	del   string // string delimeter
 	Line  int
@@ -145,7 +145,7 @@ func (l *Lexer) skipWhitespace() {
 func (l *Lexer) readRune() {
 	// get next byte in string
 	if l.rLoc >= len(l.input) {
-		l.ch = 0
+		l.ch = 0 // EOF
 		l.cLoc++
 	} else {
 		var size int
@@ -154,7 +154,7 @@ func (l *Lexer) readRune() {
 		l.cLoc = l.rLoc
 		l.rLoc += size
 		if !(l.ch == '\n' || l.ch == '\r') {
-			l.Col++
+			l.Col += size
 		}
 		//	fmt.Printf("readRune: %c %d %d %d [%s]\n", l.ch, l.cLoc, l.rLoc, size, l.input[:l.rLoc])
 	}

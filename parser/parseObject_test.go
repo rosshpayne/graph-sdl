@@ -141,7 +141,7 @@ func TestCheckInputValueType0(t *testing.T) {
 
 }
 
-func TestFieldArgTypeNotFound(t *testing.T) {
+func TestFieldArgTypeILLEGAL(t *testing.T) {
 
 	input := `
 
@@ -151,8 +151,10 @@ type Person {
   inputX(info: [[int!]] = [[1,2 ,4 56] [345 2342 234 25252 2525223 null]]): Float
   posts: [Boolean!]!
 }`
-	var expectedErr [1]string
-	expectedErr[0] = `Type "int" does not exist at line: 6 column: 18`
+	var expectedErr []string = []string{
+		`Item "int" does not exist in document "DefaultDoc" at line: 6 column: 18`,
+		`Argument "info" type "int", is not an input type at line: 6 column: 18`,
+	}
 
 	l := lexer.New(input)
 	p := New(l)

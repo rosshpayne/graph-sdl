@@ -97,6 +97,7 @@ func New(l *lexer.Lexer) *Parser {
 func (p *Parser) Getperror() []error {
 	return p.perror
 }
+
 func (p *Parser) Loc() *ast.Loc_ {
 	loc := p.curToken.Loc
 	return &ast.Loc_{loc.Line, loc.Col}

@@ -3,13 +3,13 @@ package token
 type TokenType string
 type TokenCat string
 
+//
+// Tokens (Type)
+//
 const (
-	IDENT TokenType = "IDENT"
-)
-const (
-	ILLEGAL = "ILLEGAL"
-	EOF     = "EOF"
-
+	IDENT   TokenType = "IDENT"
+	ILLEGAL           = "ILLEGAL"
+	EOF               = "EOF"
 	// GQL Input Values types
 	ID        = "ID"
 	INT       = "Int"    // 1343456
@@ -21,10 +21,6 @@ const (
 	LIST      = "List"
 	BOOLEAN   = "Boolean"
 	OBJECT    = "Object"
-
-	// Category
-	VALUE    = "VALUE"
-	NONVALUE = "NONVALUE"
 
 	// Operators
 	ASSIGN   = "="
@@ -59,8 +55,21 @@ const (
 	STRINGDEL = `"`
 
 	BOM = "BOM"
+)
 
-	// Keywords
+//
+// Value Category
+//
+const (
+	// Category
+	VALUE    = "VALUE"
+	NONVALUE = "NONVALUE"
+)
+
+//
+// Keywords
+//
+const (
 	TYPE         = "TYPE"
 	QUERY        = "QUERY"
 	MUTATION     = "MUTATION"
@@ -78,6 +87,7 @@ const (
 	DIRECTIVE    = "DIRECTIVE"
 )
 
+// Line and column position in input string
 type Pos struct {
 	Line int
 	Col  int
@@ -89,7 +99,7 @@ type Token struct {
 	Type         TokenType
 	IsScalarType bool
 	Literal      string // string value of token - rune, string, int, float, bool
-	Loc          Pos    // start position of token
+	Loc          Pos    // line and column position of start of the token in input string. Used in Parser to print location of errors in the SDL statements.
 	Illegal      bool
 }
 

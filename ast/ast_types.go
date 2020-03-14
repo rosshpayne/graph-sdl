@@ -31,6 +31,10 @@ func InitCache(size int) {
 //  4  save AST-QL to dynamodb
 type TypeFlag_ byte //uint16
 
+const (
+	INVALID_TYPE string = "invalid type"
+)
+
 func (tf TypeFlag_) String() string {
 	switch tf {
 	case ID:
@@ -60,7 +64,7 @@ func (tf TypeFlag_) String() string {
 	case NULL:
 		return token.NULL
 	}
-	return "NoTypeFound "
+	return token.ILLEGAL
 }
 
 type UnresolvedMap map[Name_]*Type_
@@ -905,8 +909,6 @@ func (e *EnumValue_) IsType() TypeFlag_ {
 }
 func (e *EnumValue_) TypeSystemNode() {}
 func (e *EnumValue_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
-	fmt.Println("******** SolicitNonScalarTypes for ENUM ")
-	// e.Directives_.SolicitNonScalarTypes(unresolved)
 	for _, v := range e.Directives {
 		unresolved[v.Name_] = nil
 	}
