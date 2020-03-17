@@ -1225,7 +1225,7 @@ func TestObjectFieldBadArgs3(t *testing.T) {
 directive @example3 (arg1 : Int = 5 arg2 : String = "ABC" arg3: Float = 23.44 ) on | INPUT_OBJECT| FIELD_DEFINITION | ARGUMENT_DEFINITION| INPUT_FIELD_DEFINITION
 
 type Query {
-  hero(argx1: [Int]! = [67 55 "abc"] @example3 (arg1 : "abc"), argx2: String! = "ABCDEF", argy3: Float ) : SomeType3
+  hero(argx1: [Int]! = [67 55 44 "ABC"] )  : SomeType3  @example3 (arg1  "abc", arg2: String! = "ABCDEF", arg3: Float )
 }
 input SomeInput3 @example3 (arg2: "DEF" ) {
   field: String = "ABC" @example3
@@ -1236,7 +1236,9 @@ type SomeType3 {
 }
 
 `
-	var expectedErr []string = []string{`Required type "Int", got "String" at line: 5 column: 31`, `Required type "Int", got "String" at line: 5 column: 56`}
+	var expectedErr []string = []string{
+		`Expected a colon followed by an argument value, got "abc"  at line: 5, column: 74`,
+	}
 
 	err := db.DeleteType("SomeType3")
 	if err != nil {
@@ -1284,13 +1286,240 @@ type SomeType3 {
 			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
-	if compare(d.String(), input) {
-		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
-		t.Errorf("Expected: [%s] \n", trimWS(input))
-		t.Errorf(`Unexpected: program.String() wrong. `)
-	}
+	// if compare(d.String(), input) {
+	// 	t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+	// 	t.Errorf("Expected: [%s] \n", trimWS(input))
+	// 	t.Errorf(`Unexpected: program.String() wrong. `)
+	// }
 }
 
+func TestObjectFieldBadArgs3a(t *testing.T) {
+
+	input := `
+directive @example3 (arg1 : Int = 5 arg2 : String = "ABC" arg3: Float = 23.44 ) on | INPUT_OBJECT| FIELD_DEFINITION | ARGUMENT_DEFINITION| INPUT_FIELD_DEFINITION
+
+type Query {
+  hero(argx1: : [Int]! = [67 55 44 "ABC"] )  : SomeType3  @example3 (arg1  "abc", arg2: "ABCDEF", arg3: Float )
+}
+input SomeInput3 @example3 (arg2: "DEF" ) {
+  field: String = "ABC" @example3
+}
+
+type SomeType3 {
+  somefield : String @example3
+}
+
+`
+	var expectedErr []string = []string{
+		`Expected a colon followed by an argument value, got "abc" at line: 5, column: 76`,
+		`A second colon detected at line: 5, column: 15`,
+	}
+
+	err := db.DeleteType("SomeType3")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("SomeInput3")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("@example3")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+
+	l := lexer.New(input)
+	p := New(l)
+	p.ClearCache()
+	d, errs := p.ParseDocument()
+	for _, v := range errs {
+		fmt.Println("err: ", v)
+	}
+	fmt.Println(d.String())
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+	// if compare(d.String(), input) {
+	// 	t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+	// 	t.Errorf("Expected: [%s] \n", trimWS(input))
+	// 	t.Errorf(`Unexpected: program.String() wrong. `)
+	// }
+}
+
+func TestObjectFieldBadArgs3b(t *testing.T) {
+
+	input := `
+directive @example3 (arg1 : Int = 5 arg2 : String = "ABC" arg3: Float = 23.44 ) on | INPUT_OBJECT| FIELD_DEFINITION | ARGUMENT_DEFINITION| INPUT_FIELD_DEFINITION
+
+type Query {
+  hero(argx1 : [Int]! = [67 55 44 "ABC"] )  : SomeType3  @example3 (argx1 : "abc", argc2: "ABCDEF", arg3: Float )
+}
+input SomeInput3 @example3 (arg2: "DEF" ) {
+  field: String = "ABC" @example3
+}
+
+type SomeType3 {
+  somefield : String @example3
+}
+
+`
+	var expectedErr []string = []string{
+		`Required type "Int", got "String" at line: 5 column: 35`,
+		`Argument "argx1" is not a valid name for directive "@example3" at line: 5 column: 69`,
+		`Argument "argc2" is not a valid name for directive "@example3" at line: 5 column: 84`,
+	}
+	//	`Expected an argument Value followed by IDENT or RPAREN got an NONVALUE:Float:Float NONVALUE:):) at line: 5, column: 107`,
+
+	err := db.DeleteType("SomeType3")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("SomeInput3")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("@example3")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+
+	l := lexer.New(input)
+	p := New(l)
+	p.ClearCache()
+	d, errs := p.ParseDocument()
+	for _, v := range errs {
+		fmt.Println("err: ", v)
+	}
+	fmt.Println(d.String())
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+	// if compare(d.String(), input) {
+	// 	t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+	// 	t.Errorf("Expected: [%s] \n", trimWS(input))
+	// 	t.Errorf(`Unexpected: program.String() wrong. `)
+	// }
+}
+
+func TestObjectFieldBadArgs3c(t *testing.T) {
+
+	input := `
+directive @example3 (arg1 : Int = 5 arg2 : String = "ABC" arg3: Float = 23.44 ) on | INPUT_OBJECT| FIELD_DEFINITION | ARGUMENT_DEFINITION| INPUT_FIELD_DEFINITION
+
+type Query {
+  hero(argx1 : [Int]! = [67 55 44 45] )  : SomeType3  @example3 (arg1 : "abc", arg2: "ABCDEF", arg3: Float )
+}
+input SomeInput3 @example3 (arg2: "DEF" ) {
+  field: String = "ABC" @example3
+}
+
+type SomeType3 {
+  somefield : String @example3
+}
+
+`
+	var expectedErr []string = []string{
+		`Required type "Int", got "String" at line: 5 column: 73`,
+		`Expected an argument value followed by an identifer or close parenthesis got "Float" at line: 5, column: 102`,
+	}
+	//	`Expected an argument Value followed by IDENT or RPAREN got an NONVALUE:Float:Float NONVALUE:):) at line: 5, column: 107`,
+
+	err := db.DeleteType("SomeType3")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("SomeInput3")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("@example3")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+
+	l := lexer.New(input)
+	p := New(l)
+	p.ClearCache()
+	d, errs := p.ParseDocument()
+	for _, v := range errs {
+		fmt.Println("err: ", v)
+	}
+	fmt.Println(d.String())
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+	// if compare(d.String(), input) {
+	// 	t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+	// 	t.Errorf("Expected: [%s] \n", trimWS(input))
+	// 	t.Errorf(`Unexpected: program.String() wrong. `)
+	// }
+}
 func TestSetup4DirectiveQueriesArgs3(t *testing.T) {
 
 	input := `
@@ -1306,11 +1535,8 @@ input SomeInput3 @example3 (arg2: "DEF" ) {
 type SomeType3 {
   somefield : String @example3
 }
-
-
-
 `
-
+	var expectedDoc string = `directive@example4(arg1:Int=5arg2:String="ABC"arg3:Float=23.44arg4:Int)on|INPUT_OBJECT|FIELD_DEFINITION|ARGUMENT_DEFINITION|INPUT_FIELD_DEFINITIONinputSomeInput4@example4(arg2:"DEF"){field:String="ABC"@example4}typeSomeType4{somefield(arg:Int@example4(arg1:234)):String@example4}typeQuery{hero:[SomeType4]}`
 	err := db.DeleteType("SomeType3")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
@@ -1323,8 +1549,7 @@ type SomeType3 {
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	var expectedErr [1]string
-	expectedErr[0] = ``
+	var expectedErr []string
 
 	l := lexer.New(input)
 	p := New(l)
@@ -1356,9 +1581,9 @@ type SomeType3 {
 			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
-	if compare(d.String(), input) {
+	if compare(d.String(), expectedDoc) {
 		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
-		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf("Expected: [%s] \n", trimWS(expectedDoc))
 		t.Errorf(`Unexpected: program.String() wrong. `)
 	}
 }

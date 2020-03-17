@@ -37,10 +37,10 @@ type InputValueProvider interface {
 
 // =================  InputValue =================================
 
-// input values used for "default values" in arguments in type and field arguments and input objecs.
+// input values used for "default values" in arguments in type,  field arguments and input objects.
 type InputValue_ struct {
-	InputValueProvider // Important: this is an Interface (embedded value|type), so the type of the input value is defined in the interface value.
-	Loc                *Loc_
+	InputValueProvider
+	Loc *Loc_
 }
 
 //func (iv *InputValue_) InputValueNode() {}
@@ -97,7 +97,7 @@ func (iv *InputValue_) isType() TypeFlag_ {
 	case List_:
 		return LIST
 	}
-	return NA
+	return ILLEGAL
 }
 
 func (iv *InputValue_) IsScalar() bool {
@@ -119,10 +119,11 @@ func (iv *InputValue_) IsScalar() bool {
 // refType is the reference type (i.e. for directive arguments, the directive stmt def, for field args the Object stmt def) the value of the InputValue_ must match
 // nm is the name of the associated argument or input - used for its Loc value
 // err contains all errors caught during validation
-func (a *InputValue_) CheckInputValueType(refType *Type_, nm Name_, err *[]error) {
+func (a *InputValue_) CheckInputValueType(refType *GQLtype, nm Name_, err *[]error) {
 
 	fmt.Println("=========== CheckInputValueType ==============")
-	if refType.isType().String() == token.ILLEGAL {
+	// is reqType a valid type if not abort
+	if refType.isType() == ILLEGAL {
 		return
 	}
 	if a == nil {
@@ -147,11 +148,10 @@ func (a *InputValue_) CheckInputValueType(refType *Type_, nm Name_, err *[]error
 		fmt.Println("refType ", refType.isType())
 		fmt.Println("=========== CheckInputValueType  List_ ==============")
 		if refType.Depth == 0 { // required type is not a LIST
-			*err = append(*err, fmt.Errorf(`Input value  "%s" named "%s"  is not a list but required type is a list %s`, valueType.String(), nm, atPosition))
+			*err = append(*err, fmt.Errorf(`Input value %s for argument "%s" is a list but required type is not a list %s`, valueType.String(), nm, atPosition))
 			return
 		}
-		var d int = 0
-		var maxd int
+		var d, maxd uint8
 		valueType.ValidateListValues(refType, &d, &maxd, err) // m.Type is the data type of the list items
 		//
 		if maxd != refType.Depth {
@@ -179,6 +179,7 @@ func (a *InputValue_) CheckInputValueType(refType *Type_, nm Name_, err *[]error
 
 	default:
 		// single instance data
+		fmt.Printf("valueType: %s\n", valueType)
 		fmt.Printf("name: %s\n", refType.Name_)
 		fmt.Printf("constrint: %08b\n", refType.Constraint)
 		fmt.Printf("depth: %d\n", refType.Depth)
@@ -195,6 +196,7 @@ func (a *InputValue_) CheckInputValueType(refType *Type_, nm Name_, err *[]error
 			}
 
 		} else if refType.isType() == SCALAR { //a.IsScalar() {
+
 			// can the input value be coerced e.g. from string to Time
 			// try coercing default value to the appropriate scalar e.g. string to Time
 			if s, ok := refType.AST.(ScalarProvider); ok { // assert interface supported - normal assert type (*Scalar_) would also work just as well because there is only 1 scalar type really
@@ -208,10 +210,10 @@ func (a *InputValue_) CheckInputValueType(refType *Type_, nm Name_, err *[]error
 			}
 			// coerce to a list of appropriate depth. Current value is not a list as this is switch case default - see other cases.
 			if refType.Depth > 0 {
-				var coerce2list func(i *InputValue_, depth int) *InputValue_
+				var coerce2list func(i *InputValue_, depth uint8) *InputValue_
 				// type List_ []*InputValue_
 
-				coerce2list = func(i *InputValue_, depth int) *InputValue_ {
+				coerce2list = func(i *InputValue_, depth uint8) *InputValue_ {
 					if depth == 0 {
 						return i
 					}
@@ -227,10 +229,10 @@ func (a *InputValue_) CheckInputValueType(refType *Type_, nm Name_, err *[]error
 		} else {
 			// coerce to a list of appropriate depth. Current value is not a list as this is case default - see other cases.
 			if refType.Depth > 0 {
-				var coerce2list func(i *InputValue_, depth int) *InputValue_
+				var coerce2list func(i *InputValue_, depth uint8) *InputValue_
 				// type List_ []*InputValue_
 
-				coerce2list = func(i *InputValue_, depth int) *InputValue_ {
+				coerce2list = func(i *InputValue_, depth uint8) *InputValue_ {
 					if depth == 0 {
 						return i
 					}
@@ -247,6 +249,7 @@ func (a *InputValue_) CheckInputValueType(refType *Type_, nm Name_, err *[]error
 		if defType != NULL && defType != refType.isType() {
 			*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, refType.isType(), defType, atPosition))
 		}
+		fmt.Println("================. CheckInputValueType. ===============")
 	}
 }
 
@@ -277,19 +280,21 @@ func IsGLType(t GQLTypeProvider) string {
 	return "X"
 }
 
-// ============================ Type_ ======================
+// ============================ GQLtype ======================
 
-type Type_ struct {
+//type DepthT uint8 - didn't work. Compiler issues with conversions from DepthT to int.
+
+type GQLtype struct {
 	Constraint byte            // each bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001, [type]! 00000010
-	AST        GQLTypeProvider // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
-	Depth      int             // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
+	AST        GQLTypeProvider // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in GQLtype(typeName). If not in GQLtype, check cache, then DB.
+	Depth      uint8           // depth of nested List e.g. depth 2 would be [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
 	Name_                      // type name. inherit AssignName(). Use Name_ to access AST via cache lookup. ALternatively, use AST above or TypeFlag_ instead of string.
 	Base       string          // base type e.g. Name_ = "Episode" has Base = E(num)
 }
 
-func (t Type_) String() string {
+func (t GQLtype) String() string {
 	var s strings.Builder
-	for i := 0; i < t.Depth; i++ {
+	for i := uint8(0); i < t.Depth; i++ {
 		s.WriteString("[")
 	}
 	s.WriteString(t.Name_.String())
@@ -305,12 +310,12 @@ func (t Type_) String() string {
 			s.WriteString("!")
 		}
 	} else {
-		for i = 0; int(i) <= t.Depth+1; i++ {
+		for i = 0; uint8(i) <= t.Depth+1; i++ {
 			bit = (t.Constraint >> i) & one // show right most bit only
 			if bit == 1 {
 				s.WriteString("!")
 			}
-			if int(i) < t.Depth {
+			if uint8(i) < t.Depth {
 				s.WriteString("]")
 			}
 		}
@@ -318,16 +323,16 @@ func (t Type_) String() string {
 	return s.String()
 }
 
-func (t *Type_) IsList() bool {
+func (t *GQLtype) IsList() bool {
 	return t.Depth > 0
 }
 
-func (t *Type_) IsNullable() bool {
+func (t *GQLtype) IsNullable() bool {
 	return !(t.Constraint>>uint(t.Depth) == 1)
 }
 
-func (t *Type_) IsNullableAtDepth(depth uint) (bool, error) {
-	if t.Depth < int(depth) || int(depth) < 0 {
+func (t *GQLtype) IsNullableAtDepth(depth uint8) (bool, error) {
+	if t.Depth < (depth) || (depth) < 0 {
 		return false, fmt.Errorf("depth is out of range")
 	}
 	r := t.Constraint
@@ -335,21 +340,21 @@ func (t *Type_) IsNullableAtDepth(depth uint) (bool, error) {
 	return r == 0, nil
 }
 
-// func (t *Type_) TypeName() string {
+// func (t *GQLtype) TypeName() string {
 // 	return t.Name.String()
 // }
 //TODO what is using non-pointer receiver?
-func (t Type_) TypeName() string {
+func (t GQLtype) TypeName() string {
 	return t.Name.String()
 }
 
-func (a *Type_) Equals(b *Type_) bool {
+func (a *GQLtype) Equals(b *GQLtype) bool {
 	return a.Name_.String() == b.Name_.String() && a.Constraint == b.Constraint && a.Depth == b.Depth
 }
 
 // dataTypeString - prints the datatype of the type specification
 
-func (t *Type_) isType() TypeFlag_ {
+func (t *GQLtype) isType() TypeFlag_ {
 	//
 	// Object types have nested types i.e. each field has a *Type attribute
 	//  the *Type.AST can itself be another object or a scalar (system or user defined)
@@ -358,7 +363,7 @@ func (t *Type_) isType() TypeFlag_ {
 
 	switch t.Name.String() {
 	//
-	// system scalars
+	// system scalar types
 	//
 	case token.ID:
 		return ID
@@ -378,7 +383,7 @@ func (t *Type_) isType() TypeFlag_ {
 	// return TIME
 	default:
 		//
-		// non-standard defined types
+		// application defined types
 		//
 		if t.AST != nil {
 			switch t.AST.(type) {
@@ -398,13 +403,13 @@ func (t *Type_) isType() TypeFlag_ {
 				return SCALAR
 			}
 			//
-			return NA
+			return ILLEGAL
 		}
 	}
-	return NA
+	return ILLEGAL
 }
 
-func (t *Type_) isType2() TypeFlag_ {
+func (t *GQLtype) isType2() TypeFlag_ {
 	//
 	// Object types have nested types i.e. each field has a *Type attribute
 	//  the *Type.AST can itself be another object or a scalar (system or user defined)
@@ -417,7 +422,15 @@ func (t *Type_) isType2() TypeFlag_ {
 	}
 }
 
-func (t *Type_) IsScalar() bool {
+func (t *GQLtype) isList() bool {
+	//
+	if t.Depth > 0 {
+		return true
+	}
+	return false
+}
+
+func (t *GQLtype) IsScalar() bool {
 	switch t.isType() {
 	case INT, FLOAT, STRING, BOOLEAN, SCALAR, ID, ENUM, ENUMVALUE:
 		return true
@@ -427,11 +440,11 @@ func (t *Type_) IsScalar() bool {
 
 }
 
-func (t *Type_) IsType() TypeFlag_ {
+func (t *GQLtype) IsType() TypeFlag_ {
 	return t.isType()
 }
 
-func (t *Type_) IsType2() TypeFlag_ {
+func (t *GQLtype) IsType2() TypeFlag_ {
 	if t.Depth > 0 {
 		return LIST
 	}
@@ -561,7 +574,7 @@ func (l List_) Exists() bool {
 // type InputValueDef struct {
 // 	Desc string
 // 	Name_
-// 	Type       *Type_   	// ** argument type specification
+// 	Type       *GQLtype   	// ** argument type specification
 // 	DefaultVal *InputValue_ // ** input value(s) type(s)
 // 	Directives_
 // }
@@ -569,17 +582,19 @@ func (l List_) Exists() bool {
 // 	Value InputValueProvider //  IV:type|value = assert type to determine InputValue_'s type
 // 	Loc   *Loc_
 // // }
-// type Type_ struct {
+// type GQLtype struct {
 // 	Constraint byte          // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
-// 	AST        GQLTypeProvider // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
+// 	AST        GQLTypeProvider // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in GQLtype(typeName). If not in GQLtype, check cache, then DB.
 // 	Depth      int           // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
 // 	Name_                    // type name. inherit()
 // }
 
-func (l List_) ValidateListValues(iv *Type_, d *int, maxd *int, err *[]error) {
+func (l List_) ValidateListValues(iv *GQLtype, d *uint8, maxd *uint8, err *[]error) {
 	reqType := iv.isType() // INT, FLOAT, OBJECT, PET, MEASURE etc            note: OBJECT is for specification of a type, OBJECTVAL is an object literal for input purposes
 	reqDepth := iv.Depth
-	if reqType.String() == token.ILLEGAL {
+	fmt.Println("ValidateListValues...............")
+	// is reqType a valid type if not abort
+	if reqType == ILLEGAL {
 		return
 	}
 	//
@@ -623,6 +638,7 @@ func (l List_) ValidateListValues(iv *Type_, d *int, maxd *int, err *[]error) {
 					*err = append(*err, fmt.Errorf(`Value %s is not at required nesting of %d %s`, v, reqDepth, v.AtPosition()))
 				}
 			}
+			fmt.Println("HERE IN ValidateListValues ", v.isType(), reqType)
 			if t := v.isType(); t != reqType {
 				if v.isType() == NULL {
 					if iv.Constraint>>uint(iv.Depth-*d)&1 == 1 { // is not-null constraint set
@@ -636,8 +652,6 @@ func (l List_) ValidateListValues(iv *Type_, d *int, maxd *int, err *[]error) {
 	}
 }
 
-// ========== Directives ================
-
 // Directives[Const]
 // 		Directive[?Const]list
 // Directive[Const] :
@@ -648,6 +662,8 @@ type DirectiveAppender interface {
 	AppendDirective(s *DirectiveT) error
 	//AssignLoc(loc *Loc_)
 }
+
+// ========== DirectiveT ================
 
 type DirectiveT struct {
 	Name_
@@ -664,6 +680,10 @@ func (d *DirectiveT) CoerceDirectiveName() {
 	d.Name_.Name = NameValue_("@" + d.Name_.String())
 }
 
+// ========== Directives ================
+
+// Directives_, attribute in many GQLtype e.g EnumValue, Interface, Union, Input,...
+// do not confuse with the Directive definition (statement)
 type Directives_ struct {
 	Directives []*DirectiveT
 }
@@ -682,13 +702,21 @@ func (d *Directives_) AppendDirective(s *DirectiveT) error {
 	return nil
 }
 
-// type Arguments_ struct {
-// 	Arguments []*ArgumentT
+// type Directive_ struct {	// STATEMENT not attribute to GQLtype's
+// 	Desc         string
+// 	Name_                       // no need to hold Location as its stored in InputValue, parent of this object
+// 	ArgumentDefs InputValueDefs //TODO consider making InputValueDefs an embedded type ie. an anonymous field
+// 	Location     []DirectiveLoc
 // }
-// type ArgumentT struct {
-// 	//( name : value )
+
+//type InputValueDefs []*InputValueDef
+
+// type InputValueDef struct {
+// 	Desc string
 // 	Name_
-// 	Value *InputValue_
+// 	Type       *GQLtype
+// 	DefaultVal *InputValue_
+// 	Directives_
 // }
 
 // type InputValue_ struct {
@@ -696,12 +724,14 @@ func (d *Directives_) AppendDirective(s *DirectiveT) error {
 // 	Loc                *Loc_
 // }
 
-// type InputValueDef struct {
-// 	Desc string
+// type Arguments_ struct {
+// 	Arguments []*ArgumentT
+// }
+
+// type ArgumentT struct {
+// 	//( name : value )
 // 	Name_
-// 	Type       *Type_
-// 	DefaultVal *InputValue_
-// 	Directives_
+// 	Value *InputValue_
 // }
 
 // type Name_ struct {
@@ -717,19 +747,23 @@ func (d *Directives_) CheckInputValueType(err *[]error) {
 			// comment out not-exists error as this was generated during FetchAST when cache was populated. No need to reiterate this error.
 			//	*err = append(*err, fmt.Errorf(`Directive definition not found "%s" %s`, v.Name, v.AtPosition()))
 		} else {
+			// Got the directive now get its definition.
+			// Note Directive_ is the STATEMENT definition. Directives_ are instances of many Directive_, that appears as an atribute in many GQLType's
 			if dir, ok := dirDef.(*Directive_); ok {
 				var ivdef *InputValueDef
-				// verify argument names against directive definition
+				// verify arguments in an instance of a directive d, against directive STATEMENT definition
 				for _, arg := range v.Arguments {
 					var found bool
+					fmt.Printf("arg: %#v\n", arg)
 					for _, ivdef = range dir.ArgumentDefs {
+						fmt.Printf("arg.Name %s, ivdef.Name_ %s\n", arg.Name_, ivdef.Name_)
 						if arg.Name_.Equals(ivdef.Name_) {
 							found = true
 							break
 						}
 					}
 					if !found {
-						*err = append(*err, fmt.Errorf(`Argument "%s" is not a valid argument for directive "%s" %s`, arg.Name, dir.Name, arg.Name_.AtPosition()))
+						*err = append(*err, fmt.Errorf(`Argument "%s" is not a valid name for directive "%s" %s`, arg.Name, dir.Name, arg.Name_.AtPosition()))
 					} else {
 						// verify argument input value
 						arg.Value.CheckInputValueType(ivdef.Type, arg.Name_, err)
@@ -810,7 +844,7 @@ type NameAssigner interface {
 	AssignName(name string, loc *Loc_, errS *[]error)
 }
 
-// ===============  Name_  =========================
+// ===============  NameValue_  =========================
 
 type NameValue_ string
 
@@ -825,6 +859,8 @@ func (a NameValue_) Equals(b NameValue_) bool {
 func (a NameValue_) EqualString(b string) bool {
 	return string(a) == b
 }
+
+// ===============  Name_  =========================
 
 type Name_ struct {
 	Name NameValue_
@@ -844,10 +880,9 @@ func (a Name_) EqualString(b string) bool {
 }
 
 func (n Name_) AtPosition() string {
-	// if n.Loc == nil {
-	// 	fmt.
-	// 	panic(fmt.Errorf("Error in AtPosition(), Loc not set"))
-	// }
+	if n.Loc == nil {
+		panic(fmt.Errorf("Error in AtPosition(), Loc not set"))
+	}
 	return n.Loc.String()
 }
 

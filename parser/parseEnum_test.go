@@ -1,7 +1,7 @@
 package parser
 
 import (
-	_ "fmt"
+	"fmt"
 	"testing"
 
 	"github.com/graph-sdl/lexer"
@@ -35,9 +35,9 @@ type Person {
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	// for _, v := range errs {
-	// 	fmt.Println("errors: ", v)
-	// }
+	for _, v := range errs {
+		fmt.Println("errors: ", v)
+	}
 	for _, ex := range expectedErr {
 		if len(ex) == 0 {
 			break
@@ -282,7 +282,7 @@ type Person {
 	}
 }
 
-func TestNullEnumValue(t *testing.T) {
+func TestEnumNullEnumValue(t *testing.T) {
 
 	input := `
 enum Direction {
@@ -297,9 +297,9 @@ enum Direction {
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	// for _, v := range errs {
-	// 	fmt.Println("errors: ", v)
-	// }
+	for _, v := range errs {
+		fmt.Println("errors: ", v)
+	}
 
 	for _, ex := range expectedErr {
 		if len(ex) == 0 {
@@ -328,7 +328,7 @@ enum Direction {
 	}
 }
 
-func TestBadBracket(t *testing.T) {
+func TestEnumBadBracket(t *testing.T) {
 
 	input := `
 	enum Direction {
@@ -376,7 +376,7 @@ func TestBadBracket(t *testing.T) {
 		}
 	}
 }
-func TestBadBoolEnumValue(t *testing.T) {
+func TestEnumBadBoolEnumValue(t *testing.T) {
 
 	input := `
 		directive @ xyz on | ENUM_VALUE
@@ -476,7 +476,7 @@ type Person {
 	}
 }
 
-func TestMultiError1(t *testing.T) {
+func TestEnumMultiError1(t *testing.T) {
 
 	input := `
 enum Direction {
@@ -726,7 +726,7 @@ type Person {
 
 }
 
-func TestFieldNoType(t *testing.T) {
+func TestEnumFieldNoType(t *testing.T) {
 
 	input := `
 enum Direction {
@@ -737,16 +737,20 @@ enum Direction {
 }
 type Person {
 		address: [String]
-		name(arg1: Direction = SOUTH )
+		namxe(arg1: Direction = SOUTH ) 
 		extra: Int
 	}
 `
+	// var expectedErr = []string{
+	// 	`Colon expected got IDENT of extra at line: 11, column: 3`,
+	// 	`Expected name identifer got : of ":" at line: 11, column: 8`,
+	// 	`Colon expected got Int of Int at line: 11, column: 10`,
+	// 	`Item "extra" does not exist in document "DefaultDoc" at line: 11 column: 3`,
+	// 	`Argument "if" is not a valid argument for directive "@dep" at line: 6 column: 27`,
+	// }
+
 	var expectedErr = []string{
-		`Colon expected got IDENT of extra at line: 11, column: 3`,
-		`Expected name identifer got : of ":" at line: 11, column: 8`,
-		`Colon expected got Int of Int at line: 11, column: 10`,
-		`Item "extra" does not exist in document "DefaultDoc" at line: 11 column: 3`,
-		`Argument "if" is not a valid argument for directive "@dep" at line: 6 column: 27`,
+		`Expected a colon followed by a GQL-Type, got \"extra\"  at line: 11, column: 3`,
 	}
 
 	l := lexer.New(input)

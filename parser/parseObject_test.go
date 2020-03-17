@@ -360,20 +360,37 @@ type Person {
   posts: [Boolean!]!
 }`
 
+	var expectedErr []string = []string{
+		`Argument "if" is not a valid argument for directive "@dep" at line: 6 column: 27`,
+		`Argument "fi" is not a valid argument for directive "@dep" at line: 6 column: 37`,
+		`Argument "cat" is not a valid argument for directive "@dep" at line: 6 column: 45`,
+	}
+
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
-	//fmt.Println(d.String())
-	if len(errs) > 0 {
-		t.Errorf("Unexpected, should be 0 errors, got %d", len(errs))
-		for _, v := range errs {
-			t.Errorf(`Unexpected error: %s`, v.Error())
+	fmt.Println(d.String())
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
 		}
 	}
-	if compare(d.String(), input) {
-		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
-		t.Errorf("Expected: [%s] \n", trimWS(input))
-		t.Errorf(`Unexpected: program.String() wrong. `)
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
 	}
 }
 
@@ -538,7 +555,7 @@ type Person {
 }`
 
 	var expectedErr [1]string
-	expectedErr[0] = `Argument "info", type is not a list but default value is a list at line: 9 column: 51`
+	expectedErr[0] = `Input value ["""abc \ndefasj \nasdf"""]  for argument "info" is a list but required type is not a list at line: 9 column: 51`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -577,7 +594,7 @@ type Measure {
 type Person {
   name: String!
   age: Int!
-  inputX(info: [String] = """abc \ndefasj \nasdf"""): Float
+  inputX(info: [String] = ["""abc \ndefasj \nasdf"""]): Float
   posts: [Boolean!]!
 }`
 
@@ -719,7 +736,7 @@ type Person {
 	}
 }
 
-func TestFieldArgListDiffDepthInt(t *testing.T) {
+func TestFieldArgListDepthInt(t *testing.T) {
 
 	input := `
 type Measure {
@@ -729,11 +746,11 @@ type Measure {
 type Person {
   name: String!
   age: Int!
-  inputX(info: [[Int]] =  2 ): Float
+  inputX(info: [[Int]] =  [[2 4][4 3 3][3]] ): Float
   posts: [Boolean!]!
 }`
 
-	expectedDoc := `typeMeasure{height:Floatweight:Int}typePerson{name:String!age:Int!inputX(info:[[Int]]=[[2]]):Floatposts:[Boolean!]!}`
+	expectedDoc := `typeMeasure{height:Floatweight:Int}typePerson{name:String!age:Int!inputX(info:[[Int]]=[[2 4][4 3 3][3]]):Floatposts:[Boolean!]!}`
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
@@ -761,11 +778,11 @@ type Measure {
 type Person {
   name: String!
   age: Int!
-  inputX(info: [Int] =  2 ): Float
+  inputX(info: [Int] =  [2 3 4 2] ): Float
   posts: [Boolean!]!
 }`
 
-	expectedDoc := `typeMeasure{height:Floatweight:Int}typePerson{name:String!age:Int!inputX(info:[Int]=[2]):Floatposts:[Boolean!]!}`
+	expectedDoc := `typeMeasure{height:Floatweight:Int}typePerson{name:String!age:Int!inputX(info:[Int]=[2342]):Floatposts:[Boolean!]!}`
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
@@ -1964,8 +1981,9 @@ type Person {
   posts: [Boolean!]!
 }`
 
-	var expectedErr [1]string
-	expectedErr[0] = `Argument type "Family", value has type Float should be Int at line: 12 column: 71`
+	var expectedErr []string = []string{
+		`Argument "children" from type "Family" expected Int got Float at line: 12 column: 71`,
+	}
 
 	l := lexer.New(input)
 	p := New(l)

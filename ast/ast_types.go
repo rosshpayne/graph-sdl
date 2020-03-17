@@ -29,11 +29,7 @@ func InitCache(size int) {
 //  2. validate QL - build AST-QL and embed AST-Type for validation and execution
 //  3  execute QL - using both ASTs
 //  4  save AST-QL to dynamodb
-type TypeFlag_ uint8 //byte //uint16
-
-const (
-	INVALID_TYPE string = "invalid type"
-)
+type TypeFlag_ uint8
 
 func (tf TypeFlag_) String() string {
 	switch tf {
@@ -59,19 +55,19 @@ func (tf TypeFlag_) String() string {
 		return token.OBJECT
 	case INPUT:
 		return token.INPUT
-	case LIST:
-		return token.LIST
+	// case LIST:
+	// 	return token.LIST
 	case NULL:
 		return token.NULL
 	}
 	return token.ILLEGAL
 }
 
-type UnresolvedMap map[Name_]*Type_
+type UnresolvedMap map[Name_]*GQLtype
 
 const (
 	//  input value types
-	_ TypeFlag_ = iota //1 << iota
+	_ TypeFlag_ = iota
 	ID
 	INT
 	FLOAT
@@ -89,7 +85,7 @@ const (
 	INTERFACE
 	UNION
 	//
-	NA
+	ILLEGAL
 )
 
 // Directive Locations
@@ -158,7 +154,7 @@ func init() {
 //				Return true
 //	 Return false
 
-func IsInputType(t *Type_) bool {
+func IsInputType(t *GQLtype) bool {
 	// determine inputType from t.Name
 	fmt.Println("***** IsInputType ***** ", t.Name)
 	if t.IsScalar() {
@@ -183,7 +179,7 @@ func IsInputType(t *Type_) bool {
 //		Return true
 //	Return false
 
-func IsOutputType(t *Type_) bool {
+func IsOutputType(t *GQLtype) bool {
 	if t.IsScalar() {
 		return true
 	}
@@ -213,7 +209,7 @@ type ArgumentAppender interface {
 }
 
 type ArgumentT struct {
-	//( name : value )
+	//( name : value ) e.g. picture(size: 300): Url    where Name_ is size and Value is 300
 	Name_
 	Value *InputValue_
 }
@@ -300,13 +296,14 @@ func (o ObjectVals) Exists() bool {
 	return false
 }
 
-// ValidateObjectValues compares the value of the objectVal ie. value in { name:value name:value ... } againstt he root Object/Input TYPE from the type definition
+// ValidateObjectValues compares the value of the objectVal ie. value in { name:value name:value ... } against the TYPE (ref) from the type definition Object/Input
 // . e.g. {name:"Ross", age:33} ==> root type "Person" {name: String, age: Int}
-func (o ObjectVals) ValidateObjectValues(ref *Type_, err *[]error) {
+func (o ObjectVals) ValidateObjectValues(ref *GQLtype, err *[]error) {
 	//
 	var errObj string
 	fmt.Println(" ----------- ValidateObjectValues ------------------")
-	refFields := make(map[NameValue_]*Type_)
+	fmt.Printf("ref:  %s %T  Name:  %s   List: %v\n", ref.IsType(), ref, ref.Name_, ref.IsList())
+	refFields := make(map[NameValue_]*GQLtype)
 	//
 	// What is the reference type the objectValue value should match
 	//
@@ -338,7 +335,15 @@ func (o ObjectVals) ValidateObjectValues(ref *Type_, err *[]error) {
 		} else {
 			// compare reference type against field  data
 
-			fmt.Printf("Field, , v.Value.isType(), refType.isType2(): %s, %T %T, %s, %s, %s\n", v.Name, v.Value, reftype, v.Value.isType(), reftype.isType2(), reftype.isType()) // InputValue.isType, *Type_.isType()
+			//	fmt.Printf("Field, , v.Value.isType(), refType.isType2(): %s, %T %T, %s, %s, %s\n", v.Name, v.Value, reftype, v.Value.isType(), reftype.isType2(), reftype.isType()) // InputValue.isType, *GQLtype.isType()
+			fmt.Println("++++++++++++")
+			fmt.Printf("Field v.Name:  [%s]\n", v.Name)
+			fmt.Printf("v.Value:       [%T]\n", v.Value)
+			fmt.Printf("v.value.isType(): %s\n", v.Value.isType())
+			fmt.Printf("reftype.isType2():  %s\n", reftype.isType2())
+			fmt.Printf("reftype.isType():   %s\n", reftype.isType())
+			fmt.Printf("reftype:        %T\n", reftype)
+			fmt.Println("++++++++++++")
 			// value == LIST isType2 == LIST isType == INT	    // LIST appropriate but no check for internal types made in ValidateListValues.
 			// value == LIST isTYpe2 == INT  isType == INT		// should not be in list
 			// value == INT  isType2 == LIST isType = INT       // must be in list
@@ -346,26 +351,32 @@ func (o ObjectVals) ValidateObjectValues(ref *Type_, err *[]error) {
 			//       for value (ie *InputValue) isType() displays OBJECTVALS, LIST, <SCALARS>, ENUMs of the embedded InputValueProvider
 			if v.Value.isType() != reftype.isType2() { // ie. both are not LISTs or different scalar types
 				// only LIST differences consider here
-				if v.Value.isType() == LIST && reftype.isType2() != LIST {
-					*err = append(*err, fmt.Errorf(`%s "%s" for type "%s" should not be in List %s`, errObj, v.Name, ref.Name, v.Value.AtPosition()))
+				//if v.Value.isType() == LIST && reftype.isType2() != LIST {
+				if v.Value.isType() == LIST && reftype.isList() {
+					*err = append(*err, fmt.Errorf(`%s "%s" from type "%s" should not be in List %s`, errObj, v.Name, ref.Name, v.Value.AtPosition()))
 				} else if v.Value.isType() != LIST && reftype.isType2() == LIST {
-					*err = append(*err, fmt.Errorf(`%s "%s" for type "%s" expected %s %s`, errObj, v.Name, ref.Name, reftype.isType2(), v.Value.AtPosition()))
+					*err = append(*err, fmt.Errorf(`%s "%s" from type "%s" expected %s %s`, errObj, v.Name, ref.Name, reftype.isType2(), v.Value.AtPosition()))
 				}
 			}
 			// when value not LIST check types
 			if v.Value.isType() != reftype.isType() { // if base type differences
-				if v.Value.isType() != LIST {
-					*err = append(*err, fmt.Errorf(`%s "%s" for type "%s" expected %s got %s %s`, errObj, v.Name, ref.Name, reftype.isType(), v.Value.isType(), v.Value.AtPosition()))
+				fmt.Println("&& v.Value.isType():  ", v.Value.isType())
+				fmt.Println("&& reftype.isType(): ", reftype.isType())
+				// for the purpose of this validation OBJECT and INPUT are the same
+				if !(v.Value.isType() == OBJECT && reftype.isType() == INPUT) {
+					//	if v.Value.isType() != LIST {
+					*err = append(*err, fmt.Errorf(`%s "%s" from type "%s" expected %s got %s %s`, errObj, v.Name, ref.Name, reftype.isType(), v.Value.isType(), v.Value.AtPosition()))
 				}
 			}
+			//
 			// look at  value type as it may be a list or another object/input type
+			//
 			switch iv := v.Value.InputValueProvider.(type) { // y inob:Float_
 
 			case List_:
 				fmt.Println(" ----------- ValidateObjectValues --LIST----------------")
 				// maxd records maximum depth of list(d=1) [] list of lists [[]](d=2) = [[][][][]] list of lists of lists (d=3) [[[]]] = [[[][][]],[[][][][]],[[]]]
-				d := 0
-				maxd := 0
+				var d, maxd uint8
 				iv.ValidateListValues(reftype, &d, &maxd, err)
 				d--
 				if maxd != reftype.Depth && reftype.Depth != 0 { // reftype.Depth == 0 check performed above
@@ -611,7 +622,7 @@ func (fs *FieldSet) AppendField(f_ *Field_) error {
 
 // ===============================================================
 type AssignTyper interface {
-	AssignType(t *Type_)
+	AssignType(t *GQLtype)
 }
 
 // ==================== Field_ ================================
@@ -621,15 +632,15 @@ type AssignTyper interface {
 type Field_ struct {
 	Desc string
 	Name_
-	ArgumentDefs InputValueDefs //[]*InputValueDef
+	ArgumentDefs InputValueDefs //[]*InputValueDef []*ObjectVal
 	// :
-	Type *Type_
+	Type *GQLtype
 	Directives_
 }
 
 //TODO  - check argumentsDefs
 
-func (f *Field_) AssignType(t *Type_) {
+func (f *Field_) AssignType(t *GQLtype) {
 	f.Type = t
 }
 
@@ -771,7 +782,7 @@ func (fa InputValueDefs) CheckInputValueType(err *[]error) {
 type InputValueDef struct {
 	Desc string
 	Name_
-	Type       *Type_
+	Type       *GQLtype
 	DefaultVal *InputValue_
 	Directives_
 }
@@ -810,7 +821,7 @@ func (fa *InputValueDef) AssignName(input string, loc *Loc_, unresolved *[]error
 	fa.Name_.AssignName(input, loc, unresolved)
 }
 
-func (fa *InputValueDef) AssignType(t *Type_) {
+func (fa *InputValueDef) AssignType(t *GQLtype) {
 	fa.Type = t
 }
 
@@ -937,7 +948,7 @@ func (e *EnumValue_) String() string {
 }
 
 // CheckEnumValue checks the ENUM value (as Argument in Field object) is a member of the ENUM Type.
-func (e *EnumValue_) CheckEnumValue(a *Type_, err *[]error) {
+func (e *EnumValue_) CheckEnumValue(a *GQLtype, err *[]error) {
 	// get Enum type and compare it against the instance value
 	// TODO - rethink this solution - should not use CacheFEtch in type mthod
 	if ast_, ok := TyCache[a.Name.String()]; ok {
@@ -945,7 +956,8 @@ func (e *EnumValue_) CheckEnumValue(a *Type_, err *[]error) {
 		case *Enum_:
 			found := false
 			for _, v := range enum_.Values {
-				if v.Name_.String() == e.Name_.String() {
+				//	if v.Name_.String() == e.Name_.String() {
+				if v.Name_.Equals(e.Name_) {
 					found = true
 					break
 				}
@@ -962,12 +974,16 @@ func (e *EnumValue_) CheckEnumValue(a *Type_, err *[]error) {
 	}
 }
 
+func (e *EnumValue_) CheckInputValueType(err *[]error) {
+	e.Directives_.CheckInputValueType(err)
+}
+
 // ======================  Schema =========================
 
 type Schema struct {
-	rootQuery        *Type_
-	rootMutation     *Type_
-	rootSubscription *Type_
+	rootQuery        *GQLtype
+	rootMutation     *GQLtype
+	rootSubscription *GQLtype
 }
 
 // ======================  Interface =========================

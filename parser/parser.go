@@ -3,7 +3,7 @@ package parser
 import (
 	"errors"
 	"fmt"
-	_ "os"
+	"strconv"
 	"strings"
 
 	"github.com/graph-sdl/ast"
@@ -19,6 +19,44 @@ const (
 	defaultDoc = "DefaultDoc"
 )
 
+// Error exit codes
+const (
+	FATAL int = 0
+)
+
+type stateT uint8
+
+// Parse State
+const (
+	_ stateT = iota
+	parseOperationTypes_
+	parseArguments_
+	parseFields_
+	parseArgumentDefs_
+	parseObjectArguments_
+	parseFieldArgumentDefs_
+	parseInputFieldDefs_
+	//
+	parseObjectType
+	parseEnumType
+	parseInterfaceType
+	parseUnionType
+	parseInputValueType
+	parseScalar
+	parseDirective
+	parseSchema
+	//
+	parseEnumValues_
+	parseDirectiveLocations_
+	parseUnionMembers_
+	parseImplements_
+	parseDirectives_
+	parseInputValue_
+	parseType_
+	parseDefaultVal_
+	parseInputValue__
+)
+
 type (
 	parseFn func(op string) ast.GQLTypeProvider
 
@@ -31,6 +69,7 @@ type (
 
 		abort     bool
 		stmtType  string
+		state     stateT
 		curToken  token.Token
 		peekToken token.Token
 
@@ -38,6 +77,11 @@ type (
 		perror   []error
 	}
 )
+
+func (p *Parser) setState(o stateT) func() {
+	var oldState = o
+	return func() { p.state = oldState }
+}
 
 var (
 	//	enumRepo      ast.EnumRepo
@@ -133,19 +177,23 @@ func (p *Parser) executeWithErrLimit(mv func(*[]error), num ...int) (b bool) {
 }
 
 func (p *Parser) hasError() bool {
-	if len(p.perror) > 17 || p.abort {
+
+	if len(p.perror) > 7 || p.abort {
 		return true
 	}
 	return false
 }
 
 // addErr appends to error slice held in parser.
-func (p *Parser) addErr(s string) error {
+func (p *Parser) addErr(s string, xCode ...int) error {
 	if strings.Index(s, " at line: ") == -1 {
 		s += fmt.Sprintf(" at line: %d, column: %d", p.curToken.Loc.Line, p.curToken.Loc.Col)
 	}
 	e := errors.New(s)
 	p.perror = append(p.perror, e)
+	if len(xCode) > 0 {
+		p.abort = true
+	}
 	return e
 }
 
@@ -304,6 +352,7 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 	}
 
 	p.perror = nil
+	fmt.Println("stmt map: ", api.StatementsMap)
 	for _, v := range api.StatementsMap {
 		if p.hasError() {
 			break
@@ -453,7 +502,7 @@ func (p *Parser) CheckSelfReference(directive ast.NameValue_, x *ast.Directive_)
 		x.CheckDirectiveRef(dirName, &p.perror)
 	}
 	// ArgumentDefs InputValueDefs // []*InputValueDef ->
-	// Type       *Type_
+	// Type       *GQLtype
 	// DefaultVal *InputValue_
 	// Directives_ // Directives []*DirectiveT  // @Name_ (	Arguments_ )  //  []*ArgumentT // 	Name_ : Value *InputValue_
 	// type Directive_ struct {
@@ -465,12 +514,12 @@ func (p *Parser) CheckSelfReference(directive ast.NameValue_, x *ast.Directive_)
 	// type InputValueDef struct {
 	// 	Desc string
 	// 	Name_
-	// 	Type       *Type_                   <=== more directives inside ast
+	// 	Type       *GQLtype                   <=== more directives inside ast
 	// 	DefaultVal *InputValue_
 	// 	Directives_							<=== more directives 1
-	// type Type_ struct {
+	// type GQLtype struct {
 	// Constraint byte            // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
-	// AST        GQLTypeProvider // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in Type_(typeName). If not in Type_, check cache, then DB.
+	// AST        GQLTypeProvider // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in GQLtype(typeName). If not in GQLtype, check cache, then DB.
 	// Depth      int             // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
 	// Name_                      // type name. inherit AssignName(). Use Name_ to access AST via cache lookup. ALternatively, use AST above.
 
@@ -526,7 +575,9 @@ var opt bool = true // is optional
 // RootOperationTypeDefinition
 //  	 OperationType : NamedType
 func (p *Parser) ParseSchema(op string) ast.GQLTypeProvider {
+	defer p.setState(p.state)()
 	// Types: query, mutation, subscription
+	p.state = parseSchema
 	p.nextToken() // read over type
 	if !p.extend {
 		inp := &ast.Schema_{}
@@ -562,6 +613,9 @@ func (p *Parser) ParseSchema(op string) ast.GQLTypeProvider {
 }
 
 func (p *Parser) parseOperationTypes(v *ast.Schema_, optional ...bool) *Parser {
+	defer p.setState(p.state)()
+
+	p.state = parseOperationTypes_
 	if p.hasError() {
 		return p
 	}
@@ -576,6 +630,9 @@ func (p *Parser) parseOperationTypes(v *ast.Schema_, optional ...bool) *Parser {
 
 		p.parseOperation(v).parseColon().parseName(v)
 
+		if p.hasError() {
+			return p
+		}
 	}
 
 	p.nextToken() // read over }
@@ -629,7 +686,11 @@ func (p *Parser) checkFieldASTAssigned(stmt ast.GQLTypeProvider) bool {
 //			Description-opt Name ArgumentsDefinition- opt : Type Directives-Con
 func (p *Parser) ParseObjectType(op string) ast.GQLTypeProvider {
 	// Types: query, mutation, subscription
+	defer p.setState(p.state)()
+
+	p.state = parseObjectType
 	p.nextToken() // read over type
+	fmt.Println("parseObjectType..........")
 	if !p.extend {
 		obj := &ast.Object_{}
 
@@ -670,6 +731,9 @@ func (p *Parser) ParseObjectType(op string) ast.GQLTypeProvider {
 // EnumValueDefinition
 //		Description-opt EnumValue Directives-opt
 func (p *Parser) ParseEnumType(op string) ast.GQLTypeProvider {
+	defer p.setState(p.state)()
+
+	p.state = parseEnumType
 	p.nextToken() // read type
 	if !p.extend {
 		obj := &ast.Enum_{}
@@ -706,6 +770,9 @@ func (p *Parser) ParseEnumType(op string) ast.GQLTypeProvider {
 // InterfaceTypeDefinition
 //		Description-opt	interface	Name	Directives-opt	FieldsDefinition-opt
 func (p *Parser) ParseInterfaceType(op string) ast.GQLTypeProvider {
+	defer p.setState(p.state)()
+
+	p.state = parseInterfaceType
 	p.nextToken() // read over interfcae keyword
 	if !p.extend {
 		obj := &ast.Interface_{}
@@ -745,6 +812,9 @@ func (p *Parser) ParseInterfaceType(op string) ast.GQLTypeProvider {
 //		=|-opt	NamedType
 //		UnionMemberTypes | NamedType
 func (p *Parser) ParseUnionType(op string) ast.GQLTypeProvider {
+	defer p.setState(p.state)()
+
+	p.state = parseUnionType
 	p.nextToken() // read over interfcae keyword
 	if !p.extend {
 		obj := &ast.Union_{}
@@ -781,7 +851,9 @@ func (p *Parser) ParseUnionType(op string) ast.GQLTypeProvider {
 // InputObjectTypeDefinition
 //		Description-opt	input	Name	DirectivesConst-opt	InputFieldsDefinition-opt
 func (p *Parser) ParseInputValueType(op string) ast.GQLTypeProvider {
+	defer p.setState(p.state)()
 
+	p.state = parseInputValueType
 	p.nextToken() // read over input keyword
 	if !p.extend {
 		inp := &ast.Input_{}
@@ -820,7 +892,9 @@ func (p *Parser) ParseInputValueType(op string) ast.GQLTypeProvider {
 // InputObjectTypeDefinition
 //		Description-opt	scalar	Name	DirectivesConst-opt
 func (p *Parser) ParseScalar(op string) ast.GQLTypeProvider {
+	defer p.setState(p.state)()
 
+	p.state = parseScalar
 	p.nextToken() // read over input keyword
 	if !p.extend {
 		inp := &ast.Scalar_{}
@@ -864,12 +938,18 @@ func (p *Parser) ParseScalar(op string) ast.GQLTypeProvider {
 //      ExecutableDirectiveLocation
 //      TypeSystemDirectiveLocation
 func (p *Parser) ParseDirective(op string) ast.GQLTypeProvider {
+	defer p.setState(p.state)()
 
+	p.state = parseDirective
 	p.nextToken() // read over input keyword
 
 	inp := &ast.Directive_{}
 
 	p.parseAtSign().parseName(inp).parseFieldArgumentDefs(inp).parseOn().parseDirectiveLocations(inp)
+
+	if p.hasError() {
+		return nil
+	}
 
 	inp.CoerceDirectiveName() // prepend @ to name
 
@@ -931,12 +1011,11 @@ func (p *Parser) parseName(f ast.NameAssigner) *Parser {
 		f.AssignName(p.curToken.Literal, p.Loc(), &p.perror)
 	} else {
 		p.addErr(fmt.Sprintf(`Expected name identifer got %s of "%s"`, p.curToken.Type, p.curToken.Literal))
-		if p.curToken.Type == "ILLEGAL" {
+		if p.curToken.Type == token.ILLEGAL {
 			p.abort = true
 		}
 	}
 	p.nextToken() // read over name
-
 	return p
 }
 
@@ -951,9 +1030,10 @@ func (p *Parser) parseExtendName() (ast.GQLTypeProvider, ast.Name_, error) {
 	if p.curToken.Type == token.IDENT {
 		extName = p.curToken.Literal
 	} else {
-		p.addErr(fmt.Sprintf(`Expected name identifer got %s of "%s"`, p.curToken.Type, p.curToken.Literal))
-		if p.curToken.Type == "ILLEGAL" {
+		p.addErr(fmt.Sprintf(`Expected name identifer got %s of "%s"`, p.curToken.Type, p.curToken.Literal), FATAL)
+		if p.curToken.Type == token.ILLEGAL {
 			p.abort = true
+			return nil, ast.Name_{}, nil
 		}
 	}
 	name_ := ast.Name_{Name: ast.NameValue_(extName), Loc: p.Loc()}
@@ -966,6 +1046,9 @@ func (p *Parser) parseExtendName() (ast.GQLTypeProvider, ast.Name_, error) {
 }
 
 func (p *Parser) parseEnumValues(enum *ast.Enum_, optional ...bool) *Parser {
+	defer p.setState(p.state)()
+
+	p.state = parseEnumValues_
 
 	if p.hasError() || p.curToken.Type != token.LBRACE {
 		return p
@@ -1002,6 +1085,12 @@ func (p *Parser) parseEnumValues(enum *ast.Enum_, optional ...bool) *Parser {
 //========================= parseDirectiveLocations ====================================
 
 func (p *Parser) parseDirectiveLocations(d *ast.Directive_) *Parser {
+	defer p.setState(p.state)()
+
+	p.state = parseDirectiveLocations_
+	if p.hasError() {
+		return p
+	}
 
 	for ; p.curToken.Type == token.BAR || p.curToken.Type == token.IDENT; p.nextToken() {
 		if p.curToken.Type == token.BAR && p.peekToken.Type != token.IDENT {
@@ -1022,8 +1111,13 @@ func (p *Parser) parseDirectiveLocations(d *ast.Directive_) *Parser {
 //		=|optNamedType
 //		UnionMemberTypes | NamedType
 func (p *Parser) parseUnionMembers(u *ast.Union_, optional ...bool) *Parser {
+	defer p.setState(p.state)()
 
-	if p.hasError() || p.curToken.Type != token.ASSIGN {
+	p.state = parseUnionMembers_
+	if p.curToken.Type != token.ASSIGN {
+		p.abort = true
+	}
+	if p.hasError() {
 		return p
 	}
 	for p.nextToken(); p.curToken.Type == token.BAR || p.curToken.Type == token.IDENT; p.nextToken() {
@@ -1052,8 +1146,17 @@ func (p *Parser) parseUnionMembers(u *ast.Union_, optional ...bool) *Parser {
 //		ImplementsInterfaces & NamedType
 //func (p *Parser) parseImplements(f ast.ImplementI, optional ...bool) *Parser {
 func (p *Parser) parseImplements(o *ast.Object_, optional ...bool) *Parser {
+	defer p.setState(p.state)()
 
-	if p.hasError() || p.curToken.Type != token.IMPLEMENTS {
+	p.state = parseImplements_
+
+	if p.curToken.Type != token.IMPLEMENTS {
+		if len(optional) == 0 {
+			p.abort = true
+		}
+		return p
+	}
+	if p.hasError() {
 		return p
 	}
 	for p.nextToken(); p.curToken.Type == token.AND || p.curToken.Type == token.IDENT; p.nextToken() {
@@ -1086,7 +1189,10 @@ func (p *Parser) parseImplements(o *ast.Object_, optional ...bool) *Parser {
 //       name
 //     }
 func (p *Parser) parseDirectives(f ast.DirectiveAppender, optional ...bool) *Parser { // f is a iv initialised from concrete types *ast.Field,*OperationStmt,*FragementStmt. It will panic if they don't satisfy DirectiveAppender
+	defer p.setState(p.state)()
 
+	p.state = parseDirectives_
+	fmt.Println("ParseDirective.........", p.abort)
 	if p.hasError() {
 		return p
 	}
@@ -1094,6 +1200,7 @@ func (p *Parser) parseDirectives(f ast.DirectiveAppender, optional ...bool) *Par
 		if len(optional) == 0 {
 			p.addErr("Variable is mandatory")
 		}
+		fmt.Println("parseDirective return...", p.curToken.Type)
 		return p
 	}
 
@@ -1103,6 +1210,10 @@ func (p *Parser) parseDirectives(f ast.DirectiveAppender, optional ...bool) *Par
 		d := &ast.DirectiveT{Arguments_: ast.Arguments_{Arguments: a}}
 
 		p.parseName(d).parseArguments(d, opt)
+
+		if p.hasError() {
+			return p
+		}
 
 		if err := f.AppendDirective(d); err != nil {
 			p.addErr(err.Error())
@@ -1123,8 +1234,11 @@ func (p *Parser) parseDirectives(f ast.DirectiveAppender, optional ...bool) *Par
 // Argument[Const] :
 //		Name : Value [?Const]
 // only fields have arguments so not interface argument is necessary to support multiple types
-func (p *Parser) parseArguments(f ast.ArgumentAppender, optional ...bool) *Parser {
 
+func (p *Parser) parseArguments(f ast.ArgumentAppender, optional ...bool) *Parser {
+	defer p.setState(p.state)()
+
+	p.state = parseArguments_
 	if p.hasError() {
 		return p
 	}
@@ -1144,12 +1258,17 @@ func (p *Parser) parseArguments(f ast.ArgumentAppender, optional ...bool) *Parse
 
 		p.parseName(v).parseColon().parseInputValue(v)
 
+		if p.hasError() {
+			return p
+		}
+
 		f.AppendArgument(v)
 	}
 	p.nextToken() // read over )
 	return p
 }
 
+// ParseReponse - API for testing purposes only. Not part of normal processing.
 func (p *Parser) ParseResponse() ast.InputValueProvider {
 
 	value := p.parseInputValue_()
@@ -1160,23 +1279,43 @@ func (p *Parser) ParseResponse() ast.InputValueProvider {
 
 func (p *Parser) parseColon() *Parser {
 
-	if !(p.curToken.Type == token.COLON) {
-		p.addErr(fmt.Sprintf(`Expected a colon got an "%s"`, p.curToken.Literal))
+	if p.hasError() {
+		return p
+	}
+	if p.curToken.Type != token.COLON {
+		var next string
+		switch p.state {
+		case parseOperationTypes_:
+			next = "an operation name (Query,Mutation) "
+		case parseFields_, parseInputFieldDefs_, parseFieldArgumentDefs_:
+			next = "a GQL-Type"
+		case parseObjectArguments_:
+			next = "an argument value"
+		case parseDirectives_:
+			next = "a directive argument value"
+		case parseArguments_:
+			next = "an argument value"
+		default:
+			next = strconv.Itoa(int(p.state))
+		}
+		p.addErr(fmt.Sprintf(`Expected a colon followed by %s, got "%s" `, next, p.curToken.Literal), FATAL)
+		return p
 	}
 	p.nextToken() // read over :
 	return p
 }
 
 func (p *Parser) parseInputValue(v *ast.ArgumentT) *Parser {
+	defer p.setState(p.state)()
+
+	p.state = parseInputValue_
 	if p.hasError() {
 		return p
 	}
 	if !((p.curToken.Cat == token.VALUE && (p.curToken.Type == token.DOLLAR && p.peekToken.Cat == token.VALUE)) ||
 		(p.curToken.Cat == token.VALUE && (p.peekToken.Cat == token.NONVALUE || p.peekToken.Type == token.RPAREN)) ||
 		(p.curToken.Type == token.LBRACKET || p.curToken.Type == token.LBRACE)) { // [  or {
-		p.addErr(fmt.Sprintf(`Expected an argument Value followed by IDENT or RPAREN got an %s:%s:%s %s:%s:%s`, p.curToken.Cat, p.curToken.Type, p.curToken.Literal, p.peekToken.Cat, p.peekToken.Type, p.peekToken.Literal))
-		fmt.Sprintf(`Expected an argument Value followed by IDENT or RPAREN got an %s:%s:%s %s:%s:%s`, p.curToken.Cat, p.curToken.Type, p.curToken.Literal, p.peekToken.Cat, p.peekToken.Type, p.peekToken.Literal)
-
+		p.addErr(fmt.Sprintf(`Expected an argument value followed by an identifer or close parenthesis got "%s"`, p.curToken.Literal))
 	}
 	v.Value = p.parseInputValue_()
 
@@ -1187,18 +1326,22 @@ func (p *Parser) parseInputValue(v *ast.ArgumentT) *Parser {
 // {FieldDefinition ...} :
 // .  Description-opt Name ArgumentsDefinition-opt : Type Directives-opt
 func (p *Parser) parseFields(f ast.FieldAppender, optional ...bool) *Parser {
+	defer p.setState(p.state)()
 
+	p.state = parseFields_
 	if p.hasError() || p.curToken.Type != token.LBRACE {
+		fmt.Println("here..", len(optional))
 		if len(optional) == 0 {
 			p.addErr("Field definitions is required")
 		}
 		return p
 	}
+
 	for p.nextToken(); p.curToken.Type != token.RBRACE; { // p.nextToken("next token in parseFields..") {
 
 		field := &ast.Field_{}
 
-		_ = p.parseDecription().parseName(field).parseFieldArgumentDefs(field).parseType(field).parseDirectives(field, opt)
+		_ = p.parseDecription().parseName(field).parseFieldArgumentDefs(field).parseColon().parseType(field).parseDirectives(field, opt)
 
 		if p.hasError() {
 			return p
@@ -1224,14 +1367,19 @@ func (p *Parser) parseDecription() *Parser {
 // }
 
 func (p *Parser) parseType(f ast.AssignTyper) *Parser {
+	defer p.setState(p.state)()
+
+	p.state = parseType_
 	if p.hasError() {
 		return p
 	}
 	if p.curToken.Type == token.COLON {
+		p.addErr("A second colon detected")
 		p.nextToken() // read over :
-	} else {
-		p.addErr(fmt.Sprintf("Colon expected got %s of %s", p.curToken.Type, p.curToken.Literal))
 	}
+	// else {
+	// 	p.addErr(fmt.Sprintf("Colon expected got %s of %s", p.curToken.Type, p.curToken.Literal))
+	// }
 
 	if !p.curToken.IsScalarType { // ie not a Int, Float, String, Boolean, ID, <namedType>
 		if !(p.curToken.Type == token.IDENT || p.curToken.Type == token.LBRACKET) {
@@ -1246,7 +1394,7 @@ func (p *Parser) parseType(f ast.AssignTyper) *Parser {
 		name string
 		//	ast_ ast.GQLTypeProvider
 		//typedef ast.TypeFlag_ // token defines SCALAR types only. All other types will be populated in astType map.
-		depth   int
+		depth   uint8
 		nameLoc *ast.Loc_
 	)
 	nameLoc = p.Loc()
@@ -1255,7 +1403,7 @@ func (p *Parser) parseType(f ast.AssignTyper) *Parser {
 	case token.LBRACKET:
 		// [ typeName ]
 		var (
-			depthClose uint
+			depthClose uint8
 		)
 		p.nextToken() // read over [
 		for depth = 1; p.curToken.Type == token.LBRACKET; p.nextToken() {
@@ -1272,14 +1420,15 @@ func (p *Parser) parseType(f ast.AssignTyper) *Parser {
 		nameLoc = p.Loc()
 		name = p.curToken.Literal // actual type name, Int, Float, Pet ...
 		// name_ := ast.Name_{Name: ast.NameValue_(name), Loc: nameLoc}
-		// //System ScalarTypes are defined by the Type_.Name_, Non-system Scalar and non-scalar are defined by the AST.
+		// //System ScalarTypes are defined by the GQLtype.Name_, Non-system Scalar and non-scalar are defined by the AST.
 		// if !p.curToken.IsScalarType {
 		// 	ast_ = p.fetchAST(name_)
 		// }
 		p.nextToken() // read over IDENT
-		for bangs := 0; p.curToken.Type == token.RBRACKET || p.curToken.Type == token.BANG; {
+		for bangs := uint8(0); p.curToken.Type == token.RBRACKET || p.curToken.Type == token.BANG; {
 			if p.curToken.Type == token.BANG {
 				bangs++
+				fmt.Println("parseType: bangs:", bangs)
 				if bangs > depth+1 {
 					p.addErr("redundant !")
 					p.nextToken() // read over !
@@ -1293,7 +1442,7 @@ func (p *Parser) parseType(f ast.AssignTyper) *Parser {
 				p.nextToken() // read over ]
 			}
 		}
-		if depth != int(depthClose) {
+		if depth != depthClose {
 			p.addErr("close ] does not match opening [ in type specification")
 			return p
 		}
@@ -1315,9 +1464,10 @@ func (p *Parser) parseType(f ast.AssignTyper) *Parser {
 		return p
 	}
 	// name is the type name Int, Person, [name], ...
-	t := &ast.Type_{Constraint: bit, Depth: depth} //, AST: ast_}
+	t := &ast.GQLtype{Constraint: bit, Depth: depth} //, AST: ast_}
 	t.AssignName(name, nameLoc, &p.perror)
 	f.AssignType(t) // assign the name of the named type. Later type validation pass of AST will confirm if the named type exists.
+
 	return p
 
 }
@@ -1331,7 +1481,7 @@ func (p *Parser) parseType(f ast.AssignTyper) *Parser {
 // type FieldArgument_ struct {
 // 	Desc       string
 // 	Name       Name_
-// 	Type       Type_
+// 	Type       GQLtype
 // 	DefValue   *InputValueDef_
 // 	Directives []*Directive_
 // }
@@ -1340,20 +1490,25 @@ func (p *Parser) parseType(f ast.AssignTyper) *Parser {
 // InputValueDefinition
 //		Description-opt	Name	:	Type	DefaultValue-opt	Directives-opt
 func (p *Parser) parseFieldArgumentDefs(f ast.FieldArgAppender) *Parser { // st is an iv initialised from passed in argument which is a *OperationStmt
+	defer p.setState(p.state)()
 
+	encl := [2]token.TokenType{token.LPAREN, token.RPAREN} // ()
+	p.state = parseFieldArgumentDefs_
+	fmt.Println("parseFieldArgumentDefs......")
 	if p.hasError() {
 		return p
 	}
-	var encl [2]token.TokenType = [2]token.TokenType{token.LPAREN, token.RPAREN} // ()
+
 	return p.parseArgumentDefs(f, encl)
 }
 
 func (p *Parser) parseInputFieldDefs(f ast.FieldArgAppender) *Parser {
-
+	defer p.setState(p.state)()
+	encl := [2]token.TokenType{token.LBRACE, token.RBRACE} // {}
+	p.state = parseInputFieldDefs_
 	if p.hasError() {
 		return p
 	}
-	var encl [2]token.TokenType = [2]token.TokenType{token.LBRACE, token.RBRACE} // {}
 	return p.parseArgumentDefs(f, encl)
 }
 
@@ -1365,7 +1520,8 @@ func (p *Parser) parseArgumentDefs(f ast.FieldArgAppender, encl [2]token.TokenTy
 			//for p.curToken.Type != ":" { //TODP fix should be encl[1]
 			v := &ast.InputValueDef{}
 			v.Loc = p.Loc()
-			p.parseDecription().parseName(v).parseType(v).parseDefaultVal(v, opt).parseDirectives(v, opt)
+			//	p.parseDecription().parseName(v).parseType(v).parseDefaultVal(v, opt).parseDirectives(v, opt)
+			p.parseDecription().parseName(v).parseColon().parseType(v).parseDefaultVal(v, opt).parseDirectives(v, opt)
 			if p.hasError() {
 				return p
 			}
@@ -1380,13 +1536,15 @@ func (p *Parser) parseArgumentDefs(f ast.FieldArgAppender, encl [2]token.TokenTy
 // type InputValueDef struct {
 // 	Desc string
 // 	Name_
-// 	Type       *Type_          // ENUM
+// 	Type       *GQLtype          // ENUM
 // 	DefaultVal *InputValue_    // ENUMVALUE
 // 	Directives_
 // }
 
 func (p *Parser) parseDefaultVal(v *ast.InputValueDef, optional ...bool) *Parser {
+	defer p.setState(p.state)()
 
+	p.state = parseDefaultVal_
 	if p.hasError() {
 		return p
 	}
@@ -1419,17 +1577,24 @@ func (p *Parser) parseDefaultVal(v *ast.InputValueDef, optional ...bool) *Parser
 		// 	}
 		// }
 	}
+
+	fmt.Printf("Default Val: %#v\n", v.DefaultVal)
 	return p
 }
 
 // parseObjectArguments - used for input object values
 func (p *Parser) parseObjectArguments(argS []*ast.ArgumentT) []*ast.ArgumentT {
-	//p.nextToken("begin parseObjectArguments");
+	defer p.setState(p.state)()
+
+	p.state = parseObjectArguments_
 	for p.curToken.Type == token.IDENT {
 
 		v := new(ast.ArgumentT)
 
 		p.parseName(v).parseColon().parseInputValue(v)
+		if p.hasError() {
+			return nil
+		}
 
 		argS = append(argS, v)
 
@@ -1444,7 +1609,13 @@ func (p *Parser) parseObjectArguments(argS []*ast.ArgumentT) []*ast.ArgumentT {
 //func (p *Parser) parseInputValue_(iv ...*ast.InputValueDef) *ast.InputValue_ { //TODO remove iv argeument now redundant
 func (p *Parser) parseInputValue_() *ast.InputValue_ {
 	defer p.nextToken() // this func will finish paused on next token - always
+	defer p.setState(p.state)()
 
+	p.state = parseInputValue__
+	if p.hasError() {
+		return nil
+	}
+	fmt.Println("parseInputValue_............................", p.curToken.Type, p.curToken.Literal)
 	if p.curToken.Type == "ILLEGAL" {
 		p.addErr(fmt.Sprintf("Value expected got %s of %s", p.curToken.Type, p.curToken.Literal))
 		p.abort = true
