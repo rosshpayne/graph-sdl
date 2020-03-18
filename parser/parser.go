@@ -3,6 +3,8 @@ package parser
 import (
 	"errors"
 	"fmt"
+	"log"
+	"os"
 	"strconv"
 	"strings"
 
@@ -66,6 +68,8 @@ type (
 		extend bool
 
 		cache *Cache_
+		logr  *log.Logger
+		logf  *os.File
 
 		abort     bool
 		stmtType  string
@@ -217,6 +221,21 @@ func (p *Parser) nextToken(s ...string) {
 	}
 }
 
+//
+func openLogFile() *os.File {
+	logf, err := os.OpenFile("gqlserver.sys.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return logf
+}
+
+func (p *Parser) closeLogFile() {
+	if err := p.logf.Close(); err != nil {
+		log.Fatal(err)
+	}
+}
+
 // ==================== Start =========================
 
 func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) {
@@ -226,6 +245,7 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 	api.StatementsMap = make(map[ast.NameValue_]ast.GQLTypeProvider)
 	api.ErrorMap = make(map[ast.NameValue_][]error)
 
+	defer p.closeLogFile()
 	defer func() {
 		//
 		//p.perror = nil
@@ -247,6 +267,12 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 		errs = p.perror
 	}()
 	//
+	//  open log file and set logger
+	//
+	p.logf = openLogFile()
+	p.logr = log.New(p.logf, "GQL:", log.Lshortfile)
+	p.cache.SetLogger(p.logr)
+	//
 	// set document
 	//
 	db.SetDefaultDoc(defaultDoc)
@@ -257,6 +283,8 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 	}
 	//
 	// parse phase - build AST from GraphQL document
+	//
+	p.logr.Println("Start server...")
 	//
 	for p.curToken.Type != token.EOF {
 		stmtAST := p.ParseStatement()

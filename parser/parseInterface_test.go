@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/graph-sdl/db"
@@ -22,7 +23,7 @@ type Person implements NamedEntity {
 `
 
 	var expectedErr [1]string
-	expectedErr[0] = `Type "NamedEntity" does not exist at line: 6 column: 24`
+	expectedErr[0] = `Item "NamedEntity" does not exist in document "DefaultDoc" at line: 6 column: 24`
 
 	err := db.DeleteType("ValuedEntity")
 	if err != nil {
@@ -77,8 +78,9 @@ type Person implements NamedEntity {
 }
 
 `
-	var expectedErr [1]string
-	expectedErr[0] = `Implements type "NamedEntity" is not an Interface at line: 6 column: 24`
+	var expectedErr []string = []string{
+		`"NamedEntity" is not an interface type, at line: 6 column: 24`,
+	}
 
 	l := lexer.New(input)
 	p := New(l)
@@ -137,8 +139,10 @@ type Person implements NamedEntity & ValuedEntity2 {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
 
-	var expectedErr [1]string
-	expectedErr[0] = `Type "ValuedEntity2" does not exist at line: 11 column: 38`
+	var expectedErr []string = []string{
+		`Item "ValuedEntity2"  does not exist in document "DefaultDoc" at line: 11 column: 38`,
+		`Type "Person" does not implement interface "NamedEntity", missing  "name2"`,
+	}
 
 	l := lexer.New(input)
 	p := New(l)
@@ -188,11 +192,12 @@ type Person implements NamedEntity & ValuedEntity {
 }
 `
 
-	var expectedErr [4]string
-	expectedErr[0] = `Type "Int2", does not exist at line: 4 column: 10` //
-	expectedErr[1] = `Type "FLoat", does not exist at line: 9 column: 11`
-	expectedErr[2] = `Type "Bool", does not exist at line: 11 column: 11`
-	expectedErr[3] = `Type "In", does not exist at line: 16 column: 8`
+	var expectedErr []string = []string{
+		`Item "Int2" does not exist in document "DefaultDoc" at line: 4 column: 10`,
+		`Item "Bool" does not exist in document "DefaultDoc" at line: 11 column: 11`,
+		`Item "FLoat" does not exist in document "DefaultDoc" at line: 9 column: 11`,
+		`Item "In" does not exist in document "DefaultDoc" at line: 16 column: 8`,
+	}
 
 	err := db.DeleteType("ValuedEntity")
 	if err != nil {
@@ -280,10 +285,11 @@ type Person implements NamedEntity & ValuedEntity {
 }
 `
 
-	var expectedErr [3]string
-	expectedErr[1] = `Type "Person" does not implement interface "NamedEntity", missing  "name2"`                             //
-	expectedErr[2] = `Type "Person" does not implement interface "ValuedEntity", missing  "value" "value2" "value3" "value4"` //
-	expectedErr[0] = `Type "FLoat" does not exist at line: 9 column: 11`                                                      //
+	var expectedErr []string = []string{
+		`Type "Person" does not implement interface "NamedEntity", missing  "name2"`,
+		`Type "Person" does not implement interface "ValuedEntity", missing  "value" "value2" "value3" "value4"`,
+		`Item "FLoat" does not exist in document "DefaultDoc" at line: 9 column: 11`,
+	}
 
 	l := lexer.New(input)
 	p := New(l)
@@ -312,7 +318,7 @@ type Person implements NamedEntity & ValuedEntity {
 	}
 }
 
-func TestImplements5(t *testing.T) {
+func TestImplement6x(t *testing.T) {
 
 	input := `
 interface NamedEntity {
@@ -334,8 +340,9 @@ type Business implements NamedEntity & ValuedEntity & NamedEntity {
   employeeCount: Int
 }
 `
-	var expectedErr [1]string
-	expectedErr[0] = `Duplicate interface name at line: 15 column: 55` //
+	var expectedErr []string = []string{
+		`Duplicate interface name at line: 15 column: 55`,
+	}
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
@@ -611,7 +618,7 @@ type Business implements NamedEntity & ValuedEntity {
 	}
 }
 
-func TestImplementsNotAllFields(t *testing.T) {
+func TestImplementsNotAllFieldsx(t *testing.T) {
 
 	input := `
 interface NamedEntity {
@@ -671,6 +678,7 @@ type Business implements & NamedEntity & ValuedEntity {
 			t.Errorf(`Expected Error = [%q]`, ex)
 		}
 	}
+	fmt.Println("Error Count: ", len(errs))
 	for _, got := range errs {
 		found := false
 		for _, exp := range expectedErr {

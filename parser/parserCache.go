@@ -20,6 +20,11 @@ type entry struct {
 type Cache_ struct {
 	sync.Mutex // Mutex protects whole cache. Channels protect individual cache entries.
 	Cache      map[string]*entry
+	logr       *log.Logger
+}
+
+func (tc *Cache_) SetLogger(logr *log.Logger) {
+	tc.logr = logr
 }
 
 // NewCache allocates a structure to hold the cached data with access methods.
@@ -78,33 +83,33 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 		// access db for definition of type (string value)
 		if typeSDL, err := db.DBFetch(name_); err != nil {
 			if errors.Is(err, db.SystemErr) {
-				log.Fatal(err)
+				t.logr.Fatal(err)
 			}
 			typeNotExists[name_] = true
 			delete(t.Cache, name_)
 			close(e.ready)
 			if errors.Is(err, db.NoItemFoundErr) {
-				fmt.Printf("DBFetch of [%s] not found", name)
+				t.logr.Print(err)
 			}
 			return nil, err
 		} else {
 			if len(typeSDL) == 0 { // no type found in DB
 				// mark type as being nonexistent
-				fmt.Println("Type not found ")
+				t.logr.Print("Type not found ")
 				typeNotExists[name_] = true
 				delete(t.Cache, name_)
 				close(e.ready)
 				return nil, err
 			} else {
-				fmt.Printf("Found in DB: %q\n", typeSDL)
+				t.logr.Printf("Found in DB: %q\n", typeSDL)
 				// generate AST for the resolved type
-				fmt.Println(" in parseCache about to generate AST.")
+				t.logr.Print(" in parseCache about to generate AST.")
 				l := lexer.New(typeSDL)
 				p2 := New(l)
 				e.data = p2.ParseStatement() // source of stmt is db so its been verified, simply resolve types it refs
 				p2.ResolveAllTypes(e.data, t)
 				// close the channel to allow unhindered access to this entry
-				fmt.Println(" found tpe in db. closed channel...")
+				t.logr.Print(" found in db. closed channel...")
 				close(e.ready)
 			}
 		}
@@ -115,10 +120,10 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 	if e.data == nil {
 		// concurrency issue  (when currency applies) - two queries on same object within short time interval - before typeNotExists is updated.
 		return nil, ErrNotCached
-	} else {
-		fmt.Println("**** FetchAST returned with data ", e.data.TypeName())
-		return e.data, nil
 	}
+	fmt.Println("**** FetchAST returned with data ", e.data.TypeName())
+	return e.data, nil
+
 }
 
 func (t *Cache_) CacheClear() {

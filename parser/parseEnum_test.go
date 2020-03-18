@@ -750,7 +750,7 @@ type Person {
 	// }
 
 	var expectedErr = []string{
-		`Expected a colon followed by a GQL-Type, got \"extra\"  at line: 11, column: 3`,
+		`Expected a colon followed by a GQL-Type, got "extra"  at line: 11, column: 3`,
 	}
 
 	l := lexer.New(input)

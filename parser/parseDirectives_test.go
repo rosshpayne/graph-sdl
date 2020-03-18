@@ -835,7 +835,7 @@ type SomeType {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
 	var expectedErr [1]string
-	expectedErr[0] = `Argument "arg2" is not a valid argument for directive "@example" at line: 9 column: 38`
+	expectedErr[0] = `Argument "arg2" is not a valid name for directive "@example" at line: 9 column: 38`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -1389,6 +1389,7 @@ type SomeType3 {
 		`Required type "Int", got "String" at line: 5 column: 35`,
 		`Argument "argx1" is not a valid name for directive "@example3" at line: 5 column: 69`,
 		`Argument "argc2" is not a valid name for directive "@example3" at line: 5 column: 84`,
+		`Expected an argument value followed by an identifer or close parenthesis got "Float" at line: 5, column: 107`,
 	}
 	//	`Expected an argument Value followed by IDENT or RPAREN got an NONVALUE:Float:Float NONVALUE:):) at line: 5, column: 107`,
 

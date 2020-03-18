@@ -233,10 +233,10 @@ func DeleteType(input string) error {
 }
 
 var (
-	NoItemFoundErr  = errors.New("")
-	SystemErr       = errors.New("")
-	MarshalingErr   = errors.New("")
-	UnmarshalingErr = errors.New("")
+	NoItemFoundErr  = errors.New("does not exist in document")
+	SystemErr       = errors.New("Database system error")
+	MarshalingErr   = errors.New("Database marshaling error")
+	UnmarshalingErr = errors.New("Database unmarshaling error")
 )
 
 type DBFetchErr struct {
@@ -245,7 +245,7 @@ type DBFetchErr struct {
 	routine string // dynamodb statement
 	code    string // aws error code
 	err     string // aws error string
-	cat     error  // application error category
+	cat     error  // database error category - returned from Unwrap()
 }
 
 func (e *DBFetchErr) Unwrap() error {
@@ -254,19 +254,19 @@ func (e *DBFetchErr) Unwrap() error {
 
 func (e *DBFetchErr) Error() string {
 	if errors.Is(e, NoItemFoundErr) {
-		return fmt.Sprintf(`Item "%s" does not exist in document "%s" `, e.pk, e.sortk)
+		return fmt.Sprintf(`Item "%s" %s "%s" `, e.pk, e.cat.Error(), e.sortk)
 	}
 	if errors.Is(e, SystemErr) {
 		if len(e.code) > 0 {
-			return fmt.Sprintf(`Database system error in fetch of Pkey: "%s", SortK: "%s". Routine: %s, Code: %s, Error: "%s" `, e.pk, e.sortk, e.routine, e.code, e.err)
+			return fmt.Sprintf(`%s in fetch of Pkey: "%s", SortK: "%s". Routine: %s, Code: %s, Error: "%s" `, e.cat.Error(), e.pk, e.sortk, e.routine, e.code, e.err)
 		}
-		return fmt.Sprintf(`Database error in fetch of Pkey: "%s", SortK: "%s". Routine: %s, Error: "%s" `, e.pk, e.sortk, e.routine, e.err)
+		return fmt.Sprintf(`Database error in GetItem of Pkey: "%s", SortK: "%s". Routine: %s, Error: "%s" `, e.pk, e.sortk, e.routine, e.err)
 	}
 	if errors.Is(e, MarshalingErr) {
-		return fmt.Sprintf(`Database marshaling error for Pkey: "%s", SortK: "%s" `, e.pk, e.sortk)
+		return fmt.Sprintf(`%s for Pkey: "%s", SortK: "%s" `, e.cat.Error(), e.pk, e.sortk)
 	}
 	if errors.Is(e, UnmarshalingErr) {
-		return fmt.Sprintf(`Database unmarshaling error for Pkey: "%s", SortK: "%s". Routine: %s, Code: %s, Error: "%s" `, e.pk, e.sortk, e.routine, e.code, e.err)
+		return fmt.Sprintf(`%s for Pkey: "%s", SortK: "%s". Routine: %s, Code: %s, Error: "%s" `, e.cat.Error(), e.pk, e.sortk, e.routine, e.code, e.err)
 	}
 	return ""
 }
@@ -319,6 +319,7 @@ func DBFetch(name string) (string, error) {
 		return "", err_
 	}
 	fmt.Println("dbFetch: GetItem: Query ConsumedCapacity: \n", result.ConsumedCapacity)
+	//
 	if len(result.Item) == 0 {
 		return "", newDBFetchErr(name, document, "GetItem", "", nil, NoItemFoundErr)
 	}

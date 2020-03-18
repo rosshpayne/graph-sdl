@@ -474,45 +474,54 @@ func (o *Object_) CheckDirectiveLocation(err *[]error) {
 }
 
 func (f *Object_) CheckImplements(err *[]error) {
-	//	for _, v := range f.Implements {
-	// check name represents a interface type in ast
-	// TODO - requires fetchInterface to use cache - rethink - MAYBE SHOULD NOT BE A OBJECT METHOD but a check in the parser itself as it has access to the cache.
-	// if itf, ok, str := fetchInterface(v); !ok {
-	// 	*err = append(*err, errors.New(fmt.Sprintf(str)))
-	// } else {
-	// 	// check object implements the interface
-	// 	satisfied := make(map[NameValue_]bool)
-	// 	for _, v := range itf.FieldSet {
-	// 		satisfied[v.Name] = false
-	// 	}
-	// 	for _, ifn := range itf.FieldSet { // interface fields
-	// 		for _, fn := range f.FieldSet { // object fields
-	// 			if ifn.Name_.String() == fn.Name_.String() {
-	// 				if ifn.Type.Equals(fn.Type) {
-	// 					satisfied[fn.Name] = true
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// 	//
-	// 	// publish in repeatable order because maps cannot
-	// 	//
-	// 	var s strings.Builder
-	// 	for _, ifn := range itf.FieldSet { // interface fields
-	// 		if v, ok := satisfied[ifn.Name]; ok {
-	// 			if !v {
-	// 				s.WriteString(` "`)
-	// 				s.WriteString(ifn.Name.String())
-	// 				s.WriteString(`"`)
-	// 			}
-	// 		}
-	// 	}
-	// 	if len(s.String()) > 0 {
-	// 		*err = append(*err, fmt.Errorf(`Type "%s" does not implement interface "%s", missing %s`, f.Name_, itf.Name_, s.String()))
-	// 	}
-
-	// }
-	//	}
+	for _, v := range f.Implements {
+		var (
+			ok   bool
+			itf_ GQLTypeProvider
+		)
+		// check name represents a interface type in ast
+		// TODO - requires fetchInterface to use cache - rethink - MAYBE SHOULD NOT BE A OBJECT METHOD but a check in the parser itself as it has access to the cache.
+		fmt.Printf("CACHE LOOPKUP: Look for interface %s in cache\n", v.Name)
+		if itf_, ok = TyCache[v.Name.String()]; !ok {
+			return
+		}
+		// check object implements the interface
+		if itf_.Type() != "Interface" {
+			*err = append(*err, fmt.Errorf(`"%s" is not an interface type, %s`, v.Name, v.AtPosition()))
+			return
+		}
+		itf := itf_.(*Interface_)
+		satisfied := make(map[NameValue_]bool)
+		for _, v := range itf.FieldSet {
+			fmt.Println()
+			satisfied[v.Name] = false
+		}
+		for _, ifn := range itf.FieldSet { // interface fields
+			for _, fn := range f.FieldSet { // object fields
+				if ifn.Name_.String() == fn.Name_.String() {
+					if ifn.Type.Equals(fn.Type) {
+						satisfied[fn.Name] = true
+					}
+				}
+			}
+		}
+		//
+		// publish in repeatable order because maps cannot
+		//
+		var s strings.Builder
+		for _, ifn := range itf.FieldSet { // interface fields
+			if v, ok := satisfied[ifn.Name]; ok {
+				if !v {
+					s.WriteString(` "`)
+					s.WriteString(ifn.Name.String())
+					s.WriteString(`"`)
+				}
+			}
+		}
+		if len(s.String()) > 0 {
+			*err = append(*err, fmt.Errorf(`Type "%s" does not implement interface "%s", missing %s`, f.Name_, itf.Name_, s.String()))
+		}
+	}
 }
 
 func (o *Object_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
