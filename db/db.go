@@ -171,6 +171,10 @@ func SetDocument(doc string) {
 	document = doc
 }
 
+func GetDocument() string {
+	return document
+}
+
 func SetDefaultDoc(doc string) {
 	defaultDoc = doc
 }
@@ -244,8 +248,9 @@ type DBFetchErr struct {
 	sortk   string // data key
 	routine string // dynamodb statement
 	code    string // aws error code
-	err     string // aws error string
-	cat     error  // database error category - returned from Unwrap()
+	fatal   bool
+	err     error // aws database error
+	cat     error // error category - returned from Unwrap()
 }
 
 func (e *DBFetchErr) Unwrap() error {
@@ -271,11 +276,11 @@ func (e *DBFetchErr) Error() string {
 	return ""
 }
 
-func newDBFetchErr(pk string, sortk string, routine string, code string, err error, cat error) error {
+func newDBFetchErr(pk string, sortk string, routine string, code string, err error, cat error, fatal bool) error {
 	if err != nil {
-		return &DBFetchErr{pk: pk, sortk: sortk, routine: routine, code: code, err: err.Error(), cat: cat}
+		return &DBFetchErr{pk: pk, sortk: sortk, routine: routine, code: code, err: err, cat: cat, fatal: fatal}
 	}
-	return &DBFetchErr{pk: pk, sortk: sortk, routine: routine, cat: cat}
+	return &DBFetchErr{pk: pk, sortk: sortk, routine: routine, cat: cat, fatal: fatal}
 }
 
 func DBFetch(name string) (string, error) {
@@ -287,7 +292,7 @@ func DBFetch(name string) (string, error) {
 	if len(document) == 0 {
 		document = defaultDoc
 	}
-	fmt.Println("DBFetch document : ", document)
+
 	if len(name) == 0 {
 		return "", fmt.Errorf("No DB search value provided")
 	}
@@ -300,7 +305,7 @@ func DBFetch(name string) (string, error) {
 	pkey := PkRow{PKey: name, SortK: document}
 	av, err := dynamodbattribute.MarshalMap(&pkey)
 	if err != nil {
-		return "", newDBFetchErr(name, document, "MarshalMap", "", err, MarshalingErr)
+		return "", newDBFetchErr(name, document, "MarshalMap", "", err, MarshalingErr, true)
 	}
 	input := &dynamodb.GetItemInput{
 		Key:       av,
@@ -312,21 +317,21 @@ func DBFetch(name string) (string, error) {
 	if err != nil {
 		var err_ error
 		if aerr, ok := err.(awserr.Error); ok {
-			err_ = newDBFetchErr(name, document, "GetItem", aerr.Code(), err, SystemErr)
+			err_ = newDBFetchErr(name, document, "GetItem", aerr.Code(), err, SystemErr, true)
 		} else {
-			err_ = newDBFetchErr(name, document, "GetItem", "", err, SystemErr)
+			err_ = newDBFetchErr(name, document, "GetItem", "", err, SystemErr, true)
 		}
 		return "", err_
 	}
 	fmt.Println("dbFetch: GetItem: Query ConsumedCapacity: \n", result.ConsumedCapacity)
 	//
 	if len(result.Item) == 0 {
-		return "", newDBFetchErr(name, document, "GetItem", "", nil, NoItemFoundErr)
+		return "", newDBFetchErr(name, document, "GetItem", "", nil, NoItemFoundErr, false)
 	}
 	rec := &TypeRow{}
 	err = dynamodbattribute.UnmarshalMap(result.Item, rec)
 	if err != nil {
-		return "", newDBFetchErr(name, document, "MarshalMap", "", err, UnmarshalingErr)
+		return "", newDBFetchErr(name, document, "MarshalMap", "", err, UnmarshalingErr, true)
 	}
 	fmt.Printf("DBfetch result: [%s] \n", rec.Stmt)
 	return rec.Stmt, nil

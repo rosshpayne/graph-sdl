@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -17,7 +18,7 @@ import (
 type GQLTypeProvider interface {
 	TypeSystemNode()
 	TypeName() NameValue_
-	SolicitNonScalarTypes(UnresolvedMap) // while not all Types contain nested types that need to be resolved e.g scalar must still include this method
+	SolicitAbstractTypes(UnresolvedMap) // while not all Types contain nested types that need to be resolved e.g scalar must still include this method
 	CheckDirectiveRef(dir NameValue_, err *[]error)
 	CheckDirectiveLocation(err *[]error)
 	CheckInputValueType(err *[]error)
@@ -90,12 +91,12 @@ func (iv *InputValue_) isType() TypeFlag_ {
 		//	case *Union_: // Union is not a valid input value
 	case ObjectVals:
 		return OBJECT
-	// case *Input_:
-	// 	return INPUT
 	case Null_:
 		return NULL
 	case List_:
 		return LIST
+		// case *Input_:		// commented out on 19/3/2020 Input_ is not an InputValue
+		// 	return INPUT
 	}
 	return ILLEGAL
 }
@@ -283,7 +284,7 @@ func IsGLType(t GQLTypeProvider) string {
 // ============================ GQLtype ======================
 
 //type DepthT uint8 - didn't work. Compiler issues with conversions from DepthT to int.
-
+// GQLtype represents the generic type metadata. The specific details of the type is held in the AST attribute. All GQL types are GQLtype.
 type GQLtype struct {
 	Constraint byte            // each bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001, [type]! 00000010
 	AST        GQLTypeProvider // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in GQLtype(typeName). If not in GQLtype, check cache, then DB.
@@ -401,6 +402,8 @@ func (t *GQLtype) isType() TypeFlag_ {
 				return UNION
 			case *Scalar_:
 				return SCALAR
+				// case *List_: // []InputValue_, is not a GQLType, nor is InputValue_
+				// 	return LIST
 			}
 			//
 			return ILLEGAL
@@ -738,6 +741,7 @@ func (d *Directives_) AppendDirective(s *DirectiveT) error {
 // 	Name NameValue_
 // 	Loc  *Loc_
 // }
+var DirectiveErr error = errors.New("not a valid name for directive")
 
 func (d *Directives_) CheckInputValueType(err *[]error) {
 
@@ -763,7 +767,8 @@ func (d *Directives_) CheckInputValueType(err *[]error) {
 						}
 					}
 					if !found {
-						*err = append(*err, fmt.Errorf(`Argument "%s" is not a valid name for directive "%s" %s`, arg.Name, dir.Name, arg.Name_.AtPosition()))
+						*err = append(*err, fmt.Errorf(`Argument "%s" is %w "%s" %s`, arg.Name, DirectiveErr, dir.Name, arg.Name_.AtPosition()))
+						//	*err = append(*err, fmt.Errorf(`Argument %q is not a valid name %q %s`, arg.Name, dir.Name, arg.Name_.AtPosition()))
 					} else {
 						// verify argument input value
 						arg.Value.CheckInputValueType(ivdef.Type, arg.Name_, err)
@@ -786,7 +791,7 @@ func (d *Directives_) Len() int {
 	return len(d.Directives)
 }
 
-func (d *Directives_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
+func (d *Directives_) SolicitAbstractTypes(unresolved UnresolvedMap) {
 	for _, v := range d.Directives {
 		unresolved[v.Name_] = nil
 	}
@@ -802,8 +807,10 @@ func (d *Directives_) CheckDirectiveRef(dir NameValue_, err *[]error) {
 
 func (d *Directives_) checkDirectiveLocation_(input DirectiveLoc, err *[]error) {
 	var found bool
+	fmt.Println("++++++++++++++++ checkDirectiveLocation_ +++++++++++++++++++++++++")
 	for _, v := range d.Directives {
 		//	get the use named directive's AST
+		fmt.Println("++ v.Name: ", v.Name.String())
 		if e, ok := TyCache[v.Name.String()]; ok {
 			found = false
 			if x, ok := e.(*Directive_); ok {

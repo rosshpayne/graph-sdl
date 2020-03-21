@@ -14,29 +14,37 @@ func TestScalarStmtInvalidName(t *testing.T) {
 	input := `"my example scalar" 
 	scalar __Time @dir 
 `
-	var expectedErr [2]string
-	expectedErr[0] = `identifer [__Time] cannot start with two underscores at line: 2, column: 9`
-	expectedErr[1] = `Type "@dir" does not exist at line: 2 column: 17`
+	var expectedErr []string = []string{
+		`identifer [__Time] cannot start with two underscores at line: 2, column: 9`,
+		`Item "@dir" does not exist in document "DefaultDoc"  at line: 2 column: 17`,
+	}
 
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
-	if len(errs) != len(expectedErr) {
-		for _, v := range errs {
-			fmt.Println(v.Error())
-		}
-		t.Errorf(fmt.Sprintf(`Not expected - should be %d errors got %d`, len(expectedErr), len(errs)))
+	for _, e := range errs {
+		fmt.Println("Err: ", e.Error())
 	}
-
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
 	for _, got := range errs {
-		var found bool
+		found := false
 		for _, exp := range expectedErr {
 			if trimWS(got.Error()) == trimWS(exp) {
 				found = true
 			}
 		}
 		if !found {
-			t.Errorf(`Not expected Error =[%q]`, got.Error())
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
 	//TODO - check didn't create scalar type in DB
@@ -208,7 +216,9 @@ func TestScalarCheckx(t *testing.T) {
 		Joined:Address
 	}
 `
-
+	var expectedErr []string = []string{
+		`Item "Time" does not exist in document "DefaultDoc"  at line: 5 column: 8 `,
+	}
 	// err := db.DeleteType("Time")
 	// if err != nil {
 	// 	t.Errorf(`Not expected Error =[%q]`, err.Error())
@@ -230,18 +240,28 @@ func TestScalarCheckx(t *testing.T) {
 
 	l := lexer.New(input)
 	p := New(l)
-	d, errs := p.ParseDocument()
-	fmt.Println(d.String())
-	if len(errs) > 0 {
-		t.Errorf(fmt.Sprintf(`Not expected - should be 0 errors got %d`, len(errs)))
+	_, errs := p.ParseDocument()
+	for _, ex := range expectedErr {
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
 	}
-	for _, v := range errs {
-		fmt.Println(v.Error())
-	}
-	if compare(d.String(), input) {
-		fmt.Printf("%q", trimWS(d.String()))
-		fmt.Printf("%q", trimWS(input))
-		t.Errorf(`*************  program.String() wrong.`)
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
 	}
 }
 
@@ -285,9 +305,9 @@ func TestScalarCheckNoType(t *testing.T) {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
 
-	var expectedErr [1]string
-	expectedErr[0] = `Type "Time2" does not exist at line: 5 column: 8`
-
+	var expectedErr []string = []string{
+		`Item "Time2" does not exist in document "DefaultDoc" at line: 5 column: 8`,
+	}
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()

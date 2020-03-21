@@ -84,8 +84,9 @@ func TestFieldInvalidDT(t *testing.T) {
   posts: [Boolean!]!
 }`
 
-	var expectedErr [1]string
-	expectedErr[0] = `Type "int" does not exist at line: 4 column: 15` //
+	expectedErr := []string{
+		`Item "int" does not exist in document "DefaultDoc"  at line: 4 column: 15`,
+	}
 
 	l := lexer.New(input)
 	p := New(l)
@@ -153,7 +154,7 @@ type Person {
 }`
 	var expectedErr []string = []string{
 		`Item "int" does not exist in document "DefaultDoc" at line: 6 column: 18`,
-		`Argument "info" type "int", is not an input type at line: 6 column: 18`,
+		// `Argument "info" type "int", is not an input type at line: 6 column: 18`, // error is caught in phase 3 of parse. aborted because of type resolve  error above.
 	}
 
 	l := lexer.New(input)
@@ -361,9 +362,9 @@ type Person {
 }`
 
 	var expectedErr []string = []string{
-		`Argument "if" is not a valid argument for directive "@dep" at line: 6 column: 27`,
-		`Argument "fi" is not a valid argument for directive "@dep" at line: 6 column: 37`,
-		`Argument "cat" is not a valid argument for directive "@dep" at line: 6 column: 45`,
+		`Argument "if" is not a valid name for directive "@dep" at line: 6 column: 27`,
+		`Argument "fi" is not a valid name for directive "@dep" at line: 6 column: 37`,
+		`Argument "cat" is not a valid name for directive "@dep" at line: 6 column: 45`,
 	}
 
 	l := lexer.New(input)
@@ -2029,9 +2030,10 @@ type Person {
   posts: [Boolean!]!
 }`
 
-	var expectedErr [2]string
-	expectedErr[0] = `Required type "Int", got "Float" at line: 12 column: 71`
-	expectedErr[1] = `List cannot contain NULLs at line: 12 column: 79`
+	var expectedErr []string = []string{
+		`Required type "Int", got "Float" at line: 12 column: 71`,
+		`List cannot contain NULLs at line: 12 column: 79`,
+	}
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
@@ -2077,7 +2079,7 @@ type Person {
 }`
 
 	var expectedErr [3]string
-	expectedErr[0] = `Argument "kids" for type "Measure" expected List at line: 12 column: 84`
+	expectedErr[0] = `Argument "kids" from type "Measure" expected List at line: 12 column: 84`
 	expectedErr[1] = `Required type "Int", got "Float" at line: 12 column: 71`
 	expectedErr[2] = `List cannot contain NULLs at line: 12 column: 79`
 
@@ -2227,20 +2229,22 @@ type Person {
   posts: [Boolean!]!
 }`
 
-	//parseObject_test.go:2230: Unexpected Error = ["Value {name:\"Payne\" Ages:[12 14 15 null ]  }  is not at required nesting of 0 at line: 12 column: 84"]
-	//parseObject_test.go:2230: Unexpected Error = ["Value {name2:\"Smith\" Age:[1 3 ]  }  is not at required nesting of 0 at line: 12 column: 112"]
-
-	var expectedErr [6]string
-	expectedErr[0] = `Argument "kids" for type "Measure" should not be in List at line: 12 column: 115`
-	expectedErr[1] = `Value {name:"Payne" Ages:[12 14 15 null ]  }  should not be contained in a List at line: 12 column: 84`
-	expectedErr[2] = `List cannot contain NULLs at line: 12 column: 79`
-	expectedErr[3] = `Value {name2:"Smith" Age:[1 3 ]  }  should not be contained in a List at line: 12 column: 112`
-	expectedErr[4] = `field "name2" does not exist in type Family  at line: 12 column: 87`
-	expectedErr[5] = `field "Age" does not exist in type Family  at line: 12 column: 102`
+	// Note: validation of the items in a List type is aborted if the type value should not be a list.
+	var expectedErr []string = []string{
+		`Argument "kids" from type "Measure" should not be a List type at line: 12 column: 115`,
+		// `Value {name:"Payne" Ages:[12 14 15 null ]  }  should not be contained in a List at line: 12 column: 84`,
+		// `List cannot contain NULLs at line: 12 column: 79`,
+		// `Value {name2:"Smith" Age:[1 3 ]  }  should not be contained in a List at line: 12 column: 112`,
+		// `field "name2" does not exist in type Family  at line: 12 column: 87`,
+		// `field "Age" does not exist in type Family  at line: 12 column: 102`,
+	}
 
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
+	for _, v := range errs {
+		fmt.Println("Err: ", v.Error())
+	}
 	for _, ex := range expectedErr {
 		found := false
 		for _, err := range errs {
@@ -2330,9 +2334,10 @@ type Person {
   posts: [Boolean!]!
 }`
 
-	var expectedErr [2]string
-	expectedErr[0] = `Argument type "Measure", value has type Int should be Float at line: 8 column: 39`
-	expectedErr[1] = `Argument type "Measure", value has type Int should be Float at line: 8 column: 65`
+	var expectedErr []string = []string{
+		`Argument "height" from type "Measure" expected Float got Int at line: 8 column: 39`,
+		`Argument "height" from type "Measure" expected Float got Int at line: 8 column: 65`,
+	}
 
 	l := lexer.New(input)
 	p := New(l)
@@ -2374,10 +2379,11 @@ type Person {
   posts: [Boolean!]!
 }`
 
-	var expectedErr [3]string
-	expectedErr[0] = `field "hieght" does not exist in type Measure  at line: 8 column: 31`
-	expectedErr[1] = `field "name2" does not exist in type Measure  at line: 8 column: 73`
-	expectedErr[2] = `List cannot contain NULLs at line: 8 column: 89`
+	var expectedErr []string = []string{
+		`field "hieght" does not exist in type Measure  at line: 8 column: 31`,
+		`field "name2" does not exist in type Measure  at line: 8 column: 73`,
+		`List cannot contain NULLs at line: 8 column: 89`,
+	}
 
 	l := lexer.New(input)
 	p := New(l)
@@ -2467,19 +2473,15 @@ type Person {
   posts: [Boolean!]!
 }`
 
-	var expectedErr [4]string
-	expectedErr[0] = `Argument "info" type "Measure", is not an input type at line: 8 column: 17`
-	expectedErr[1] = `Object "height" for type "Measure" expected Float got Int at line: 8 column: 38`
-	expectedErr[2] = `Object "name" for type "Measure" expected String got Null at line: 8 column: 46`
-	expectedErr[3] = `Object "height" for type "Measure" expected Float got Int at line: 8 column: 62`
-
+	expectedErr := []string{
+		`Argument "info" type "Measure", is not an input type at line: 8 column: 17`,
+		`Object "height" from type "Measure" expected Float got Int at line: 8 column: 38`,
+		`Object "name" from type "Measure" expected String got Null at line: 8 column: 46`,
+		`Object "height" from type "Measure" expected Float got Int at line: 8 column: 62`,
+	}
 	l := lexer.New(input)
 	p := New(l)
-	d, errs := p.ParseDocument()
-	fmt.Println(d.String())
-	for _, v := range errs {
-		fmt.Println("*** ", v.Error())
-	}
+	_, errs := p.ParseDocument()
 	for _, ex := range expectedErr {
 		found := false
 		for _, err := range errs {
@@ -2917,9 +2919,9 @@ type Measure66 {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
 
-	var expectedErr [1]string
-	expectedErr[0] = `Type "Myobject66" does not exist at line: 9 column: 13` //
-
+	var expectedErr []string = []string{
+		`Item "Myobject66" does not exist in document "DefaultDoc" at line: 9 column: 13`, //
+	}
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
@@ -3007,7 +3009,7 @@ type Measure {
 `
 
 	var expectedErr [1]string
-	expectedErr[0] = `Argument "y" for type "Pet" expected Int got Float at line: 10 column: 45` //
+	expectedErr[0] = `Argument "y" from type "Pet" expected Int got Float at line: 10 column: 45` //
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
@@ -3051,9 +3053,9 @@ type Measure {
 `
 
 	var expectedErr [3]string
-	expectedErr[0] = `Argument "y" for type "Pet" expected List at line: 10 column: 38`
-	expectedErr[1] = `Argument "y" for type "Pet" expected List at line: 10 column: 45`
-	expectedErr[2] = `Argument "y" for type "Pet" expected Int got Float at line: 10 column: 45`
+	expectedErr[0] = `Argument "y" from type "Pet" expected List at line: 10 column: 38`
+	expectedErr[1] = `Argument "y" from type "Pet" expected List at line: 10 column: 45`
+	expectedErr[2] = `Argument "y" from type "Pet" expected Int got Float at line: 10 column: 45`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -3097,9 +3099,9 @@ type Measure {
 `
 
 	var expectedErr [3]string
-	expectedErr[0] = `Argument "y" for type "Pet" expected List at line: 10 column: 38`           //
-	expectedErr[1] = `Argument "y" for type "Pet" expected List at line: 10 column: 45`           //
-	expectedErr[2] = `Argument "y" for type "Pet" expected Int got Float  at line: 10 column: 45` //
+	expectedErr[0] = `Argument "y" from type "Pet" expected List at line: 10 column: 38`           //
+	expectedErr[1] = `Argument "y" from type "Pet" expected List at line: 10 column: 45`           //
+	expectedErr[2] = `Argument "y" from type "Pet" expected Int got Float  at line: 10 column: 45` //
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
@@ -3142,8 +3144,8 @@ type Measure {
 `
 
 	var expectedErr [2]string
-	expectedErr[0] = `Argument "x" for type "Pet" expected Float got Int at line: 10 column: 47` //
-	expectedErr[1] = `Mandatory field "y" missing in type "Pet" at line: 10 column: 45 `         //
+	expectedErr[0] = `Argument "x" from type "Pet" expected Float got Int at line: 10 column: 47` //
+	expectedErr[1] = `Mandatory field "y" missing in type "Pet" at line: 10 column: 45 `          //
 
 	l := lexer.New(input)
 	p := New(l)
@@ -3225,9 +3227,9 @@ type Measure {
 `
 
 	var expectedErr [3]string
-	expectedErr[0] = `Argument "y" for type "Pet" expected Int got Float at line: 10 column: 45`
-	expectedErr[1] = `Argument "y" for type "Pet" expected List at line: 10 column: 38`
-	expectedErr[2] = `Argument "y" for type "Pet" expected List at line: 10 column: 45`
+	expectedErr[0] = `Argument "y" from type "Pet" expected Int got Float at line: 10 column: 45`
+	expectedErr[1] = `Argument "y" from type "Pet" expected List at line: 10 column: 38`
+	expectedErr[2] = `Argument "y" from type "Pet" expected List at line: 10 column: 45`
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
@@ -3269,14 +3271,14 @@ func TestWrongDataType3b(t *testing.T) {
 type Measure {
     height: String
     weight: Int
-    form (xarg : [Pet]! = [{x:77.3 y:22} {y:[33.9]}]) : Float
+    form (xarg : [Pet]! = [{x:77.3 y:22.3} {y:[33]}]) : Float
 }
 `
 
-	var expectedErr [3]string
-	expectedErr[0] = `Argument "y" for type "Pet" should not be in List at line: 10 column: 50`
-	expectedErr[1] = `Value 33.9 should not be contained in a List at line: 10 column: 46`
-	expectedErr[2] = `Required type "Int", got "Float" at line: 10 column: 46`
+	var expectedErr []string = []string{
+		`Argument "y" from type "Pet" expected Int got Float at line: 10 column: 38`,
+		`Argument "y" from type "Pet" should not be a List type at line: 10 column: 50`,
+	}
 
 	l := lexer.New(input)
 	p := New(l)

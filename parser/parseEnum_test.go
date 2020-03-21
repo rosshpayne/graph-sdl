@@ -28,8 +28,8 @@ type Person {
 `
 
 	var expectedErr []string = []string{`Required type "Int", got "Float" at line: 10 column: 31`,
-		`Argument "fi" is not a valid argument for directive "@dep" at line: 10 column: 37`,
-		`Argument "cat" is not a valid argument for directive "@dep" at line: 10 column: 45`,
+		`Argument "fi" is not a valid name for directive "@dep" at line: 10 column: 37`,
+		`Argument "cat" is not a valid name for directive "@dep" at line: 10 column: 45`,
 	}
 
 	l := lexer.New(input)
@@ -340,7 +340,7 @@ func TestEnumBadBracket(t *testing.T) {
 
 	var expectedErr = []string{
 		`Expected a ( or } or { instead got [ at line: 5, column: 26`,
-		`Argument "if" is not a valid argument for directive "@dep" at line: 5 column: 27`,
+		`Argument "if" is not a valid name for directive "@dep" at line: 5 column: 27`,
 	}
 
 	l := lexer.New(input)
@@ -545,7 +545,7 @@ type Person {
 `
 
 	expectedErr := []string{
-		`Argument "if" is not a valid argument for directive "@dep" at line: 6 column: 27`,
+		`Argument "if" is not a valid name for directive "@dep" at line: 6 column: 27`,
 		`"XYZ" is not a member of Enum type Direction at line: 10 column: 26`,
 	}
 
@@ -746,7 +746,7 @@ type Person {
 	// 	`Expected name identifer got : of ":" at line: 11, column: 8`,
 	// 	`Colon expected got Int of Int at line: 11, column: 10`,
 	// 	`Item "extra" does not exist in document "DefaultDoc" at line: 11 column: 3`,
-	// 	`Argument "if" is not a valid argument for directive "@dep" at line: 6 column: 27`,
+	// 	`Argument "if" is not a valid name for directive "@dep" at line: 6 column: 27`,
 	// }
 
 	var expectedErr = []string{

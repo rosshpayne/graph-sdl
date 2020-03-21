@@ -25,6 +25,7 @@ type SearchQuery {
   firstSearchResult: SearchResult
 }
 `
+	expDoc := `type Person {name:String age:Int} type Photo { height:Intwidth:Int} type SearchQuery{firstSearchResult:SearchResult} union SearchResult=|Photo|Person`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -36,9 +37,9 @@ type SearchQuery {
 			t.Errorf(`Unexpected error: %s`, v.Error())
 		}
 	}
-	if compare(d.String(), input) {
+	if compare(d.String(), expDoc) {
 		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
-		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf("Expected: [%s] \n", trimWS(expDoc))
 		t.Errorf(`Unexpected: program.String() wrong. `)
 	}
 }
@@ -91,7 +92,7 @@ union SearchResult =| Photo | Person | OddOne
 `
 
 	var expectedErr [1]string
-	expectedErr[0] = `Union member "OddOne" must be an object type at line: 6 column: 40`
+	expectedErr[0] = `Union member "OddOne" must be an object based type at line: 6 column: 40`
 
 	l := lexer.New(input)
 	p := New(l)

@@ -19,6 +19,7 @@ const (
 	Executable = 'E'
 	TypeSystem = 'T'
 	defaultDoc = "DefaultDoc"
+	logrFlags  = log.LstdFlags | log.Lshortfile
 )
 
 // Error exit codes
@@ -68,13 +69,14 @@ type (
 		extend bool
 
 		cache *Cache_
-		logr  *log.Logger
-		logf  *os.File
+
+		logr *log.Logger
+		logf *os.File
 
 		abort     bool
 		stmtType  string
 		state     stateT
-		curToken  token.Token
+		curToken  token.Token //TODO use *token.Token
 		peekToken token.Token
 
 		parseFns map[token.TokenType]parseFn
@@ -182,7 +184,7 @@ func (p *Parser) executeWithErrLimit(mv func(*[]error), num ...int) (b bool) {
 
 func (p *Parser) hasError() bool {
 
-	if len(p.perror) > 7 || p.abort {
+	if len(p.perror) > 10 || p.abort {
 		return true
 	}
 	return false
@@ -198,6 +200,15 @@ func (p *Parser) addErr(s string, xCode ...int) error {
 	if len(xCode) > 0 {
 		p.abort = true
 	}
+	return e
+}
+
+// addErr2 appends to error slice held in parser.
+func (p *Parser) addErr2(e error) error {
+
+	fmt.Println("addErr2: before ", len(p.perror))
+	p.perror = append(p.perror, e)
+	fmt.Println("addErr2: after ", len(p.perror))
 	return e
 }
 
@@ -270,7 +281,7 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 	//  open log file and set logger
 	//
 	p.logf = openLogFile()
-	p.logr = log.New(p.logf, "GQL:", log.Lshortfile)
+	p.logr = log.New(p.logf, "SDL:", logrFlags)
 	p.cache.SetLogger(p.logr)
 	//
 	// set document
@@ -321,7 +332,7 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 	//					  if cache returns no value then don't generate error as this was done at cache populate time for that item.
 	//
 	for _, v := range api.Statements {
-		p.ResolveAllTypes(v, p.cache)
+		p.ResolveNestedTypes(v, p.cache)
 		if len(p.perror) > 0 {
 			api.ErrorMap[v.TypeName()] = append(api.ErrorMap[v.TypeName()], p.perror...)
 			p.perror = nil
@@ -375,7 +386,6 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 	//
 	errCollect := func(typeName ast.NameValue_) {
 		api.ErrorMap[typeName] = append(api.ErrorMap[typeName], p.perror...)
-		fmt.Println("errCollect ", typeName, len(api.ErrorMap[typeName]))
 		p.perror = nil
 	}
 
@@ -385,12 +395,22 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 		if p.hasError() {
 			break
 		}
-		// *** only proceed if zero errors for stmt. No. Pushed decision to checkFieldASTAssigned.
-		// *** see test case: testEnumMultiError1.
-		//    checkFieldASTAssigned determines if further checks can safely be perofmed
-		// if len(api.ErrorMap[v.TypeName()]) != 0 {
-		// 	continue
-		// }
+		//
+		// *** proceed for stmt if there are no type resolve errors.
+		//
+		if len(api.ErrorMap[v.TypeName()]) != 0 {
+			var abortMoreValidation bool
+			for _, v2 := range api.ErrorMap[v.TypeName()] {
+				if errors.Is(v2, TypeResolveErr) {
+					abortMoreValidation = true
+					continue
+				}
+			}
+			if abortMoreValidation {
+				errCollect(v.TypeName())
+				continue
+			}
+		}
 		if !p.checkFieldASTAssigned(v) {
 			continue
 		}
@@ -454,70 +474,81 @@ func (p *Parser) ParseStatement() ast.GQLTypeProvider {
 	return nil
 }
 
-// ResolveAllTypes is a validation check performed after parsing completes.
-//  otherNonScalarTypes Types from parsed types are then checked in DB.
-//  check performed across nested types until all leaf finsihed or otherNonScalarTypes found
-func (p *Parser) ResolveAllTypes(v ast.GQLTypeProvider, t *Cache_) []error {
-	fmt.Println(" ======================================== ResolveAllTypes ======================", len(t.Cache))
-	//returns slice of otherNonScalarTypes types from the statement passed in
-	otherNonScalarTypes := make(ast.UnresolvedMap)
+// TypeResolveErr used only to categorise the error not to provided extra information.
+var TypeResolveErr = errors.New("")
+
+// ResolveNestedTypes is a validation check performed after parsing completes.
+// all nested abstract types from passed in AST are confirmed to exist either
+// in cache or database.  Resolving continutes until until all nested types are resolved
+func (p *Parser) ResolveNestedTypes(v ast.GQLTypeProvider, t *Cache_) []error {
 	//
-	// find all otherNonScalarTypes nested within the current type
+	// find all Abstract Types nested within the current type v. These need to be resolved.
 	//
-	v.SolicitNonScalarTypes(otherNonScalarTypes)
+	fmt.Println("************** ResolveType:  ************* ")
+	nestedAbstractTypes := make(ast.UnresolvedMap)
+	v.SolicitAbstractTypes(nestedAbstractTypes)
 	//
 	// load all resolved types from the cache into a map
 	//
-	t.Lock()
 	resolved := make(ast.UnresolvedMap)
-	for tyName := range otherNonScalarTypes {
+	t.Lock()
+	//
+	// purge current type from map of all types to be resolved.
+	//
+	for tyName := range nestedAbstractTypes {
 		if _, ok := t.Cache[tyName.String()]; ok {
 			resolved[tyName] = nil
 			if tyName.Name == v.TypeName() {
 				// remove type that is under consideration from list of types to be resolved.
-				delete(otherNonScalarTypes, tyName)
+				delete(nestedAbstractTypes, tyName)
 			}
 		}
 	}
 	t.Unlock()
+	fmt.Println("AbstractType: ", nestedAbstractTypes)
 	//
-	//  otherNonScalarTypes should now contain non-scalar types except current type under investigation. We need all types as we use loop to poluates the field "Type" attribute, AST when it exists.
+	//  nestedAbstractTypes should now contain abstract types except current type under investigation.
+	//  As a side effect of this proecssing we populate the AST attribute in the GQLtype when the AST exists.
 	//
-	for tyName, ty := range otherNonScalarTypes {
-		fmt.Println(" tyName : ", tyName)
+	// typeName, *GQLType
+	for tyName, ty := range nestedAbstractTypes {
+		//
 		// resolve type
+		//
 		ast_, err := t.FetchAST(tyName.Name)
-
-		// type ENUM values will have nil *Type
+		//
 		if ast_ != nil {
+			//
+			// resolved then confirm GQLtype.AST is assigned (for nonScalar types)
+			// and recursively resolve types nested in current type
+			//
 			if ty != nil {
+				// assign GQLType.AST from cache entry
 				ty.AST = ast_
-				// if not scalar then check for otherNonScalarTypes types in nested type
+				// if not scalar then check for nestedAbstractTypes types in nested type
 				if !ty.IsScalar() {
 					if _, ok := resolved[tyName]; !ok {
-						fmt.Println(" for any type not resolved to date,  run again...", v.TypeName().String(), tyName.String())
-						p.ResolveAllTypes(ast_, t)
+						p.ResolveNestedTypes(ast_, t)
 					}
 				}
 			}
 
 		} else {
-			// nil ast_ means not found in db
-			if err == nil {
-				if ty != nil {
-					p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, ty.Name, ty.AtPosition()))
-				} else {
-					p.addErr(fmt.Sprintf(`Type "%s" does not exist %s`, tyName, ty.AtPosition()))
-				}
-			} else {
-				if errors.Is(err, ErrNotCached) {
-					p.addErr(fmt.Sprintf(`Item "%s" %s %s`, tyName.Name.String(), err, tyName.AtPosition()))
-				} else {
-					p.addErr(err.Error() + tyName.AtPosition())
-				}
+			//
+			// output an unresolved error
+			//
+			fmt.Println("ResolveType: err", err.Error())
+			switch {
+			case errors.Is(err, ErrNotCached):
+				p.addErr2(fmt.Errorf(`Item %q %s in document %q %s %w`, tyName, err, db.GetDocument(), tyName.AtPosition(), TypeResolveErr))
+			case errors.Is(err, db.NoItemFoundErr):
+				p.addErr2(fmt.Errorf(`%s %s %w`, err, tyName.AtPosition(), TypeResolveErr))
+			default:
+				p.addErr2(fmt.Errorf(`%s %s %w`, err, tyName.AtPosition(), TypeResolveErr))
 			}
 		}
 	}
+	//	}
 	return p.perror
 }
 
@@ -529,27 +560,6 @@ func (p *Parser) CheckSelfReference(directive ast.NameValue_, x *ast.Directive_)
 	refCheck := func(dirName ast.NameValue_, x ast.GQLTypeProvider) {
 		x.CheckDirectiveRef(dirName, &p.perror)
 	}
-	// ArgumentDefs InputValueDefs // []*InputValueDef ->
-	// Type       *GQLtype
-	// DefaultVal *InputValue_
-	// Directives_ // Directives []*DirectiveT  // @Name_ (	Arguments_ )  //  []*ArgumentT // 	Name_ : Value *InputValue_
-	// type Directive_ struct {
-	// 	Desc         string
-	// 	Name_        // no need to hold Location as its stored in InputValue, parent of this object
-	// 	ArgumentDefs InputValueDefs // []*InputValDef
-	// 	Location     []string
-	// }
-	// type InputValueDef struct {
-	// 	Desc string
-	// 	Name_
-	// 	Type       *GQLtype                   <=== more directives inside ast
-	// 	DefaultVal *InputValue_
-	// 	Directives_							<=== more directives 1
-	// type GQLtype struct {
-	// Constraint byte            // each on bit from right represents not-null constraint applied e.g. in nested list type [type]! is 00000010, [type!]! is 00000011, type! 00000001
-	// AST        GQLTypeProvider // AST instance of type. WHen would this be used??. Used for non-Scalar types. AST in cache(typeName), then in GQLtype(typeName). If not in GQLtype, check cache, then DB.
-	// Depth      int             // depth of nested List e.g. depth 2 is [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
-	// Name_                      // type name. inherit AssignName(). Use Name_ to access AST via cache lookup. ALternatively, use AST above.
 
 	for _, v := range x.ArgumentDefs {
 		for _, dir := range v.Directives {

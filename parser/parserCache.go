@@ -67,7 +67,7 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 	}
 	// check if name has been registered as non-existent from previous query
 	if typeNotExists[name_] {
-		fmt.Printf("DBFetch of [%s] does not exist", name)
+		fmt.Printf("DBFetch of [%s] does not exist\n", name)
 		return nil, ErrNotCached
 	}
 	t.Lock()
@@ -82,7 +82,8 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 		// cache populated with bare minimum of data.  Release the lock and source remaining data to be cached while the channel synchronises access to the current entry.
 		// access db for definition of type (string value)
 		if typeSDL, err := db.DBFetch(name_); err != nil {
-			if errors.Is(err, db.SystemErr) {
+			switch {
+			case errors.Is(err, db.SystemErr), errors.Is(err, db.MarshalingErr), errors.Is(err, db.UnmarshalingErr):
 				t.logr.Fatal(err)
 			}
 			typeNotExists[name_] = true
@@ -106,8 +107,11 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 				t.logr.Print(" in parseCache about to generate AST.")
 				l := lexer.New(typeSDL)
 				p2 := New(l)
+				//
+				// save to cache
+				//
 				e.data = p2.ParseStatement() // source of stmt is db so its been verified, simply resolve types it refs
-				p2.ResolveAllTypes(e.data, t)
+				p2.ResolveNestedTypes(e.data, t)
 				// close the channel to allow unhindered access to this entry
 				t.logr.Print(" found in db. closed channel...")
 				close(e.ready)

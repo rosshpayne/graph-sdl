@@ -141,7 +141,7 @@ type Person implements NamedEntity & ValuedEntity2 {
 
 	var expectedErr []string = []string{
 		`Item "ValuedEntity2"  does not exist in document "DefaultDoc" at line: 11 column: 38`,
-		`Type "Person" does not implement interface "NamedEntity", missing  "name2"`,
+		//	`Type "Person" does not implement interface "NamedEntity", missing  "name2"`, // error is caught in phase 3 which is aborted because of resolve error
 	}
 
 	l := lexer.New(input)
@@ -505,7 +505,7 @@ func TestImplements6a(t *testing.T) {
 	}
 }
 
-func TestInterfaceBadKeyword(t *testing.T) {
+func TestImplementsInterfaceBadKeyword(t *testing.T) {
 
 	input := `
 	interfacei NamedEntity6b {
@@ -728,12 +728,12 @@ type Business2 implements & NamedEntity & ValuedEntity {
   employeeCount: Int
 }
 `
-	var expectedErr [4]string
-	expectedErr[0] = `Type "Person" does not implement interface "NamedEntity", missing  "XXX"`
-	expectedErr[1] = `Type "Business" does not implement interface "NamedEntity", missing  "XXX"`
-	expectedErr[2] = `Type "Business" does not implement interface "ValuedEntity", missing  "size" "length"`
-	expectedErr[3] = `Type "Business2" does not implement interface "ValuedEntity", missing  "size"`
-
+	expectedErr := []string{
+		`Type "Person" does not implement interface "NamedEntity", missing  "XXX"`,
+		`Type "Business" does not implement interface "NamedEntity", missing  "XXX"`,
+		`Type "Business" does not implement interface "ValuedEntity", missing  "size" "length"`,
+		`Type "Business2" does not implement interface "ValuedEntity", missing  "size"`,
+	}
 	err := db.DeleteType("NamedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
@@ -863,7 +863,7 @@ type Business2 implements & NamedEntity & ValuedEntity {
 	}
 }
 
-func TestSetupFragments(t *testing.T) {
+func TestImplementsSetupFragments(t *testing.T) {
 
 	input := `
 enum Episode {
@@ -902,11 +902,7 @@ type Droid implements Character {
   primaryFunction: String
 }`
 
-	var expectedErr [3]string
-	expectedErr[0] = `Type "Person" does not implement interface "NamedEntity", missing  "XXX"`
-	expectedErr[1] = `Type "Business" does not implement interface "NamedEntity", missing  "XXX"`
-	expectedErr[2] = `Type "Business" does not implement interface "ValuedEntity", missing  "size" "length"`
-
+	expectedErr := []string{}
 	err := db.DeleteType("NamedEntity")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
@@ -927,6 +923,9 @@ type Droid implements Character {
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
+	for _, v := range errs {
+		fmt.Println("Err: ", v)
+	}
 	for _, ex := range expectedErr {
 		found := false
 		for _, err := range errs {

@@ -13,17 +13,16 @@ func TestDirectiveMultiple(t *testing.T) {
 	input := `
 input ExampleInputObjectDirective @ june (asdf:234) @ june2 (aesdf:234) @ june3 (as2df:"abc") {
   a: String = "AbcDef" @ ref (if:123) @ jack (sd: "abc") @ june (asdf:234) @ ju (asdf:234) @ judkne (asdf:234) @ junse (asdf:234) @ junqe (asdf:234) 
-  b: Int! @june(asdf:234)  @ ju (asdf:234)
+  b: Int! @june(asdf:234)   @ju (asdf:234)
 }
 directive @june (asdf : Int = 66) on | FIELD_DEFINITION| ARGUMENT_DEFINITION | INPUT_OBJECT
 
 `
 
-	var expectedDoc = `
-	directive @june (asdf : Int = 66) on | FIELD_DEFINITION| ARGUMENT_DEFINITION | INPUT_OBJECT
+	var expectedDoc = `directive @june (asdf : Int = 66) on | FIELD_DEFINITION| ARGUMENT_DEFINITION | INPUT_OBJECT
 input ExampleInputObjectDirective @ june (asdf:234) @ june2 (aesdf:234) @ june3 (as2df:"abc") {
   a: String = "AbcDef" @ ref (if:123) @ jack (sd: "abc") @ june (asdf:234) @ ju (asdf:234) @ judkne (asdf:234) @ junse (asdf:234) @ junqe (asdf:234) 
-  b: Int! @june(asdf:234)  @ ju (asdf:234)
+  b: Int! @june(asdf:234) @ju (asdf:234)
 }
 `
 	var expectedErr [11]string
@@ -32,10 +31,10 @@ input ExampleInputObjectDirective @ june (asdf:234) @ june2 (aesdf:234) @ june3 
 	expectedErr[1] = `Item "@june3" does not exist in document "DefaultDoc" at line: 2 column: 75`
 	expectedErr[2] = `Item "@ref"  does not exist in document "DefaultDoc" at line: 3 column: 26`
 	expectedErr[3] = `Item "@jack"  does not exist in document "DefaultDoc" at line: 3 column: 41`
-	expectedErr[4] = `Item "@ju" does not exist in document "DefaultDoc" at line: 3 column: 78`
+	expectedErr[4] = `Item "@ju" does not exist  in document "DefaultDoc" at line: 3 column: 78`
 	expectedErr[5] = `Item "@judkne" does not exist in document "DefaultDoc" at line: 3 column: 94`
 	expectedErr[6] = `Item "@junqe" does not exist in document "DefaultDoc" at line: 3 column: 133`
-	expectedErr[7] = `Item "@ju" does not exist at line: 4 column: 30`
+	expectedErr[7] = `Item "@ju" does not exist in document "DefaultDoc" at line: 4 column: 30`
 	expectedErr[8] = `Item "@junse"  does not exist in document "DefaultDoc" at line: 3 column: 114`
 	expectedErr[9] = `Directive "@june" is not registered for INPUT_FIELD_DEFINITION usage at line: 3 column: 60`
 	expectedErr[10] = `Directive "@june" is not registered for INPUT_FIELD_DEFINITION usage at line: 4 column: 12`
@@ -45,9 +44,9 @@ input ExampleInputObjectDirective @ june (asdf:234) @ june2 (aesdf:234) @ june3 
 	p.ClearCache()
 	d, errs := p.ParseDocument()
 	fmt.Println("Statement: ", d.String())
-	for _, v := range errs {
-		fmt.Println("**Error: ", v)
-	}
+	// for _, v := range errs {
+	// 	fmt.Println("**Error: ", v)
+	// }
 	for _, ex := range expectedErr {
 		found := false
 		for _, err := range errs {
@@ -79,7 +78,7 @@ input ExampleInputObjectDirective @ june (asdf:234) @ june2 (aesdf:234) @ june3 
 
 }
 
-func TestInputDoesnotExist(t *testing.T) {
+func TestDirectiveInputDoesnotExist(t *testing.T) {
 
 	input := `
 extend input ExampleInputXYZ @ june (asdf:234) 
@@ -518,21 +517,21 @@ x(Nm : String ={x:"abc" y:1 } @exampleDirOK ) : String
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	var expectedErr [13]string
-	expectedErr[0] = `Directive "@exampleDirRef" that references itself, is not permitted at line: 29 column: 46`
-	expectedErr[1] = `Directive "@exampleDirRef" references itself, is not permitted at line: 21 column: 24`
-	expectedErr[2] = `Directive "@exampleDirRef" references itself, is not permitted at line: 16 column: 24`
-	expectedErr[3] = `Directive "@exampleDirRef" references itself, is not permitted at line: 16 column: 58`
-	expectedErr[4] = `Directive "@exampleDirRef" references itself, is not permitted at line: 4 column: 22`
-	expectedErr[5] = `Directive "@exampleDirOK" is not registered for INPUT_OBJECT usage at line: 9 column: 21`
-	expectedErr[6] = `Directive "@exampleDirOK" is not registered for INPUT_FIELD_DEFINITION usage at line: 10 column: 15`
-	expectedErr[7] = `Directive "@exampleDirOK" is not registered for OBJECT usage at line: 14 column: 24`
-	expectedErr[8] = `Directive "@exampleDirOK" is not registered for INPUT_OBJECT usage at line: 19 column: 22`
-	expectedErr[9] = `Directive "@exampleDirOK" is not registered for INPUT_FIELD_DEFINITION usage at line: 20 column: 15`
-	expectedErr[10] = `Directive "@exampleDirOK" is not registered for OBJECT usage at line: 24 column: 26`
-	expectedErr[11] = `Mismatched types. The input data (object values in this case) does not match a Object or Input type. The reference type is a String`
-	expectedErr[12] = `Field "y" of input type "exampleTypeOuter", must be an input type at line: 21 column: 6`
-
+	expectedErr := []string{
+		`Directive "@exampleDirRef" that references itself, is not permitted at line: 29 column: 46`,
+		`Directive "@exampleDirRef" references itself, is not permitted at line: 21 column: 24`,
+		`Directive "@exampleDirRef" references itself, is not permitted at line: 16 column: 24`,
+		`Directive "@exampleDirRef" references itself, is not permitted at line: 16 column: 58`,
+		`Directive "@exampleDirRef" references itself, is not permitted at line: 4 column: 22`,
+		`Directive "@exampleDirOK" is not registered for INPUT_OBJECT usage at line: 9 column: 21`,
+		`Directive "@exampleDirOK" is not registered for INPUT_FIELD_DEFINITION usage at line: 10 column: 15`,
+		`Directive "@exampleDirOK" is not registered for OBJECT usage at line: 14 column: 24`,
+		`Directive "@exampleDirOK" is not registered for INPUT_OBJECT usage at line: 19 column: 22`,
+		`Directive "@exampleDirOK" is not registered for INPUT_FIELD_DEFINITION usage at line: 20 column: 15`,
+		`Directive "@exampleDirOK" is not registered for OBJECT usage at line: 24 column: 26`,
+		`Mismatched types. The input data (object values in this case) does not match a Object or Input type. The reference type is a String`,
+		`Field "y" of input type "exampleTypeOuter", must be an input type at line: 21 column: 6`,
+	}
 	l := lexer.New(input)
 	p := New(l)
 	p.ClearCache()
@@ -698,8 +697,9 @@ type SomeType {
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	var expectedErr [1]string
-	expectedErr[0] = `Argument "arg2" is not a valid argument for directive  "@example" at line: 4 column: 27`
+	var expectedErr []string = []string{
+		`Argument "arg2" is not a valid name for directive  "@example" at line: 4 column: 27`,
+	}
 
 	l := lexer.New(input)
 	p := New(l)
@@ -812,8 +812,8 @@ func TestFieldDirectiveExtraArg(t *testing.T) {
 	input := `
 directive @example (arg1: Int = 123 ) on | FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_OBJECT | INPUT_FIELD_DEFINITION
 
-input SomeInput @example {
-  field: String = "ABC" @example
+input SomeInput @example (arg3:33) {
+  field: String = "ABC" @example (argx: 34)
 }
 
 type SomeType {
@@ -834,8 +834,11 @@ type SomeType {
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	var expectedErr [1]string
-	expectedErr[0] = `Argument "arg2" is not a valid name for directive "@example" at line: 9 column: 38`
+	var expectedErr = []string{
+		`Argument "arg2" is not a valid name for directive "@example" at line: 9 column: 38`,
+		`Argument "arg3" is not a valid name for directive "@example" at line: 4 column: 27`,
+		`Argument "argx" is not a valid name for directive "@example" at line: 5 column: 35`,
+	}
 
 	l := lexer.New(input)
 	p := New(l)
@@ -1293,7 +1296,7 @@ type SomeType3 {
 	// }
 }
 
-func TestObjectFieldBadArgs3a(t *testing.T) {
+func TestDirectiveObjectFieldBadArgs3a(t *testing.T) {
 
 	input := `
 directive @example3 (arg1 : Int = 5 arg2 : String = "ABC" arg3: Float = 23.44 ) on | INPUT_OBJECT| FIELD_DEFINITION | ARGUMENT_DEFINITION| INPUT_FIELD_DEFINITION
@@ -1368,7 +1371,7 @@ type SomeType3 {
 	// }
 }
 
-func TestObjectFieldBadArgs3b(t *testing.T) {
+func TestDirectiveObjectFieldBadArgs3b(t *testing.T) {
 
 	input := `
 directive @example3 (arg1 : Int = 5 arg2 : String = "ABC" arg3: Float = 23.44 ) on | INPUT_OBJECT| FIELD_DEFINITION | ARGUMENT_DEFINITION| INPUT_FIELD_DEFINITION
@@ -1446,7 +1449,7 @@ type SomeType3 {
 	// }
 }
 
-func TestObjectFieldBadArgs3c(t *testing.T) {
+func TestDirectiveObjectFieldBadArgs3c(t *testing.T) {
 
 	input := `
 directive @example3 (arg1 : Int = 5 arg2 : String = "ABC" arg3: Float = 23.44 ) on | INPUT_OBJECT| FIELD_DEFINITION | ARGUMENT_DEFINITION| INPUT_FIELD_DEFINITION
@@ -1521,7 +1524,7 @@ type SomeType3 {
 	// 	t.Errorf(`Unexpected: program.String() wrong. `)
 	// }
 }
-func TestSetup4DirectiveQueriesArgs3(t *testing.T) {
+func TestDirectiveSetup4DirectiveQueriesArgs3(t *testing.T) {
 
 	input := `
 directive @example3 (arg1 : Int = 5 arg2 : String = "ABC" arg3: Float = 23.44 ) on | INPUT_OBJECT| FIELD_DEFINITION | ARGUMENT_DEFINITION| INPUT_FIELD_DEFINITION
@@ -1589,7 +1592,7 @@ type SomeType3 {
 	}
 }
 
-func TestSetup4DirectiveQueriesArg4(t *testing.T) {
+func TestDirectiveSetup4DirectiveQueriesArg4(t *testing.T) {
 
 	input := `
 directive @example4 (arg1 : Int = 5 arg2 : String = "ABC" arg3: Float = 23.44 arg4: Int) on |INPUT_OBJECT| FIELD_DEFINITION | ARGUMENT_DEFINITION| INPUT_FIELD_DEFINITION

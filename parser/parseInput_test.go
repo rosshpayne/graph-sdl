@@ -26,8 +26,8 @@ func TestInput1(t *testing.T) {
 }`
 
 	var expectedErr [2]string
-	expectedErr[0] = `Argument "dei" is not a valid argument for directive "@jun" at line: 10 column: 55`
-	expectedErr[1] = `Argument "uio" is not a valid argument for directive "@jun" at line: 10 column: 63`
+	expectedErr[0] = `Argument "dei" is not a valid name for directive "@jun" at line: 10 column: 55`
+	expectedErr[1] = `Argument "uio" is not a valid name for directive "@jun" at line: 10 column: 63`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -69,7 +69,7 @@ func TestInput1(t *testing.T) {
 func TestInputDuplicate(t *testing.T) {
 
 	input := `
-	
+	directive @june (asdf: String) on | INPUT_FIELD_DEFINITION | INPUT_OBJECT	
 	input Point2D  @ june (asdf:234){
   x: Float = 123.23 @ june (asdf:234)
   y: Float = 34 @ june (asdf:"""asdflkjslkjd""")
@@ -82,12 +82,24 @@ func TestInputDuplicate(t *testing.T) {
          y6: Float = 34 @ june (asdf:"""asdflkjslkjd""")
           y63: Float = 34 @ june (asdf:"""asdflkjslkjd""")
 }
-	directive @june (asdf: String) on | INPUT_FIELD_DEFINITION | INPUT_OBJECT
+
 	
 `
-	var expectedErr [1]string
-	expectedErr[0] = `Duplicate input value name "y" at line: 8, column: 8`
-
+	var expectedErr []string = []string{
+		`Duplicate input value name "y" at line: 8, column: 8`,
+		`Required type "String", got "Int" at line: 3 column: 30`,
+		`Required type "String", got "Int" at line: 4 column: 34`,
+		`Required type "Float", got "Int" at line: 5 column: 14`,
+		`Required type "Float", got "Int" at line: 6 column: 16`,
+		`Required type "Float", got "Int" at line: 7 column: 18`,
+		`Required type "Float", got "Int" at line: 9 column: 19`,
+		`Argument "dei" is not a valid name for directive "@june" at line: 9 column: 54`,
+		`Argument "uio" is not a valid name for directive "@june" at line: 9 column: 62`,
+		`Required type "Float", got "Int" at line: 10 column: 20`,
+		`Required type "Float", got "Int" at line: 11 column: 21`,
+		`Required type "Float", got "Int" at line: 12 column: 22`,
+		`Required type "Float", got "Int" at line: 13 column: 24`,
+	}
 	l := lexer.New(input)
 	p := New(l)
 	p.ClearCache()

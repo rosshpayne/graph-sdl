@@ -13,7 +13,7 @@ func TestMutation1(t *testing.T) {
 }
 `
 	var expectedErr [1]string
-	expectedErr[0] = `Type "PersonX" does not exist at line: 2 column: 45`
+	expectedErr[0] = `Item "PersonX" does not exist in document "DefaultDoc" at line: 2 column: 45`
 
 	l := lexer.New(input)
 	p := New(l)

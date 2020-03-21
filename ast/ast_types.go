@@ -10,26 +10,31 @@ import (
 	"github.com/graph-sdl/token"
 )
 
-// Type cache - each type and its associated AST is held in the cache.
-var TyCache map[string]GQLTypeProvider
-
-func InitCache(size int) {
-	TyCache = make(map[string]GQLTypeProvider, size)
-}
-
-// how this works
-//
-//  Load
-//  1. parse type literals (in a file)
-//  2. validate
-//  3. persist to dynamodb
-//
-//  Part of QL execution
-//  1. use rootType to probe dynamodb and build AST-type using the following structs
-//  2. validate QL - build AST-QL and embed AST-Type for validation and execution
-//  3  execute QL - using both ASTs
-//  4  save AST-QL to dynamodb
 type TypeFlag_ uint8
+
+// TypeFlag constants shared by GQLType & InputValue types - not all the below are applicable to each
+const (
+	//  input value types
+	_ TypeFlag_ = iota
+	ID
+	INT
+	FLOAT
+	BOOLEAN
+	STRING
+	RAWSTRING
+	SCALAR
+	//
+	NULL
+	OBJECT
+	ENUM
+	ENUMVALUE
+	INPUT
+	LIST
+	INTERFACE
+	UNION
+	//
+	ILLEGAL
+)
 
 func (tf TypeFlag_) String() string {
 	switch tf {
@@ -55,45 +60,47 @@ func (tf TypeFlag_) String() string {
 		return token.OBJECT
 	case INPUT:
 		return token.INPUT
-	// case LIST:
-	// 	return token.LIST
+	case LIST:
+		return token.LIST
 	case NULL:
 		return token.NULL
+	case INTERFACE:
+		return token.INTERFACE
+	case UNION:
+		return token.UNION
+
 	}
 	return token.ILLEGAL
 }
 
+// Type cache - each type and its associated AST is held in the cache.
+var TyCache map[string]GQLTypeProvider
+
+func InitCache(size int) {
+	TyCache = make(map[string]GQLTypeProvider, size)
+}
+
+// how this works
+//
+//  Load
+//  1. parse type literals (in a file)
+//  2. validate
+//  3. persist to dynamodb
+//
+//  Part of QL execution
+//  1. use rootType to probe dynamodb and build AST-type using the following structs
+//  2. validate QL - build AST-QL and embed AST-Type for validation and execution
+//  3  execute QL - using both ASTs
+//  4  save AST-QL to dynamodb
+
 type UnresolvedMap map[Name_]*GQLtype
 
-const (
-	//  input value types
-	_ TypeFlag_ = iota
-	ID
-	INT
-	FLOAT
-	BOOLEAN
-	STRING
-	RAWSTRING
-	SCALAR
-	//
-	NULL
-	OBJECT
-	ENUM
-	ENUMVALUE
-	INPUT
-	LIST
-	INTERFACE
-	UNION
-	//
-	ILLEGAL
-)
-
 // Directive Locations
-type DirectiveLoc uint32
+type DirectiveLoc uint8
 
 // Directive Locations
 const (
-	_ DirectiveLoc = 1 << iota
+	_ DirectiveLoc = iota
 	SCHEMA_DL
 	SCALAR_DL
 	OBJECT_DL
@@ -351,17 +358,18 @@ func (o ObjectVals) ValidateObjectValues(ref *GQLtype, err *[]error) {
 			//       for value (ie *InputValue) isType() displays OBJECTVALS, LIST, <SCALARS>, ENUMs of the embedded InputValueProvider
 			if v.Value.isType() != reftype.isType2() { // ie. both are not LISTs or different scalar types
 				// only LIST differences consider here
-				//if v.Value.isType() == LIST && reftype.isType2() != LIST {
-				if v.Value.isType() == LIST && reftype.isList() {
-					*err = append(*err, fmt.Errorf(`%s "%s" from type "%s" should not be in List %s`, errObj, v.Name, ref.Name, v.Value.AtPosition()))
+				// value is a LIST but ref type is not
+				if v.Value.isType() == LIST && !reftype.isList() {
+					*err = append(*err, fmt.Errorf(`%s "%s" from type "%s" should not be a List type %s`, errObj, v.Name, ref.Name, v.Value.AtPosition()))
+					// abort any further validation on this item
+					return
 				} else if v.Value.isType() != LIST && reftype.isType2() == LIST {
 					*err = append(*err, fmt.Errorf(`%s "%s" from type "%s" expected %s %s`, errObj, v.Name, ref.Name, reftype.isType2(), v.Value.AtPosition()))
 				}
 			}
 			// when value not LIST check types
-			if v.Value.isType() != reftype.isType() { // if base type differences
-				fmt.Println("&& v.Value.isType():  ", v.Value.isType())
-				fmt.Println("&& reftype.isType(): ", reftype.isType())
+
+			if v.Value.isType() != reftype.isType() && v.Value.isType() != LIST { // List is validated ValidateListValues
 				// for the purpose of this validation OBJECT and INPUT are the same
 				if !(v.Value.isType() == OBJECT && reftype.isType() == INPUT) {
 					//	if v.Value.isType() != LIST {
@@ -416,8 +424,8 @@ func (o ObjectVals) ValidateObjectValues(ref *GQLtype, err *[]error) {
 // Slice of Name_
 type NameS []Name_
 
-// SolicitNonScalarTypes is typically promoted to type that embedds the NameS type.
-func (f NameS) SolicitNonScalarTypes(unresolved UnresolvedMap) { //TODO rename to checkUnresolvedTypes
+// SolicitAbstractTypes is typically promoted to type that embedds the NameS type.
+func (f NameS) SolicitAbstractTypes(unresolved UnresolvedMap) { //TODO rename to checkUnresolvedTypes
 	//  handled by type in which NameS is nested
 }
 
@@ -524,14 +532,14 @@ func (f *Object_) CheckImplements(err *[]error) {
 	}
 }
 
-func (o *Object_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
-	o.FieldSet.SolicitNonScalarTypes(unresolved)
+func (o *Object_) SolicitAbstractTypes(unresolved UnresolvedMap) {
+	o.FieldSet.SolicitAbstractTypes(unresolved)
 	//
-	//	o.Implements.SolicitNonScalarTypes(unresolved)
+	//	o.Implements.SolicitAbstractTypes(unresolved)
 	for _, v := range o.Implements {
 		unresolved[v] = nil
 	}
-	o.Directives_.SolicitNonScalarTypes(unresolved)
+	o.Directives_.SolicitAbstractTypes(unresolved)
 }
 
 func (f *Object_) CheckIsOutputType(err *[]error) {
@@ -606,9 +614,9 @@ func (fs *FieldSet) CheckInputValueType(err *[]error) {
 	}
 }
 
-func (fs *FieldSet) SolicitNonScalarTypes(unresolved UnresolvedMap) {
+func (fs *FieldSet) SolicitAbstractTypes(unresolved UnresolvedMap) {
 	for _, v := range *fs {
-		v.SolicitNonScalarTypes(unresolved)
+		v.SolicitAbstractTypes(unresolved)
 	}
 }
 
@@ -662,7 +670,7 @@ func (f *Field_) CheckDirectiveLocation(err *[]error) {
 // 	return a.Name_.Equals(b.Name_) && a.Type.Equals(b.Type)
 // }
 
-func (f *Field_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
+func (f *Field_) SolicitAbstractTypes(unresolved UnresolvedMap) {
 	if f.Type == nil {
 		log.Panic(fmt.Errorf("Severe Error - not expected: Field.Type is not assigned for [%s]", f.Name_.String()))
 	}
@@ -670,8 +678,8 @@ func (f *Field_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
 		unresolved[f.Type.Name_] = f.Type
 	}
 	//
-	f.ArgumentDefs.SolicitNonScalarTypes(unresolved)
-	f.Directives_.SolicitNonScalarTypes(unresolved)
+	f.ArgumentDefs.SolicitAbstractTypes(unresolved)
+	f.Directives_.SolicitAbstractTypes(unresolved)
 }
 
 // use following method to override the promoted methods from Name_ and Directives_ fields. Forces use of Name_ method.
@@ -755,10 +763,10 @@ func (fa *InputValueDefs) String(encl [2]token.TokenType) string {
 	return s.String()
 }
 
-func (fa InputValueDefs) SolicitNonScalarTypes(unresolved UnresolvedMap) {
+func (fa InputValueDefs) SolicitAbstractTypes(unresolved UnresolvedMap) {
 
 	for _, v := range fa {
-		v.SolicitNonScalarTypes(unresolved)
+		v.SolicitAbstractTypes(unresolved)
 	}
 }
 
@@ -796,7 +804,7 @@ type InputValueDef struct {
 	Directives_
 }
 
-func (fa *InputValueDef) SolicitNonScalarTypes(unresolved UnresolvedMap) { //TODO - check this..should it use unresolvedMap?
+func (fa *InputValueDef) SolicitAbstractTypes(unresolved UnresolvedMap) { //TODO - check this..should it use unresolvedMap?
 	if fa.Type == nil {
 		err := fmt.Errorf("Severe Error - not expected: InputValueDef.Type is not assigned for [%s]", fa.Name_.String())
 		log.Panic(err)
@@ -804,7 +812,7 @@ func (fa *InputValueDef) SolicitNonScalarTypes(unresolved UnresolvedMap) { //TOD
 	if !fa.Type.IsScalar() && fa.Type.AST == nil {
 		unresolved[fa.Type.Name_] = fa.Type
 	}
-	fa.Directives_.SolicitNonScalarTypes(unresolved)
+	fa.Directives_.SolicitAbstractTypes(unresolved)
 }
 
 func (fa *InputValueDef) CheckDirectiveLocation(err *[]error) {
@@ -866,10 +874,10 @@ type Enum_ struct {
 }
 
 func (e *Enum_) TypeSystemNode() {}
-func (e *Enum_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
-	e.Directives_.SolicitNonScalarTypes(unresolved)
+func (e *Enum_) SolicitAbstractTypes(unresolved UnresolvedMap) {
+	e.Directives_.SolicitAbstractTypes(unresolved)
 	for _, v := range e.Values {
-		v.SolicitNonScalarTypes(unresolved)
+		v.SolicitAbstractTypes(unresolved)
 	}
 }
 
@@ -928,7 +936,7 @@ func (e *EnumValue_) IsType() TypeFlag_ {
 	return ENUMVALUE
 }
 func (e *EnumValue_) TypeSystemNode() {}
-func (e *EnumValue_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
+func (e *EnumValue_) SolicitAbstractTypes(unresolved UnresolvedMap) {
 	for _, v := range e.Directives {
 		unresolved[v.Name_] = nil
 	}
@@ -1007,9 +1015,9 @@ type Interface_ struct {
 }
 
 func (i *Interface_) TypeSystemNode() {}
-func (i *Interface_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
-	//i.Directives_.SolicitNonScalarTypes(unresolved)
-	i.FieldSet.SolicitNonScalarTypes(unresolved)
+func (i *Interface_) SolicitAbstractTypes(unresolved UnresolvedMap) {
+	//i.Directives_.SolicitAbstractTypes(unresolved)
+	i.FieldSet.SolicitAbstractTypes(unresolved)
 }
 
 func (i *Interface_) Type() string {
@@ -1081,8 +1089,8 @@ type Union_ struct {
 }
 
 func (u *Union_) TypeSystemNode() {}
-func (u *Union_) SolicitNonScalarTypes(unresolved UnresolvedMap) { // TODO check this is being executed
-	//u.Directives_.SolicitNonScalarTypes(unresolved)
+func (u *Union_) SolicitAbstractTypes(unresolved UnresolvedMap) { // TODO check this is being executed
+	//u.Directives_.SolicitAbstractTypes(unresolved)
 	for _, v := range u.NameS {
 		unresolved[v] = nil
 	}
@@ -1145,9 +1153,14 @@ type Input_ struct {
 }
 
 func (e *Input_) TypeSystemNode() {}
-func (e *Input_) SolicitNonScalarTypes(unresolved UnresolvedMap) { // TODO check this is being executed
-	e.Directives_.SolicitNonScalarTypes(unresolved)
-	e.InputValueDefs.SolicitNonScalarTypes(unresolved)
+
+//func (e *Input_) ValueNode()      {}// commented out 19/3/2020
+func (e *Input_) SolicitAbstractTypes(unresolved UnresolvedMap) { // TODO check this is being executed
+	e.Directives_.SolicitAbstractTypes(unresolved)
+	e.InputValueDefs.SolicitAbstractTypes(unresolved)
+}
+func (e *Input_) IsType() TypeFlag_ {
+	return INPUT
 }
 
 func (e *Input_) Type() string {
@@ -1220,8 +1233,8 @@ func (e *Scalar_) IsType() TypeFlag_ {
 func (e *Scalar_) Type() string {
 	return "scalar"
 }
-func (e *Scalar_) SolicitNonScalarTypes(unresolved UnresolvedMap) { // TODO check this is being executed
-	//	e.Directives_.SolicitNonScalarTypes(unresolved)
+func (e *Scalar_) SolicitAbstractTypes(unresolved UnresolvedMap) { // TODO check this is being executed
+	e.Directives_.SolicitAbstractTypes(unresolved)
 }
 func (i *Scalar_) TypeName() NameValue_ {
 	return NameValue_(i.Name)
@@ -1312,8 +1325,8 @@ func (d *Directive_) Type() string {
 }
 
 //func (d *Directive_) ValueNode()      {}
-func (d *Directive_) SolicitNonScalarTypes(unresolved UnresolvedMap) {
-	d.ArgumentDefs.SolicitNonScalarTypes(unresolved)
+func (d *Directive_) SolicitAbstractTypes(unresolved UnresolvedMap) {
+	d.ArgumentDefs.SolicitAbstractTypes(unresolved)
 }
 func (d *Directive_) CheckDirectiveRef(dir NameValue_, err *[]error) {
 	for _, v := range d.ArgumentDefs {

@@ -26,7 +26,7 @@ func trimWS(input string) string {
 
 }
 
-func TestInvalidName(t *testing.T) {
+func TestSchemaInvalidName(t *testing.T) {
 
 	input := `
 type __Person {
@@ -299,28 +299,19 @@ schema {
 	}
 	`
 
-	expectedDoc := `type Person {
-name : String!
-age : Int!
-other: [String!]!
-posts : [Post!]
-}
+	expectedDoc := `type Person {name: String! age(ScaleBy:Float) : [[Int!]]! other : [String!] posts(resp:[Int!]) : [Post!]}
 
-type Post {
-title : String!
- author: [Person!]!
-}
+	type Post {title:String! title2:String! author:[Person!]!}
 
-type Query {
-allPersons(last : Int ) : [Person!]
-}
-schema {
-query : Query 
-mutation : Mutation
-subscription : Subscription
-}`
-	var expectedErr [1]string
-	expectedErr[0] = ``
+	type Query {
+		allPersons(last:[Int] first:[[String!]]) : [Person!]
+	}
+	schema {
+		query:Query
+		mutation:Mutation
+		subscription:Subscription
+	}`
+	var expectedErr []string
 
 	l := lexer.New(input)
 	p := New(l)
@@ -353,14 +344,14 @@ subscription : Subscription
 	}
 
 	if compare(d.String(), expectedDoc) {
-		fmt.Println(trimWS(d.String()))
-		fmt.Println(trimWS(expectedDoc))
+		fmt.Println("Got:  " + trimWS(d.String()))
+		fmt.Println("Exp:  " + trimWS(expectedDoc))
 		t.Errorf(`*************  program.String() wrong.`)
 	}
 
 }
 
-func TestUnresolvedType(t *testing.T) {
+func TestSchemaUnresolvedType(t *testing.T) {
 
 	input := `
 type Person {
@@ -379,9 +370,10 @@ type lines {
 	pt: Person
 	}
 `
-	var expectedErr [2]string
-	expectedErr[0] = `Type "Post_" does not exist at line: 6 column: 11`
-	expectedErr[1] = `Type "Publication" does not exist at line: 9 column: 14`
+	var expectedErr []string = []string{
+		`Item "Post_" does not exist in document "DefaultDoc" at line: 6 column: 11`,
+		`Item "Publication" does not exist in document "DefaultDoc" at line: 9 column: 14`,
+	}
 
 	l := lexer.New(input)
 	p := New(l)
@@ -407,7 +399,7 @@ type lines {
 	}
 }
 
-func TestTypeFieldArgs1(t *testing.T) {
+func TestSchemaTypeFieldArgs1(t *testing.T) {
 
 	input := ` type Person {
 name : String
@@ -415,9 +407,9 @@ picture(size : Int =12918@NME(if:"""abc""") ) : Url@iff(abc:123)
 }`
 
 	var expectedErr [3]string
-	expectedErr[0] = `Type "Url" does not exist at line: 3 column: 49`
-	expectedErr[1] = `Type "@NME" does not exist at line: 3 column: 27`
-	expectedErr[2] = `Type "@iff" does not exist at line: 3 column: 53`
+	expectedErr[0] = `Item "Url" does not exist in document "DefaultDoc" at line: 3 column: 49`
+	expectedErr[1] = `Item "@NME" does not exist in document "DefaultDoc" at line: 3 column: 27`
+	expectedErr[2] = `Item "@iff" does not exist in document "DefaultDoc" at line: 3 column: 53`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -449,7 +441,7 @@ picture(size : Int =12918@NME(if:"""abc""") ) : Url@iff(abc:123)
 	}
 }
 
-func TestTypeFieldArgs2(t *testing.T) {
+func TestSchemaTypeFieldArgs2(t *testing.T) {
 
 	input := ` type Person {
 name : String
@@ -457,10 +449,10 @@ picture(size : Int =12918@NME(if:"""abc""") size2 : Boolean =true @NME34(ifx:fal
 }`
 
 	var expectedErr [4]string
-	expectedErr[0] = `Type "Url" does not exist at line: 3 column: 88`
-	expectedErr[1] = `Type "@NME" does not exist at line: 3 column: 27`
-	expectedErr[2] = `Type "@NME34" does not exist at line: 3 column: 68`
-	expectedErr[3] = `Type "@iff" does not exist at line: 3 column: 92`
+	expectedErr[0] = `Item "Url" does not exist in document "DefaultDoc" at line: 3 column: 88`
+	expectedErr[1] = `Item "@NME" does not exist in document "DefaultDoc" at line: 3 column: 27`
+	expectedErr[2] = `Item "@NME34" does not exist in document "DefaultDoc" at line: 3 column: 68`
+	expectedErr[3] = `Item "@iff" does not exist in document "DefaultDoc" at line: 3 column: 92`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -492,7 +484,7 @@ picture(size : Int =12918@NME(if:"""abc""") size2 : Boolean =true @NME34(ifx:fal
 	}
 }
 
-func TestTypeFieldArgs4(t *testing.T) {
+func TestSchemaTypeFieldArgs4(t *testing.T) {
 
 	input := ` type Person {
 name : String
@@ -500,12 +492,12 @@ picture(size : Int =12918@NME(if:"""abc""") size2 : Boolean  @NME34(ifx:false) @
 }`
 
 	var expectedErr [6]string
-	expectedErr[0] = `Type "Url" does not exist at line: 3 column: 121`
-	expectedErr[5] = `Type "@NME" does not exist at line: 3 column: 27`
-	expectedErr[1] = `Type "@NME34" does not exist at line: 3 column: 63`
-	expectedErr[2] = `Type "@NME33" does not exist at line: 3 column: 81`
-	expectedErr[3] = `Type "@NME54" does not exist at line: 3 column: 102`
-	expectedErr[4] = `Type "@iff" does not exist at line: 3 column: 125`
+	expectedErr[0] = `Item "Url" does not exist in document "DefaultDoc" at line: 3 column: 121`
+	expectedErr[5] = `Item "@NME" does not exist in document "DefaultDoc" at line: 3 column: 27`
+	expectedErr[1] = `Item "@NME34" does not exist in document "DefaultDoc"  at line: 3 column: 63`
+	expectedErr[2] = `Item "@NME33" does not exist in document "DefaultDoc" at line: 3 column: 81`
+	expectedErr[3] = `Item "@NME54" does not exist in document "DefaultDoc" at line: 3 column: 102`
+	expectedErr[4] = `Item "@iff" does not exist in document "DefaultDoc" at line: 3 column: 125`
 
 	l := lexer.New(input)
 	p := New(l)
