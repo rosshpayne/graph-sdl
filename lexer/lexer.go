@@ -19,6 +19,9 @@ type Lexer struct {
 	Line  int
 	Col   int // curren col Loc
 	err   error
+	//
+	buffer [2]token.Token // dual buffer to hold current and peek token
+	bi     int            // buffer index
 }
 
 func (l *Lexer) CLoc() int {
@@ -38,8 +41,8 @@ func New(input string) *Lexer {
 	return l
 }
 
-func (l *Lexer) NextToken() token.Token {
-	var tok token.Token
+func (l *Lexer) NextToken() *token.Token {
+	var tok *token.Token
 	//	fmt.Printf("NextToken: %c\n", l.ch)
 	l.skipWhitespace() // scan to next non-whitespace and return its value as a token
 	switch l.ch {
@@ -56,7 +59,7 @@ func (l *Lexer) NextToken() token.Token {
 				//ch := l.ch
 				l.readRune()
 				literal := token.EXPAND
-				tok = token.Token{Type: token.EXPAND, Literal: literal}
+				tok = &token.Token{Type: token.EXPAND, Literal: literal}
 			} else {
 				tok = l.newToken(token.ILLEGAL, l.ch)
 			}
@@ -108,8 +111,7 @@ func (l *Lexer) NextToken() token.Token {
 	case '=':
 		tok = l.newToken(token.ASSIGN, l.ch)
 	case 0:
-		tok.Literal = ""
-		tok.Type = token.EOF
+		tok = l.newToken(token.EOF, l.ch)
 	case '&':
 		tok = l.newToken(token.AND, l.ch)
 	default:
@@ -170,16 +172,16 @@ func (l *Lexer) peekRune() rune {
 	}
 }
 
-func (l *Lexer) readIdentifier() token.Token {
+func (l *Lexer) readIdentifier() *token.Token {
 	start := token.Pos{l.Line, l.Col}
 	Loc := l.cLoc
 	for unicode.IsLetter(l.ch) || l.ch == '_' || unicode.IsDigit(l.ch) {
 		l.readRune()
 	}
-	return token.Token{Cat: token.NONVALUE, Type: token.STRING, Literal: l.input[Loc:l.cLoc], Loc: start}
+	return &token.Token{Cat: token.NONVALUE, Type: token.STRING, Literal: l.input[Loc:l.cLoc], Loc: start}
 }
 
-func (l *Lexer) readNumber() token.Token {
+func (l *Lexer) readNumber() *token.Token {
 	var tokenT token.TokenType = token.INT
 	var illegalT bool
 	sLoc := l.cLoc
@@ -237,11 +239,11 @@ func (l *Lexer) readNumber() token.Token {
 		last = l.cLoc + 2 // include rune next to + or -
 		l.readRune()      // read over + -
 	}
-	return token.Token{Cat: token.VALUE, Type: tokenT, Literal: l.input[sLoc:last], Illegal: illegalT, Loc: start}
+	return &token.Token{Cat: token.VALUE, Type: tokenT, Literal: l.input[sLoc:last], Illegal: illegalT, Loc: start}
 
 }
 
-func (l *Lexer) readString() token.Token {
+func (l *Lexer) readString() *token.Token {
 
 	Loc := l.cLoc + 1
 	start := token.Pos{l.Line, l.Col}
@@ -274,9 +276,9 @@ func (l *Lexer) readString() token.Token {
 	var eLoc int
 	if l.del == token.RAWSTRINGDEL {
 		eLoc = 2
-		return token.Token{Cat: token.VALUE, Type: token.RAWSTRING, Literal: l.input[Loc : l.cLoc-eLoc], Loc: start}
+		return &token.Token{Cat: token.VALUE, Type: token.RAWSTRING, Literal: l.input[Loc : l.cLoc-eLoc], Loc: start}
 	}
-	return token.Token{Cat: token.VALUE, Type: token.STRING, Literal: l.input[Loc : l.cLoc-eLoc], Loc: start}
+	return &token.Token{Cat: token.VALUE, Type: token.STRING, Literal: l.input[Loc : l.cLoc-eLoc], Loc: start}
 }
 
 func (l *Lexer) readToEol() {
@@ -289,12 +291,45 @@ func (l *Lexer) readToEol() {
 	}
 }
 
-func (l *Lexer) newToken(tokenType token.TokenType, ch rune, Loc ...token.Pos) token.Token {
-	if len(Loc) > 0 {
-		return token.Token{Cat: token.NONVALUE, Type: tokenType, Literal: string(ch), Loc: Loc[0]}
+// buffer holds current and peek tokens.
+// As the buffer is included in the lexer structure which in turn is in the parser structure the buffer will be unique to each lexer and therefere concurrency
+// safe, should parsing be a concurrent operation, which is unlikely.
+// Including the buffer at the package level would present concurrency issues should the parser be made a concurrent operation.
+// for this reason I packaged the buffer into the lexer struct.
+//
+// var buffer [2]token.Token
+// var bi int
+
+func (l *Lexer) newToken(tokenType token.TokenType, ch rune, Loc ...token.Pos) *token.Token {
+
+	if l.bi == 0 {
+		l.bi = 1
+	} else {
+		l.bi = 0
 	}
-	return token.Token{Cat: token.NONVALUE, Type: tokenType, Literal: string(ch), Loc: token.Pos{l.Line, l.Col}}
+	y := &l.buffer[l.bi]
+
+	y.Cat = token.NONVALUE
+	y.Type = tokenType
+	y.Literal = string(ch)
+	y.IsScalarType = false
+	y.Illegal = false
+	if len(Loc) > 0 {
+		y.Loc = Loc[0]
+	} else {
+		y.Loc = token.Pos{l.Line, l.Col}
+	}
+
+	return y
+
 }
+
+// func (l *Lexer) newToken(tokenType token.TokenType, ch rune, Loc ...token.Pos) *token.Token {
+// 	if len(Loc) > 0 {
+// 		return &token.Token{Cat: token.NONVALUE, Type: tokenType, Literal: string(ch), Loc: Loc[0]}
+// 	}
+// 	return &token.Token{Cat: token.NONVALUE, Type: tokenType, Literal: string(ch), Loc: token.Pos{l.Line, l.Col}}
+// }
 
 func (l *Lexer) GetLoc() *token.Pos {
 	return &token.Pos{l.Line, l.Col}

@@ -23,22 +23,36 @@ type Cache_ struct {
 	logr       *log.Logger
 }
 
+// instance of a cache. This is shared amoungst all parser and query executers.
+var cache *Cache_
+
 func (tc *Cache_) SetLogger(logr *log.Logger) {
 	tc.logr = logr
 }
 
-// NewCache allocates a structure to hold the cached data with access methods.
-func NewCache() *Cache_ {
+func init() {
+	// package evel cache objects - shared by all goroutines
 	typeNotExists = make(map[string]bool)
-	return &Cache_{Cache: make(map[string]*entry)}
+	cache = &Cache_{Cache: make(map[string]*entry)}
 }
 
-// AddEntry is not concurrency safe. Used in non-cconcurrent situations.
+// NewCache allocates a structure to hold the cached data with access methods.
+func NewCache() *Cache_ {
+	//	typeNotExists = make(map[string]bool)
+	return cache
+	//	return &Cache_{Cache: make(map[string]*entry)} // note: this design has each parser/executer assigned its own cache. No concurrency issues but requires more memory
+	//  and one parser/executor doesn't benefit from the work of others. Also more db IO.
+
+}
+
+// AddEntry is  concurrency safe.
 func (t *Cache_) AddEntry(name ast.NameValue_, data ast.GQLTypeProvider) { //ast.NameValue_, data GQLTypeProvider) {
 	e := &entry{data: data, ready: make(chan struct{})}
 	close(e.ready)
 	fmt.Println("Added to cache ", name.String())
+	t.Lock()
 	t.Cache[name.String()] = e
+	t.Unlock()
 }
 
 var (

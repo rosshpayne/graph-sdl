@@ -641,7 +641,6 @@ func (l List_) ValidateListValues(iv *GQLtype, d *uint8, maxd *uint8, err *[]err
 					*err = append(*err, fmt.Errorf(`Value %s is not at required nesting of %d %s`, v, reqDepth, v.AtPosition()))
 				}
 			}
-			fmt.Println("HERE IN ValidateListValues ", v.isType(), reqType)
 			if t := v.isType(); t != reqType {
 				if v.isType() == NULL {
 					if iv.Constraint>>uint(iv.Depth-*d)&1 == 1 { // is not-null constraint set

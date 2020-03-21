@@ -76,8 +76,8 @@ type (
 		abort     bool
 		stmtType  string
 		state     stateT
-		curToken  token.Token //TODO use *token.Token
-		peekToken token.Token
+		curToken  *token.Token
+		peekToken *token.Token
 
 		parseFns map[token.TokenType]parseFn
 		perror   []error
@@ -120,7 +120,8 @@ func New(l *lexer.Lexer) *Parser {
 	p := &Parser{
 		l: l,
 	}
-
+	// assigns "shared" cache across multiple parsers or parser uses goroutines for processing. None of which is currently employeed.
+	//  sharing cache was an exercise in making the cache concurrency safe rather than an actual design necessarity.
 	p.cache = NewCache()
 
 	p.parseFns = make(map[token.TokenType]parseFn)
@@ -192,6 +193,7 @@ func (p *Parser) hasError() bool {
 
 // addErr appends to error slice held in parser.
 func (p *Parser) addErr(s string, xCode ...int) error {
+
 	if strings.Index(s, " at line: ") == -1 {
 		s += fmt.Sprintf(" at line: %d, column: %d", p.curToken.Loc.Line, p.curToken.Loc.Col)
 	}
@@ -219,16 +221,19 @@ func (p *Parser) registerFn(tokenType token.TokenType, fn parseFn) {
 func (p *Parser) nextToken(s ...string) {
 	p.curToken = p.peekToken
 
-	p.peekToken = p.l.NextToken() // get another token from lexer:    [,+,(,99,Identifier,keyword etc.
+	p.peekToken = p.l.NextToken() // get another token from lexer:    [,+,(,99,Identifier,keyword,EOF etc.
+	fmt.Println("nextToken: ", p.peekToken.Type, p.peekToken.Literal)
 	if len(s) > 0 {
 		fmt.Printf("** Current Token: [%s] %s %s %s %s %s %s\n", s[0], p.curToken.Type, p.curToken.Literal, p.curToken.Cat, "Next Token:  ", p.peekToken.Type, p.peekToken.Literal)
 	}
-	if p.curToken.Illegal {
-		p.addErr(fmt.Sprintf("Illegal %s token, [%s]", p.curToken.Type, p.curToken.Literal))
-	}
-	// if $variable present then mark the identier as a VALUE
-	if p.curToken.Literal == token.DOLLAR {
-		p.peekToken.Cat = token.VALUE
+	if p.curToken != nil {
+		if p.curToken.Illegal {
+			p.addErr(fmt.Sprintf("Illegal %s token, [%s]", p.curToken.Type, p.curToken.Literal))
+		}
+		// if $variable present then mark the identier as a VALUE
+		if p.curToken.Literal == token.DOLLAR {
+			p.peekToken.Cat = token.VALUE
+		}
 	}
 }
 
@@ -471,6 +476,7 @@ func (p *Parser) ParseStatement() ast.GQLTypeProvider {
 		p.abort = true
 		p.addErr(fmt.Sprintf(`Parse aborted. "%s" is not a statement keyword`, p.stmtType))
 	}
+
 	return nil
 }
 
