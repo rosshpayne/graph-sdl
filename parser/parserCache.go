@@ -30,16 +30,11 @@ func (tc *Cache_) SetLogger(logr *log.Logger) {
 	tc.logr = logr
 }
 
-func init() {
-	// package evel cache objects - shared by all goroutines
-	typeNotExists = make(map[string]bool)
-	cache = &Cache_{Cache: make(map[string]*entry)}
-}
-
 // NewCache allocates a structure to hold the cached data with access methods.
 func NewCache() *Cache_ {
+	typeNotExists = make(map[string]bool)
+	return &Cache_{Cache: make(map[string]*entry)}
 	//	typeNotExists = make(map[string]bool)
-	return cache
 	//	return &Cache_{Cache: make(map[string]*entry)} // note: this design has each parser/executer assigned its own cache. No concurrency issues but requires more memory
 	//  and one parser/executor doesn't benefit from the work of others. Also more db IO.
 

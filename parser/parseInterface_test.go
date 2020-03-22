@@ -84,7 +84,11 @@ type Person implements NamedEntity {
 
 	l := lexer.New(input)
 	p := New(l)
+
 	_, errs := p.ParseDocument()
+	for _, v := range errs {
+		fmt.Println("errs:  ", v.Error())
+	}
 	for _, ex := range expectedErr {
 		found := false
 		for _, err := range errs {
@@ -171,7 +175,7 @@ type Person implements NamedEntity & ValuedEntity2 {
 	}
 }
 
-func TestImplements4x(t *testing.T) {
+func Test4a4x(t *testing.T) {
 
 	input := `
 interface NamedEntity {
@@ -281,13 +285,14 @@ type Bool {
 
 type Person implements NamedEntity & ValuedEntity {
   name: String
-  age: In
+  age: Int
+  value: Int
 }
 `
 
 	var expectedErr []string = []string{
 		`Type "Person" does not implement interface "NamedEntity", missing  "name2"`,
-		`Type "Person" does not implement interface "ValuedEntity", missing  "value" "value2" "value3" "value4"`,
+		`Type "Person" does not implement interface "ValuedEntity", missing  "value2" "value3" "value4"`,
 		`Item "FLoat" does not exist in document "DefaultDoc" at line: 9 column: 11`,
 	}
 
@@ -863,7 +868,7 @@ type Business2 implements & NamedEntity & ValuedEntity {
 	}
 }
 
-func TestImplementsSetupFragments(t *testing.T) {
+func TestImplemenSetupFragments(t *testing.T) {
 
 	input := `
 enum Episode {

@@ -222,7 +222,7 @@ func (p *Parser) nextToken(s ...string) {
 	p.curToken = p.peekToken
 
 	p.peekToken = p.l.NextToken() // get another token from lexer:    [,+,(,99,Identifier,keyword,EOF etc.
-	fmt.Println("nextToken: ", p.peekToken.Type, p.peekToken.Literal)
+	//fmt.Println("nextToken: ", p.peekToken.Type, p.peekToken.Literal)
 	if len(s) > 0 {
 		fmt.Printf("** Current Token: [%s] %s %s %s %s %s %s\n", s[0], p.curToken.Type, p.curToken.Literal, p.curToken.Cat, "Next Token:  ", p.peekToken.Type, p.peekToken.Literal)
 	}
@@ -260,7 +260,11 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 	api.Statements = []ast.GQLTypeProvider{} // slice is initialised  with no elements - each element represents an interface value of type ast.GQLTypeProvider
 	api.StatementsMap = make(map[ast.NameValue_]ast.GQLTypeProvider)
 	api.ErrorMap = make(map[ast.NameValue_][]error)
-
+	//
+	// create cache
+	//
+	fmt.Println("^^^^^^^ typeNotExists : ", len(typeNotExists))
+	fmt.Println("^^^^^^^ Cache_ :", len(p.cache.Cache))
 	defer p.closeLogFile()
 	defer func() {
 		//
