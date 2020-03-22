@@ -30,10 +30,14 @@ func (tc *Cache_) SetLogger(logr *log.Logger) {
 	tc.logr = logr
 }
 
+func init() {
+	typeNotExists = make(map[string]bool)
+	cache = &Cache_{Cache: make(map[string]*entry)}
+}
+
 // NewCache allocates a structure to hold the cached data with access methods.
 func NewCache() *Cache_ {
-	typeNotExists = make(map[string]bool)
-	return &Cache_{Cache: make(map[string]*entry)}
+	return cache
 	//	typeNotExists = make(map[string]bool)
 	//	return &Cache_{Cache: make(map[string]*entry)} // note: this design has each parser/executer assigned its own cache. No concurrency issues but requires more memory
 	//  and one parser/executor doesn't benefit from the work of others. Also more db IO.
@@ -41,11 +45,15 @@ func NewCache() *Cache_ {
 }
 
 // AddEntry is  concurrency safe.
+// TODO: check typeNotExists cache is handled safely. Concurrency was designed around Cache not typeNotExists cache.
 func (t *Cache_) AddEntry(name ast.NameValue_, data ast.GQLTypeProvider) { //ast.NameValue_, data GQLTypeProvider) {
 	e := &entry{data: data, ready: make(chan struct{})}
 	close(e.ready)
 	fmt.Println("Added to cache ", name.String())
 	t.Lock()
+	// delete from notExists cache - if present
+	delete(typeNotExists, name.String())
+	// add to type cache
 	t.Cache[name.String()] = e
 	t.Unlock()
 }
