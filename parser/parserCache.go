@@ -128,6 +128,7 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 				t.logr.Printf("Found in DB: %q\n", typeSDL)
 				// generate AST for the resolved type
 				t.logr.Print(" in parseCache about to generate AST.")
+				fmt.Println(" ############### in parseCache about to generate AST thru parseStatement......############")
 				l := lexer.New(typeSDL)
 				p2 := New(l)
 				//

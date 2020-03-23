@@ -498,7 +498,7 @@ func (p *Parser) ResolveNestedTypes(v ast.GQLTypeProvider, t *Cache_) {
 	// find all Abstract Types (ie. non-scalar) nested within the current type v. These need to be resolved.
 	// Note: SolicitAbstractTypes does not recursively evaluate all nested types, only the
 	// types immediately associated with v, the type under investigation.
-	// ResolveNestedType is called recursively to walk the graph of all nested types beyond v.
+	// ResolveNestedType is called via FetchAST, to walk the graph of nested types beyond v.
 	//
 	fmt.Println("************** ResolveType: ", v.TypeName())
 	nestedAbstractTypes := make(ast.UnresolvedMap)
@@ -548,15 +548,6 @@ func (p *Parser) ResolveNestedTypes(v ast.GQLTypeProvider, t *Cache_) {
 			//
 			if gqltype != nil {
 				gqltype.AST = ast_
-				//
-				// validate the existence of the nested abstract types within tyName if not already resolved.
-				//
-				if !gqltype.IsScalar() {
-					if _, ok := resolved[tyName]; !ok {
-						fmt.Println(" ***********************************************************. recursive call to ResolveNestedTypes for ", gqltype.TypeName())
-						p.ResolveNestedTypes(ast_, t)
-					}
-				}
 			}
 		}
 	}
