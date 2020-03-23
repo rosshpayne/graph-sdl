@@ -494,7 +494,7 @@ func (p *Parser) ResolveNestedTypes(v ast.GQLTypeProvider, t *Cache_) []error {
 	//
 	// find all Abstract Types nested within the current type v. These need to be resolved.
 	//
-	fmt.Println("************** ResolveType:  ************* ")
+	fmt.Println("************** ResolveType: ", v.TypeName())
 	nestedAbstractTypes := make(ast.UnresolvedMap)
 	v.SolicitAbstractTypes(nestedAbstractTypes)
 	//
@@ -502,10 +502,12 @@ func (p *Parser) ResolveNestedTypes(v ast.GQLTypeProvider, t *Cache_) []error {
 	//
 	resolved := make(ast.UnresolvedMap)
 	t.Lock()
+	fmt.Println("AbstractType : ", nestedAbstractTypes)
 	//
 	// purge current type from map of all types to be resolved.
 	//
 	for tyName := range nestedAbstractTypes {
+		// if all ready cached then add to resolved map
 		if _, ok := t.Cache[tyName.String()]; ok {
 			resolved[tyName] = nil
 			if tyName.Name == v.TypeName() {
@@ -515,7 +517,7 @@ func (p *Parser) ResolveNestedTypes(v ast.GQLTypeProvider, t *Cache_) []error {
 		}
 	}
 	t.Unlock()
-	fmt.Println("AbstractType: ", nestedAbstractTypes)
+	fmt.Println("AbstractType & resolved: ", nestedAbstractTypes, resolved)
 	//
 	//  nestedAbstractTypes should now contain abstract types except current type under investigation.
 	//  As a side effect of this proecssing we populate the AST attribute in the GQLtype when the AST exists.
@@ -536,11 +538,11 @@ func (p *Parser) ResolveNestedTypes(v ast.GQLTypeProvider, t *Cache_) []error {
 				// assign GQLType.AST from cache entry
 				ty.AST = ast_
 				// if not scalar then check for nestedAbstractTypes types in nested type
-				if !ty.IsScalar() {
-					if _, ok := resolved[tyName]; !ok {
-						p.ResolveNestedTypes(ast_, t)
-					}
-				}
+				// if !ty.IsScalar() {
+				// 	if _, ok := resolved[tyName]; !ok {
+				// 		p.ResolveNestedTypes(ast_, t)
+				// 	}
+				// }
 			}
 
 		} else {

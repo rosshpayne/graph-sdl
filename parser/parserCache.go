@@ -75,7 +75,7 @@ var (
 // If entry not found in the cache searches dynamodb table for the type SDL statement.
 func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 
-	fmt.Println("**** FetchAST ", name.String())
+	fmt.Println("***************************************************************. FetchAST ", name.String())
 	name_ := name.String()
 	//
 	// do not handle scalars or nul name
@@ -131,7 +131,7 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 				l := lexer.New(typeSDL)
 				p2 := New(l)
 				//
-				// save to cache
+				// Generate AST for name
 				//
 				e.data = p2.ParseStatement() // source of stmt is db so its been verified, simply resolve types it refs
 				// close the channel to allow unhindered access to this entry
@@ -139,7 +139,6 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 				close(e.ready)
 				//
 				// resolve nested types in this type
-				//
 				p2.ResolveNestedTypes(e.data, t)
 			}
 		}
