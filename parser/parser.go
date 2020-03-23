@@ -239,7 +239,7 @@ func (p *Parser) nextToken(s ...string) {
 
 //
 func openLogFile() *os.File {
-	logf, err := os.OpenFile("gqlserver.sys.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
+	logf, err := os.OpenFile("sdlserver.sys.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0755)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -350,7 +350,7 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 	//
 	//  This is a fix because I incorrectly moved the type cache from the ast package to the parser, towards the end of development.
 	//  Fundamentally ast needs this data as does the parser, but because of cyclic dependency ast cannot access the cache when its in the parser.
-	//  TODO: put the cache back in ast. The parser can always access the ast cache.
+	//  TODO: put the cache back in package ast. The parser can always access the cache when its in ast.
 	//
 	//	initialise ast Cache
 	ast.InitCache(len(p.cache.Cache))

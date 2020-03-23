@@ -30,6 +30,9 @@ func (tc *Cache_) SetLogger(logr *log.Logger) {
 	tc.logr = logr
 }
 
+// init creates two caches, the not-exists cache which contain all types that do not exist in the current document or in the document being parsed.
+// The other cache is for all types that are being created from the parsed document and those that exist in the database. It is populated as required.
+// The cache exists at the package level, so is available to each parser. The alternate design is to not use init and create the caches in NewCache() below.
 func init() {
 	typeNotExists = make(map[string]bool)
 	cache = &Cache_{Cache: make(map[string]*entry)}
@@ -67,8 +70,9 @@ var (
 	ErrnoName    error = errors.New("No input name supplied to FetchAST")
 )
 
-// FetchAST is a concurrency safe access method to the cache. If entry not found in the cache searches dynamodb table for the type SDL statement.
-//  Parses statement to create the AST and populates the cache and returns the AST.
+// FetchAST is a concurrency safe access method to the cache. Used when resolving nested abstract types for the type being created.
+// When all validation checks are satisfieid the type in question is added to the cache.
+// If entry not found in the cache searches dynamodb table for the type SDL statement.
 func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 
 	fmt.Println("**** FetchAST ", name.String())
@@ -87,7 +91,9 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 		fmt.Printf("DBFetch of [%s] does not exist\n", name)
 		return nil, ErrNotCached
 	}
+	fmt.Println("About to acquire cache lock")
 	t.Lock()
+	fmt.Println("Cache lock acquired....")
 	e := t.Cache[name_] // e will be nil only when name_ is not in the cache. Nil has no other meaning.
 
 	if e == nil {
@@ -128,14 +134,18 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 				// save to cache
 				//
 				e.data = p2.ParseStatement() // source of stmt is db so its been verified, simply resolve types it refs
-				p2.ResolveNestedTypes(e.data, t)
 				// close the channel to allow unhindered access to this entry
 				t.logr.Print(" found in db. closed channel...")
 				close(e.ready)
+				//
+				// resolve nested types in this type
+				//
+				p2.ResolveNestedTypes(e.data, t)
 			}
 		}
 	} else {
 		t.Unlock()
+		fmt.Println("cache log unlocked.. Waiting on e.ready channel")
 		<-e.ready // AST is now populated in cache for this named type
 	}
 	if e.data == nil {
