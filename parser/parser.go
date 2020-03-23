@@ -336,11 +336,13 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 		}
 	}
 	//
-	// validate phase 1 - resolve ALL types. Once complete all type's AST will reside in the cache
-	//                    and  *Type.AST assigned where applicable. if type does not exist then error will be created for it.
+	// validate phase 1 - resolve ALL types ie. check on the existence of all a types nested abstract type, and those nested types
+	//                    until all abstract types (ie. non-scalar types) have been validated.
+	//                    This process will also assign the AST to *GQLtype.AST  where applicable.
 	//					  if cache returns no value then don't generate error as this was done at cache populate time for that item.
 	//
 	for _, v := range api.Statements {
+		fmt.Println("A out to resolve types for ", v.TypeName())
 		p.ResolveNestedTypes(v, p.cache)
 		if len(p.perror) > 0 {
 			api.ErrorMap[v.TypeName()] = append(api.ErrorMap[v.TypeName()], p.perror...)
@@ -488,11 +490,15 @@ func (p *Parser) ParseStatement() ast.GQLTypeProvider {
 var TypeResolveErr = errors.New("")
 
 // ResolveNestedTypes is a validation check performed after parsing completes.
-// all nested abstract types from passed in AST are confirmed to exist either
-// in cache or database.  Resolving continutes until until all nested types are resolved
-func (p *Parser) ResolveNestedTypes(v ast.GQLTypeProvider, t *Cache_) []error {
+// all nested abstract types for the passed in AST are confirmed to exist either
+// in cache or database.  Resolving continutes in FetchAST, until all nested types are resolved
+// within each type.
+func (p *Parser) ResolveNestedTypes(v ast.GQLTypeProvider, t *Cache_) {
 	//
-	// find all Abstract Types nested within the current type v. These need to be resolved.
+	// find all Abstract Types (ie. non-scalar) nested within the current type v. These need to be resolved.
+	// Note: SolicitAbstractTypes does not recursively evaluate all nested types, only the
+	// types immediately associated with v, the type under investigation.
+	// ResolveNestedType is called recursively to walk the graph of all nested types beyond v.
 	//
 	fmt.Println("************** ResolveType: ", v.TypeName())
 	nestedAbstractTypes := make(ast.UnresolvedMap)
@@ -502,7 +508,6 @@ func (p *Parser) ResolveNestedTypes(v ast.GQLTypeProvider, t *Cache_) []error {
 	//
 	resolved := make(ast.UnresolvedMap)
 	t.Lock()
-	fmt.Println("AbstractType : ", nestedAbstractTypes)
 	//
 	// purge current type from map of all types to be resolved.
 	//
@@ -523,33 +528,12 @@ func (p *Parser) ResolveNestedTypes(v ast.GQLTypeProvider, t *Cache_) []error {
 	//  As a side effect of this proecssing we populate the AST attribute in the GQLtype when the AST exists.
 	//
 	// typeName, *GQLType
-	for tyName, ty := range nestedAbstractTypes {
+	for tyName, gqltype := range nestedAbstractTypes {
 		//
-		// resolve type
+		// resolve type - note FetchAST will recursively call ResolveNestedTypes to evalute tyName.
 		//
 		ast_, err := t.FetchAST(tyName.Name)
-		//
-		if ast_ != nil {
-			//
-			// resolved then confirm GQLtype.AST is assigned (for nonScalar types)
-			// and recursively resolve types nested in current type
-			//
-			if ty != nil {
-				// assign GQLType.AST from cache entry
-				ty.AST = ast_
-				// if not scalar then check for nestedAbstractTypes types in nested type
-				// if !ty.IsScalar() {
-				// 	if _, ok := resolved[tyName]; !ok {
-				// 		p.ResolveNestedTypes(ast_, t)
-				// 	}
-				// }
-			}
-
-		} else {
-			//
-			// output an unresolved error
-			//
-			fmt.Println("ResolveType: err", err.Error())
+		if err != nil {
 			switch {
 			case errors.Is(err, ErrNotCached):
 				p.addErr2(fmt.Errorf(`Item %q %s in document %q %s %w`, tyName, err, db.GetDocument(), tyName.AtPosition(), TypeResolveErr))
@@ -558,10 +542,24 @@ func (p *Parser) ResolveNestedTypes(v ast.GQLTypeProvider, t *Cache_) []error {
 			default:
 				p.addErr2(fmt.Errorf(`%s %s %w`, err, tyName.AtPosition(), TypeResolveErr))
 			}
+		} else {
+			//
+			// we have reached the leaf nodes when gqltype
+			//
+			if gqltype != nil {
+				gqltype.AST = ast_
+				//
+				// validate the existence of the nested abstract types within tyName if not already resolved.
+				//
+				if !gqltype.IsScalar() {
+					if _, ok := resolved[tyName]; !ok {
+						fmt.Println(" ***********************************************************. recursive call to ResolveNestedTypes for ", gqltype.TypeName())
+						p.ResolveNestedTypes(ast_, t)
+					}
+				}
+			}
 		}
 	}
-	//	}
-	return p.perror
 }
 
 //  ===================== CheckDirectives ================

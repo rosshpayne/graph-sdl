@@ -215,6 +215,8 @@ type ArgumentAppender interface {
 	AppendArgument(s *ArgumentT)
 }
 
+// ========= ArgumentT ==========
+
 type ArgumentT struct {
 	//( name : value ) e.g. picture(size: 300): Url    where Name_ is size and Value is 300
 	Name_
@@ -227,6 +229,8 @@ func (a *ArgumentT) String(last bool) string {
 	}
 	return a.Name_.String() + ":" + a.Value.String() + " "
 }
+
+// ======================================
 
 type ArgumentS []*ArgumentT // same as type ObjectVals []*ArgumentT
 
@@ -242,6 +246,8 @@ func (a ArgumentS) String() string {
 	}
 	return ""
 }
+
+// ========================================
 
 type Arguments_ struct {
 	Arguments []*ArgumentT
@@ -533,12 +539,14 @@ func (f *Object_) CheckImplements(err *[]error) {
 }
 
 func (o *Object_) SolicitAbstractTypes(unresolved UnresolvedMap) {
+
 	o.FieldSet.SolicitAbstractTypes(unresolved)
-	//
-	//	o.Implements.SolicitAbstractTypes(unresolved)
+	// check existence of implement type(s)
+	o.Implements.SolicitAbstractTypes(unresolved)
 	for _, v := range o.Implements {
 		unresolved[v] = nil
 	}
+	// check existence of each directive type used.
 	o.Directives_.SolicitAbstractTypes(unresolved)
 }
 
@@ -1016,7 +1024,7 @@ type Interface_ struct {
 
 func (i *Interface_) TypeSystemNode() {}
 func (i *Interface_) SolicitAbstractTypes(unresolved UnresolvedMap) {
-	//i.Directives_.SolicitAbstractTypes(unresolved)
+	i.Directives_.SolicitAbstractTypes(unresolved)
 	i.FieldSet.SolicitAbstractTypes(unresolved)
 }
 
@@ -1090,7 +1098,7 @@ type Union_ struct {
 
 func (u *Union_) TypeSystemNode() {}
 func (u *Union_) SolicitAbstractTypes(unresolved UnresolvedMap) { // TODO check this is being executed
-	//u.Directives_.SolicitAbstractTypes(unresolved)
+	u.Directives_.SolicitAbstractTypes(unresolved)
 	for _, v := range u.NameS {
 		unresolved[v] = nil
 	}

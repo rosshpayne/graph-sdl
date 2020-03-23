@@ -790,6 +790,7 @@ func (d *Directives_) Len() int {
 	return len(d.Directives)
 }
 
+// these are not directive definitions, they are instances of directives which have no type specification just data.
 func (d *Directives_) SolicitAbstractTypes(unresolved UnresolvedMap) {
 	for _, v := range d.Directives {
 		unresolved[v.Name_] = nil

@@ -18,8 +18,8 @@ type entry struct {
 }
 
 type Cache_ struct {
-	sync.Mutex // Mutex protects whole cache. Channels protect individual cache entries.
-	Cache      map[string]*entry
+	sync.Mutex                   // Mutex protects whole cache. Channels protect individual cache entries.
+	Cache      map[string]*entry // cache holds any AST accessed by its name such as types, statements in a doc.
 	logr       *log.Logger
 }
 
@@ -131,7 +131,7 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 				l := lexer.New(typeSDL)
 				p2 := New(l)
 				//
-				// Generate AST for name
+				// Generate AST for name of stmt or a GQL type and save to cache
 				//
 				e.data = p2.ParseStatement() // source of stmt is db so its been verified, simply resolve types it refs
 				// close the channel to allow unhindered access to this entry
