@@ -186,6 +186,7 @@ func (a *InputValue_) CheckInputValueType(refType *GQLtype, nm Name_, err *[]err
 		fmt.Printf("depth: %d\n", refType.Depth)
 		fmt.Println("defType ", a.isType(), a.IsScalar())
 		fmt.Println("refType ", refType.isType())
+		fmt.Printf("a  %T\n", a.InputValueProvider)
 
 		// save default type before potential coercing
 		defType := a.isType()
@@ -248,8 +249,9 @@ func (a *InputValue_) CheckInputValueType(refType *GQLtype, nm Name_, err *[]err
 		}
 
 		if defType != NULL && defType != refType.isType() {
-			*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, refType.isType(), defType, atPosition))
+			*err = append(*err, fmt.Errorf(`Required type for argument %q is %s, got %s %s`, nm, refType.isType().String(), defType.String(), nm.AtPosition()))
 		}
+
 		fmt.Println("================. CheckInputValueType. =============== end")
 	}
 }

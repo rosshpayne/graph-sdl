@@ -165,15 +165,12 @@ func IsInputType(t *GQLtype) bool {
 	// determine inputType from t.Name
 	fmt.Println("***** IsInputType ***** ", t.Name)
 	if t.IsScalar() {
-		fmt.Println(" IsScalar true")
 		return true
 	}
 	switch t.isType() {
 	case ENUM, INPUT:
-		fmt.Println(" ENUM, INPUT true")
 		return true
 	default:
-		fmt.Println(" false")
 		return false
 	}
 }
