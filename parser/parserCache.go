@@ -47,8 +47,9 @@ func NewCache() *Cache_ {
 
 }
 
-// AddEntry is  concurrency safe.
+// AddEntry to cache is  concurrency safe.
 // TODO: check typeNotExists cache is handled safely. Concurrency was designed around Cache not typeNotExists cache.
+// NOTE: AddEntry Does NOT save to database. The type is saved to the db only if it has zero errors as part of the defer in parser.go
 func (t *Cache_) AddEntry(name ast.NameValue_, data ast.GQLTypeProvider) { //ast.NameValue_, data GQLTypeProvider) {
 	e := &entry{data: data, ready: make(chan struct{})}
 	close(e.ready)
@@ -140,6 +141,7 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 				close(e.ready)
 				//
 				// resolve nested types in this type
+				//
 				p2.ResolveNestedTypes(e.data, t)
 			}
 		}

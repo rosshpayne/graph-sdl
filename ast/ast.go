@@ -250,7 +250,7 @@ func (a *InputValue_) CheckInputValueType(refType *GQLtype, nm Name_, err *[]err
 		if defType != NULL && defType != refType.isType() {
 			*err = append(*err, fmt.Errorf(`Required type "%s", got "%s" %s`, refType.isType(), defType, atPosition))
 		}
-		fmt.Println("================. CheckInputValueType. ===============")
+		fmt.Println("================. CheckInputValueType. =============== end")
 	}
 }
 

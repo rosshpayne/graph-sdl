@@ -223,6 +223,10 @@ type ArgumentT struct {
 	Value *InputValue_
 }
 
+func (a *ArgumentT) StmtType() string {
+	return ""
+} // to support ql.NameI
+
 func (a *ArgumentT) String(last bool) string {
 	if last {
 		return a.Name_.String() + ":" + a.Value.String()
@@ -435,7 +439,7 @@ func (f NameS) SolicitAbstractTypes(unresolved UnresolvedMap) { //TODO rename to
 	//  handled by type in which NameS is nested
 }
 
-type SelectionGetter interface {
+type SDLObjectInterfacer interface {
 	GetSelectionSet() FieldSet
 	TypeName() NameValue_
 }

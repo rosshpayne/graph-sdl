@@ -345,3 +345,53 @@ union SearchResult = |Photo | Person
 		t.Errorf(`Unexpected: program.String() wrong. `)
 	}
 }
+
+func TestSetupResolverReturnsWrongType_43(t *testing.T) {
+
+	input := `
+	
+type Person43 {name : String! age(ScaleBy : Float ) : [[Int!]]! other : [String!] posts(resp :  [Int!] ) : Post!}
+
+type Query {allPersons(last : [Int]  first : [[String!]] ) : [Person43!]}
+
+
+
+`
+
+	var expectedErr []string
+
+	l := lexer.New(input)
+	p := New(l)
+	d, errs := p.ParseDocument()
+	fmt.Println(d.String())
+	for _, ex := range expectedErr {
+		if len(ex) == 0 {
+			break
+		}
+		found := false
+		for _, err := range errs {
+			if trimWS(err.Error()) == trimWS(ex) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Expected Error = [%q]`, ex)
+		}
+	}
+	for _, got := range errs {
+		found := false
+		for _, exp := range expectedErr {
+			if trimWS(got.Error()) == trimWS(exp) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf(`Unexpected Error = [%q]`, got.Error())
+		}
+	}
+	if compare(d.String(), input) {
+		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf(`Unexpected: program.String() wrong. `)
+	}
+}

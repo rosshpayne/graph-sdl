@@ -504,9 +504,6 @@ func (p *Parser) ResolveNestedTypes(v ast.GQLTypeProvider, t *Cache_) {
 	nestedAbstractTypes := make(ast.UnresolvedMap)
 	v.SolicitAbstractTypes(nestedAbstractTypes)
 	//
-	// load all resolved types from the cache into a map
-	//
-	resolved := make(ast.UnresolvedMap)
 	t.Lock()
 	//
 	// purge current type from map of all types to be resolved.
@@ -514,7 +511,6 @@ func (p *Parser) ResolveNestedTypes(v ast.GQLTypeProvider, t *Cache_) {
 	for tyName := range nestedAbstractTypes {
 		// if all ready cached then add to resolved map
 		if _, ok := t.Cache[tyName.String()]; ok {
-			resolved[tyName] = nil
 			if tyName.Name == v.TypeName() {
 				// remove type that is under consideration from list of types to be resolved.
 				delete(nestedAbstractTypes, tyName)
@@ -522,7 +518,7 @@ func (p *Parser) ResolveNestedTypes(v ast.GQLTypeProvider, t *Cache_) {
 		}
 	}
 	t.Unlock()
-	fmt.Println("AbstractType & resolved: ", nestedAbstractTypes, resolved)
+	fmt.Println("AbstractType : ", nestedAbstractTypes)
 	//
 	//  nestedAbstractTypes should now contain abstract types except current type under investigation.
 	//  As a side effect of this proecssing we populate the AST attribute in the GQLtype when the AST exists.
@@ -699,7 +695,7 @@ func (p *Parser) parseOperation(inp *ast.Schema_) *Parser {
 // checkFieldASTAssigned return false if AST is not assigned. Further validations should not be carried out if AST is not assigned
 func (p *Parser) checkFieldASTAssigned(stmt ast.GQLTypeProvider) bool {
 
-	if x, ok := stmt.(ast.SelectionGetter); ok {
+	if x, ok := stmt.(ast.SDLObjectInterfacer); ok {
 
 		for _, fld := range x.GetSelectionSet() {
 			//

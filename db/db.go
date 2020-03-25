@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -30,12 +31,17 @@ type TypeRow struct {
 	SortK string
 	Stmt  string
 	Type  string //this maps to ast.Type.Base - reqired for ENUM types but maybe useful for others
+	I     string // Insert time
+	U     string // Update time
+	D     string // Delete time
 }
 
 type PkRow struct {
 	PKey  string
 	SortK string
 }
+
+var location *time.Location
 
 func init() {
 	fmt.Println("***************************************************************** init ast_repo ***********************************************")
@@ -51,6 +57,11 @@ func init() {
 	}
 
 	db = dynamodbService()
+	var err error
+	location, err = time.LoadLocation("Australia/Sydney")
+	if err != nil {
+		panic(err)
+	}
 }
 
 // Fetch - when type is in cache it is said to be "resolved".
@@ -96,6 +107,7 @@ func dbPersist(pkey string, ast_ ast.GQLTypeProvider) error {
 	// TODO: check to see if item already exists, and if type is different error otherwise give a warning.
 	//		 table design ensures uniqueness of type with a given name, however currently it will overrite existing item
 	//
+	now := time.Now().In(location)
 	switch ast_.(type) {
 
 	case *ast.Directive_:
@@ -106,9 +118,10 @@ func dbPersist(pkey string, ast_ ast.GQLTypeProvider) error {
 			Dir   string // Part of Secondary index - identifies Directives only
 			Type  string // Type of stmt - saves having to parse stmt to determine type
 			PKey_ string // Object belonging to interface
+			I     string // Insert time
 		}
 		//	typeDef := DirRow{PKey: pkey.String(), SortK: "D", Stmt: ast.String(), Dir: "D", Type: "D"}
-		typeDef := DirRow{PKey: pkey, SortK: document, Stmt: ast_.String(), Dir: "D", Type: "D", PKey_: ast_.String()}
+		typeDef := DirRow{PKey: pkey, SortK: document, Stmt: ast_.String(), Dir: "D", Type: "D", PKey_: ast_.String(), I: now.Format("Mon Jan 2 15:04:05")}
 		av, err := dynamodbattribute.MarshalMap(typeDef)
 		if err != nil {
 			return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -124,7 +137,7 @@ func dbPersist(pkey string, ast_ ast.GQLTypeProvider) error {
 
 	case *ast.Object_:
 		//	typeDef := TypeRow{PKey: pkey.String(), SortK: "__", Stmt: ast.String(), Type: "O"}
-		typeDef := TypeRow{PKey: pkey, SortK: document, Stmt: ast_.String(), Type: "O"}
+		typeDef := TypeRow{PKey: pkey, SortK: document, Stmt: ast_.String(), Type: "O", I: now.Format("Mon Jan 2 15:04:05")}
 		av, err := dynamodbattribute.MarshalMap(typeDef)
 		if err != nil {
 			return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
@@ -152,7 +165,8 @@ func dbPersist(pkey string, ast_ ast.GQLTypeProvider) error {
 
 	default:
 		//typeDef := TypeRow{PKey: pkey.String(), SortK: "__", Stmt: ast.String(), Type: isType(ast)}
-		typeDef := TypeRow{PKey: pkey, SortK: document, Stmt: ast_.String(), Type: ast.IsGLType(ast_)}
+
+		typeDef := TypeRow{PKey: pkey, SortK: document, Stmt: ast_.String(), Type: ast.IsGLType(ast_), I: now.Format("Mon Jan 2 15:04:05")}
 		av, err := dynamodbattribute.MarshalMap(typeDef)
 		if err != nil {
 			return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
