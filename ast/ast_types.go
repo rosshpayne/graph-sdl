@@ -703,6 +703,7 @@ func (f *Field_) String() string {
 	s.WriteString(f.ArgumentDefs.String(encl))
 	s.WriteString(" : ")
 	s.WriteString(f.Type.String())
+	s.WriteString(" ")
 	s.WriteString(f.Directives_.String())
 	return s.String()
 }
@@ -755,17 +756,18 @@ func (fa *InputValueDefs) CheckDirectiveLocation(err *[]error) {
 func (fa *InputValueDefs) String(encl [2]token.TokenType) string {
 	var s strings.Builder
 	for i, v := range *fa {
+		s.WriteString(" ")
 		if i == 0 {
-			//s.WriteString("\n")
+			s.WriteString(" ")
 			s.WriteString(string(encl[0]))
 		}
-		//s.WriteString("\n")
+		s.WriteString(" ")
 		s.WriteString(v.String())
 		if i != len(*fa)-1 {
 			s.WriteString(" ")
 		}
 		if i == len(*fa)-1 {
-			//	s.WriteString("\n")
+			s.WriteString(" ")
 			s.WriteString(string(encl[1]))
 		}
 	}
@@ -853,12 +855,14 @@ func (fa *InputValueDef) AssignType(t *GQLtype) {
 
 func (fa *InputValueDef) String() string {
 	var s strings.Builder
+	s.WriteString(" ")
 	s.WriteString(fa.Name_.String())
 	s.WriteString(" : " + fa.Type.String() + " ")
 	if fa.DefaultVal != nil {
-		s.WriteString("=")
+		s.WriteString(" = ")
 		s.WriteString(fa.DefaultVal.String())
 	}
+	s.WriteString(" ")
 	s.WriteString(fa.Directives_.String())
 	return s.String()
 }
@@ -1198,8 +1202,11 @@ func (u *Input_) String() string {
 	var encl [2]token.TokenType = [2]token.TokenType{token.LBRACE, token.RBRACE}
 	var s strings.Builder
 	s.WriteString("\ninput ")
+	s.WriteString(" ")
 	s.WriteString(u.Name.String())
+	s.WriteString(" ")
 	s.WriteString(" " + u.Directives_.String())
+	s.WriteString(" ")
 	s.WriteString(u.InputValueDefs.String(encl))
 	return s.String()
 }

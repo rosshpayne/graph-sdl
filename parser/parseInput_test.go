@@ -87,18 +87,18 @@ func TestInputDuplicate(t *testing.T) {
 `
 	var expectedErr []string = []string{
 		`Duplicate input value name "y" at line: 8, column: 8`,
-		`Required type "String", got "Int" at line: 3 column: 30`,
-		`Required type "String", got "Int" at line: 4 column: 34`,
-		`Required type "Float", got "Int" at line: 5 column: 14`,
-		`Required type "Float", got "Int" at line: 6 column: 16`,
-		`Required type "Float", got "Int" at line: 7 column: 18`,
-		`Required type "Float", got "Int" at line: 9 column: 19`,
+		`Required type for argument "asdf" is String, got Int at line: 3 column: 25`,
+		`Required type for argument "asdf" is String, got Int at line: 4 column: 29`,
+		`Required type for argument "y" is Float, got Int at line: 5 column: 3`,
+		`Required type for argument "y1" is Float, got Int at line: 6 column: 4`,
+		`Required type for argument "y2" is Float, got Int at line: 7 column: 6`,
+		`Required type for argument "y3" is Float, got Int at line: 9 column: 7`,
+		`Required type for argument "y4" is Float, got Int at line: 10 column: 8`,
+		`Required type for argument "y5" is Float, got Int at line: 11 column: 9`,
+		`Required type for argument "y6" is Float, got Int at line: 12 column: 10`,
+		`Required type for argument "y63" is Float, got Int at line: 13 column: 11`,
 		`Argument "dei" is not a valid name for directive "@june" at line: 9 column: 54`,
 		`Argument "uio" is not a valid name for directive "@june" at line: 9 column: 62`,
-		`Required type "Float", got "Int" at line: 10 column: 20`,
-		`Required type "Float", got "Int" at line: 11 column: 21`,
-		`Required type "Float", got "Int" at line: 12 column: 22`,
-		`Required type "Float", got "Int" at line: 13 column: 24`,
 	}
 	l := lexer.New(input)
 	p := New(l)
@@ -154,7 +154,7 @@ func TestInputInvalidName(t *testing.T) {
 `
 	var expectedErr = []string{
 		`identifer [__y3] cannot start with two underscores at line: 6, column: 7`,
-		`Required type "String", got "Int" at line: 10 column: 37`,
+		`Required type for argument "asdf" is String, got Int at line: 10 column: 32`,
 	}
 
 	l := lexer.New(input)

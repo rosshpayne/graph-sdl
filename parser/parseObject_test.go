@@ -195,7 +195,7 @@ func TestCheckInputValueType1(t *testing.T) {
 }`
 
 	var expectedErr [1]string
-	expectedErr[0] = `Required type "Int", got "Float" at line: 4 column: 20` //
+	expectedErr[0] = `Required type for argument "age" is Int, got Float at line: 4 column: 10` //
 
 	l := lexer.New(input)
 	p := New(l)
@@ -235,7 +235,7 @@ func TestCheckInputValueType2(t *testing.T) {
 }`
 
 	var expectedErr [1]string
-	expectedErr[0] = `Required type "String", got "Int" at line: 4 column: 23` //
+	expectedErr[0] = `Required type for argument "age" is String, got Int at line: 4 column: 10` //
 
 	l := lexer.New(input)
 	p := New(l)
@@ -841,7 +841,7 @@ type Person {
   posts: [Boolean!]!
 }`
 
-	expectedDoc := `typePerson{name:String!age:Int!inputX(info:[Int]=null):Floatposts:[Boolean!]!}`
+	//	expectedDoc := `typePerson{name:String!age:Int!inputX(info:[Int]=[null]):Floatposts:[Boolean!]!}`
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
@@ -852,9 +852,9 @@ type Person {
 			t.Errorf(`Unexpected error: %s`, v.Error())
 		}
 	}
-	if compare(d.String(), expectedDoc) {
+	if compare(d.String(), input) {
 		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
-		t.Errorf("Expected: [%s] \n", trimWS(expectedDoc))
+		t.Errorf("Expected: [%s] \n", trimWS(input))
 		t.Errorf(`Unexpected: program.String() wrong. `)
 	}
 }

@@ -142,12 +142,13 @@ func (a *InputValue_) CheckInputValueType(refType *GQLtype, nm Name_, err *[]err
 	case List_:
 		// [ "ads", "wer" ]
 		// single instance data
+		fmt.Println("=========== CheckInputValueType  List_ ==============")
 		fmt.Printf("name: %s\n", refType.Name_)
 		fmt.Printf("constrint: %08b\n", refType.Constraint)
 		fmt.Printf("depth: %d\n", refType.Depth)
 		fmt.Println("defType ", a.isType(), a.IsScalar())
 		fmt.Println("refType ", refType.isType())
-		fmt.Println("=========== CheckInputValueType  List_ ==============")
+
 		if refType.Depth == 0 { // required type is not a LIST
 			*err = append(*err, fmt.Errorf(`Input value %s for argument "%s" is a list but required type is not a list %s`, valueType.String(), nm, atPosition))
 			return
@@ -179,6 +180,7 @@ func (a *InputValue_) CheckInputValueType(refType *GQLtype, nm Name_, err *[]err
 		}
 
 	default:
+		fmt.Println("=========== CheckInputValueType  Default ==============")
 		// single instance data
 		fmt.Printf("valueType: %s\n", valueType)
 		fmt.Printf("name: %s\n", refType.Name_)
@@ -210,45 +212,35 @@ func (a *InputValue_) CheckInputValueType(refType *GQLtype, nm Name_, err *[]err
 					defType = a.isType()
 				}
 			}
-			// coerce to a list of appropriate depth. Current value is not a list as this is switch case default - see other cases.
-			if refType.Depth > 0 {
-				var coerce2list func(i *InputValue_, depth uint8) *InputValue_
-				// type List_ []*InputValue_
+		} else if refType.Depth > 0 {
+			//
+			// coerce scalar to List of required depth
+			//
+			fmt.Println("Coerce to list")
+			// recursively create InputValue_ upto depth required.
+			var coerce2list func(d uint8) List_
 
-				coerce2list = func(i *InputValue_, depth uint8) *InputValue_ {
-					if depth == 0 {
-						return i
-					}
-					vallist := make(List_, 1, 1)
-					vallist[0] = i
-					vi := &InputValue_{InputValueProvider: vallist, Loc: i.Loc}
-					depth--
-					return coerce2list(vi, depth)
+			coerce2list = func(d uint8) List_ {
+				if d == 0 {
+					// at the deepest level resides the method receiver scalar
+					return List_{&InputValue_{InputValueProvider: a.InputValueProvider, Loc: a.Loc}}
 				}
-				a = coerce2list(a, refType.Depth)
-			}
+				d--
+				vallist := make(List_, 1, 1)
+				iv := &InputValue_{}
+				vallist[0] = iv
+				iv.InputValueProvider = coerce2list(d)
 
-		} else {
-			// coerce to a list of appropriate depth. Current value is not a list as this is case default - see other cases.
-			if refType.Depth > 0 {
-				var coerce2list func(i *InputValue_, depth uint8) *InputValue_
-				// type List_ []*InputValue_
-
-				coerce2list = func(i *InputValue_, depth uint8) *InputValue_ {
-					if depth == 0 {
-						return i
-					}
-					vallist := make(List_, 1, 1)
-					vallist[0] = i
-					vi := &InputValue_{InputValueProvider: vallist, Loc: i.Loc}
-					depth--
-					return coerce2list(vi, depth)
-				}
-				a = coerce2list(a, refType.Depth)
+				return vallist
 			}
+			//
+			a.InputValueProvider = coerce2list(refType.Depth - 1)
+
+			a.CheckInputValueType(refType, nm, err)
+			return
 		}
 
-		if defType != NULL && defType != refType.isType() {
+		if defType != NULL && defType != LIST && defType != refType.isType() {
 			*err = append(*err, fmt.Errorf(`Required type for argument %q is %s, got %s %s`, nm, refType.isType().String(), defType.String(), nm.AtPosition()))
 		}
 
@@ -597,7 +589,7 @@ func (l List_) Exists() bool {
 func (l List_) ValidateListValues(iv *GQLtype, d *uint8, maxd *uint8, err *[]error) {
 	reqType := iv.isType() // INT, FLOAT, OBJECT, PET, MEASURE etc            note: OBJECT is for specification of a type, OBJECTVAL is an object literal for input purposes
 	reqDepth := iv.Depth
-	fmt.Println("ValidateListValues...............")
+	fmt.Println("ValidateListValues...............length, reqType, reqDepth, d, maxd = ", len(l), reqType, reqDepth, *d, *maxd)
 	// is reqType a valid type if not abort
 	if reqType == ILLEGAL {
 		return
@@ -605,7 +597,6 @@ func (l List_) ValidateListValues(iv *GQLtype, d *uint8, maxd *uint8, err *[]err
 	//
 	// for each element in the LIST
 	///
-	fmt.Println("++++++++ ValidateListValues ++++++++")
 	*d++ // current depth of [ in [[[]]]
 	if *d > *maxd {
 		*maxd = *d
@@ -617,6 +608,8 @@ func (l List_) ValidateListValues(iv *GQLtype, d *uint8, maxd *uint8, err *[]err
 		case List_:
 			fmt.Println("++++++++ ValidateListValues List_ ++++++++")
 			// maxd records maximum depth of list(d=1) [] list of lists [[]](d=2) = [[][][][]] list of lists of lists (d=3) [[[]]] = [[[][][]],[[][][][]],[[]]]
+			fmt.Printf("** in is %T\n ", in)
+			fmt.Println("about to ValidateListValue ")
 			in.ValidateListValues(iv, d, maxd, err)
 			*d--
 

@@ -132,7 +132,7 @@ extend input ExampleInputObjectDirective2 @ june (asdf:234)
 `
 	var expectedErr [3]string
 	expectedErr[0] = `Duplicate Directive name "@june" at line: 9, column: 45`
-	expectedErr[1] = `extend for type "ExampleInputObjectDirective2" contains no changes at line: 0, column: 0`
+	expectedErr[1] = `extend for type "ExampleInputObjectDirective2" contains no changes at line: 10, column: 0`
 	expectedErr[2] = `Directive "@june" is not registered for INPUT_OBJECT usage at line: 4 column: 38`
 
 	l := lexer.New(input)
@@ -766,8 +766,9 @@ type SomeType {
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	var expectedErr [1]string
-	expectedErr[0] = `Required type "Int", got "String" at line: 4 column: 33`
+	var expectedErr []string = []string{
+		`Required type for argument "arg1" is Int, got String at line: 4 column: 27`,
+	}
 
 	l := lexer.New(input)
 	p := New(l)
@@ -906,7 +907,7 @@ type SomeType {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
 	var expectedErr [1]string
-	expectedErr[0] = `Required type "Int", got "String" at line: 9 column: 34`
+	expectedErr[0] = `Required type for argument "arg1" is Int, got String at line: 9 column: 28`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -1111,10 +1112,10 @@ type SomeType {
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	}
-	var expectedErr [2]string
-	expectedErr[0] = `Required type "Int", got "String" at line: 2 column: 33`
-	expectedErr[1] = `Required type "Int", got "String" at line: 9 column: 34`
-
+	var expectedErr []string = []string{
+		`Required type for argument "arg1" is Int, got String at line: 9 column: 28`,
+		`Required type for argument "arg1" is Int, got String at line: 2 column: 21`,
+	}
 	l := lexer.New(input)
 	p := New(l)
 	p.ClearCache()
@@ -1467,7 +1468,7 @@ type SomeType3 {
 
 `
 	var expectedErr []string = []string{
-		`Required type "Int", got "String" at line: 5 column: 73`,
+		`Required type for argument "arg1" is Int, got String at line: 5 column: 66`,
 		`Expected an argument value followed by an identifer or close parenthesis got "Float" at line: 5, column: 102`,
 	}
 	//	`Expected an argument Value followed by IDENT or RPAREN got an NONVALUE:Float:Float NONVALUE:):) at line: 5, column: 107`,
@@ -1540,7 +1541,10 @@ type SomeType3 {
   somefield : String @example3
 }
 `
-	var expectedDoc string = `directive@example4(arg1:Int=5arg2:String="ABC"arg3:Float=23.44arg4:Int)on|INPUT_OBJECT|FIELD_DEFINITION|ARGUMENT_DEFINITION|INPUT_FIELD_DEFINITIONinputSomeInput4@example4(arg2:"DEF"){field:String="ABC"@example4}typeSomeType4{somefield(arg:Int@example4(arg1:234)):String@example4}typeQuery{hero:[SomeType4]}`
+
+	//	var expectedDoc string = `directive@example4(arg1:Int=5arg2:String="ABC"arg3:Float=23.44arg4:Int)on|INPUT_OBJECT|FIELD_DEFINITION|ARGUMENT_DEFINITION|INPUT_FIELD_DEFINITIONinputSomeInput4@example4(arg2:"DEF"){field:String="ABC"@example4}typeSomeType4{somefield(arg:Int@example4(arg1:234)):String@example4}typeQuery{hero:[SomeType4]}`
+
+	var expectedDoc string = `directive@example3(arg1:Int=5arg2:String="ABC"arg3:Float=23.44)on|INPUT_OBJECT|FIELD_DEFINITION|ARGUMENT_DEFINITION|INPUT_FIELD_DEFINITIONtypeQuery{hero(argx1:[Int]!=[6755]@example3(arg1:1234)argx2:String!="ABCDEF"argy3:Float):SomeType3}inputSomeInput3@example3(arg2:"DEF"){field:String="ABC"@example3}typeSomeType3{somefield:String@example3}`
 	err := db.DeleteType("SomeType3")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
@@ -1559,7 +1563,7 @@ type SomeType3 {
 	p := New(l)
 	p.ClearCache()
 	d, errs := p.ParseDocument()
-	fmt.Println(d.String())
+	fmt.Println("Output: ", d.String())
 	for _, ex := range expectedErr {
 		if len(ex) == 0 {
 			break
@@ -1611,6 +1615,7 @@ type Query {
 
 `
 
+	expectedDoc := `directive@example4(arg1:Int=5arg2:String="ABC"arg3:Float=23.44arg4:Int)on|INPUT_OBJECT|FIELD_DEFINITION|ARGUMENT_DEFINITION|INPUT_FIELD_DEFINITIONtypeQuery{hero:[SomeType4]}inputSomeInput4@example4(arg2:"DEF"){field:String="ABC"@example4}typeSomeType4{somefield(arg:Int@example4(arg1:234)):String@example4}`
 	err := db.DeleteType("SomeType4")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
@@ -1656,9 +1661,9 @@ type Query {
 			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
 	}
-	if compare(d.String(), input) {
+	if compare(d.String(), expectedDoc) {
 		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
-		t.Errorf("Expected: [%s] \n", trimWS(input))
+		t.Errorf("Expected: [%s] \n", trimWS(expectedDoc))
 		t.Errorf(`Unexpected: program.String() wrong. `)
 	}
 }

@@ -27,7 +27,8 @@ type Person {
 }
 `
 
-	var expectedErr []string = []string{`Required type "Int", got "Float" at line: 10 column: 31`,
+	var expectedErr []string = []string{
+		`Required type for argument "if" is Int, got Float at line: 10 column: 27`,
 		`Argument "fi" is not a valid name for directive "@dep" at line: 10 column: 37`,
 		`Argument "cat" is not a valid name for directive "@dep" at line: 10 column: 45`,
 	}
@@ -690,7 +691,7 @@ type Person {
 		name(arg1: Direction = "SOUTH" ): Float
 	}
 `
-	expectedErr := []string{`Required type "Enum", got "String" at line: 5 column: 26`}
+	expectedErr := []string{`Required type for argument "arg1" is Enum, got String at line: 5 column: 8`}
 
 	l := lexer.New(input)
 	p := New(l)
