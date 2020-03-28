@@ -1227,7 +1227,6 @@ func (p *Parser) parseDirectives(f ast.DirectiveAppender, optional ...bool) *Par
 	defer p.setState(p.state)()
 
 	p.state = parseDirectives_
-	fmt.Println("ParseDirective.........", p.abort)
 	if p.hasError() {
 		return p
 	}
@@ -1235,7 +1234,6 @@ func (p *Parser) parseDirectives(f ast.DirectiveAppender, optional ...bool) *Par
 		if len(optional) == 0 {
 			p.addErr("Variable is mandatory")
 		}
-		fmt.Println("parseDirective return...", p.curToken.Type)
 		return p
 	}
 
@@ -1529,7 +1527,6 @@ func (p *Parser) parseFieldArgumentDefs(f ast.FieldArgAppender) *Parser { // st 
 
 	encl := [2]token.TokenType{token.LPAREN, token.RPAREN} // ()
 	p.state = parseFieldArgumentDefs_
-	fmt.Println("parseFieldArgumentDefs......")
 	if p.hasError() {
 		return p
 	}

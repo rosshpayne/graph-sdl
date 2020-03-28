@@ -150,7 +150,7 @@ func (a *InputValue_) CheckInputValueType(refType *GQLtype, nm Name_, err *[]err
 		fmt.Println("refType ", refType.isType())
 
 		if refType.Depth == 0 { // required type is not a LIST
-			*err = append(*err, fmt.Errorf(`Input value %s for argument "%s" is a list but required type is not a list %s`, valueType.String(), nm, atPosition))
+			*err = append(*err, fmt.Errorf(`Expected a %s for argument %q, got a List, %s`, refType.isType(), nm, atPosition))
 			return
 		}
 		var d, maxd uint8
