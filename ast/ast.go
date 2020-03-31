@@ -429,7 +429,7 @@ func (t *GQLtype) isList() bool {
 
 func (t *GQLtype) IsScalar() bool {
 	switch t.isType() {
-	case INT, FLOAT, STRING, BOOLEAN, SCALAR, ID, ENUM, ENUMVALUE:
+	case INT, FLOAT, STRING, BOOLEAN, SCALAR, ID: //, ENUM, ENUMVALUE:
 		return true
 	default:
 		return false

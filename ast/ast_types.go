@@ -823,6 +823,10 @@ func (fa *InputValueDef) SolicitAbstractTypes(unresolved UnresolvedMap) { //TODO
 	if !fa.Type.IsScalar() && fa.Type.AST == nil {
 		unresolved[fa.Type.Name_] = fa.Type
 	}
+	// if !fa.Type.IsScalar() && fa.Type.AST != nil {
+	// 	unresolved[fa.Type.Name_] = fa.Type
+	// }
+
 	fa.Directives_.SolicitAbstractTypes(unresolved)
 }
 
@@ -1000,7 +1004,7 @@ func (e *EnumValue_) CheckEnumValue(a *GQLtype, err *[]error) {
 		}
 
 	} else {
-		*err = append(*err, fmt.Errorf(`Enum type "%s" is not found in cache`, a.Name, e.Name_.AtPosition()))
+		*err = append(*err, fmt.Errorf(`Enum type "%s" is not found in cache %s`, a.Name, e.Name_.AtPosition()))
 	}
 }
 
