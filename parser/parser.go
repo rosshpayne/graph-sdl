@@ -183,6 +183,13 @@ func (p *Parser) executeWithErrLimit(mv func(*[]error), num ...int) (b bool) {
 	return
 }
 
+func LoadASTcache(c *Cache_) {
+	ast.InitCache(len(c.Cache))
+	for k, v := range c.Cache {
+		ast.TyCache[k] = v.data
+	}
+}
+
 func (p *Parser) hasError() bool {
 
 	if len(p.perror) > 10 || p.abort {
@@ -355,10 +362,12 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 	//  TODO: put the cache back in package ast. The parser can always access the cache when its in ast.
 	//
 	//	initialise ast Cache
-	ast.InitCache(len(p.cache.Cache))
-	for k, v := range p.cache.Cache {
-		ast.TyCache[k] = v.data
-	}
+	// ast.InitCache(len(p.cache.Cache))
+	// for k, v := range p.cache.Cache {
+	// 	ast.TyCache[k] = v.data
+	// }
+	LoadASTcache(p.cache)
+
 	fmt.Println("*** entries transfered to ast cache - ", len(ast.TyCache))
 	//
 	// Build perror from statement errors to use in hasError() counting

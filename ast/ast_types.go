@@ -274,6 +274,15 @@ func (a *Arguments_) String() string {
 	return ""
 }
 
+func (a *Arguments_) SolicitAbstractTypes(unresolved UnresolvedMap) {
+	// TODO - need to have the type of Name_
+	// for _, v := range a.Arguments {
+	// 	if !v.Value.IsScalar() {
+	// 		unresolved[v.Name_] = nil
+	// 	}
+	// }
+}
+
 // ================ ObjectVal ====================
 // used as input values in Input Value Type
 
@@ -806,7 +815,7 @@ func (fa InputValueDefs) CheckInputValueType(err *[]error) {
 // ArgumentsDefinition
 //		(InputValueDefinitionlist)
 // InputValueDefinition
-//		Description-opt Name : Type DefaultValue-opt Directives-opt
+//		Description-opt  Name : Type  =  DefaultValue-opt   Directives-opt
 type InputValueDef struct {
 	Desc string
 	Name_
@@ -823,9 +832,6 @@ func (fa *InputValueDef) SolicitAbstractTypes(unresolved UnresolvedMap) { //TODO
 	if !fa.Type.IsScalar() && fa.Type.AST == nil {
 		unresolved[fa.Type.Name_] = fa.Type
 	}
-	// if !fa.Type.IsScalar() && fa.Type.AST != nil {
-	// 	unresolved[fa.Type.Name_] = fa.Type
-	// }
 
 	fa.Directives_.SolicitAbstractTypes(unresolved)
 }
@@ -985,6 +991,7 @@ func (e *EnumValue_) String() string {
 func (e *EnumValue_) CheckEnumValue(a *GQLtype, err *[]error) {
 	// get Enum type and compare it against the instance value
 	// TODO - rethink this solution - should not use CacheFEtch in type mthod
+	fmt.Println("======================== CheckEnumValue ==================== ", a.Name.String(), TyCache)
 	if ast_, ok := TyCache[a.Name.String()]; ok {
 		switch enum_ := ast_.(type) {
 		case *Enum_:
