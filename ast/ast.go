@@ -568,7 +568,7 @@ func (l List_) Exists() bool {
 // 	Directives_
 // 	InputValueDefs // []*InputValueDef
 // }
-// type InputValueDef struct {
+//  struct {
 // 	Desc string
 // 	Name_
 // 	Type       *GQLtype   	// ** argument type specification
@@ -883,7 +883,8 @@ func (a Name_) EqualString(b string) bool {
 
 func (n Name_) AtPosition() string {
 	if n.Loc == nil {
-		panic(fmt.Errorf("Error in AtPosition(), Loc not set"))
+		//panic(fmt.Errorf("Error in AtPosition(), Loc not set"))
+		return "Loc not set"
 	}
 	return n.Loc.String()
 }

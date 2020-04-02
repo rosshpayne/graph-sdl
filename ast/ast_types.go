@@ -991,7 +991,6 @@ func (e *EnumValue_) String() string {
 func (e *EnumValue_) CheckEnumValue(a *GQLtype, err *[]error) {
 	// get Enum type and compare it against the instance value
 	// TODO - rethink this solution - should not use CacheFEtch in type mthod
-	fmt.Println("======================== CheckEnumValue ==================== ", a.Name.String(), TyCache)
 	if ast_, ok := TyCache[a.Name.String()]; ok {
 		switch enum_ := ast_.(type) {
 		case *Enum_:
@@ -1094,6 +1093,17 @@ func (i *Interface_) Conform(obj GQLTypeProvider) bool {
 		}
 	}
 	return true
+}
+func (i *Interface_) CheckFieldMembers(err *[]error) {
+	// Fields on a GraphQL interface have the same rules as fields on a GraphQL object;
+	// their type can be Scalar, Object, Enum, Interface, or Union, or any wrapping type whose base type is one of those five.
+	for _, v := range i.FieldSet {
+		switch v.Type.isType() {
+		case OBJECT, ENUM, INTERFACE, UNION, FLOAT, INT, BOOLEAN, ID, SCALAR, STRING:
+		default:
+			*err = append(*err, fmt.Errorf(`Member %q of interface %q is not an appropriate type. Must be an object, enum, interface or union, %s`, v.Name, i.TypeName(), v.Name_.AtPosition()))
+		}
+	}
 }
 
 func (i *Interface_) CheckInputValueType(err *[]error) {

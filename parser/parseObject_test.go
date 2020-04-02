@@ -556,7 +556,7 @@ type Person {
 }`
 
 	var expectedErr [1]string
-	expectedErr[0] = `Input value ["""abc \ndefasj \nasdf"""]  for argument "info" is a list but required type is not a list at line: 9 column: 51`
+	expectedErr[0] = `Expected a String for argument "info", got a List, at line: 9 column: 51`
 
 	l := lexer.New(input)
 	p := New(l)

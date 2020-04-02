@@ -454,6 +454,7 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 			x.CheckImplements(&p.perror) // check implements are interfaces
 		case *ast.Enum_:
 		case *ast.Interface_:
+			x.CheckFieldMembers(&p.perror)
 		case *ast.Union_:
 			p.CheckUnionMembers(x)
 		case *ast.Directive_:
