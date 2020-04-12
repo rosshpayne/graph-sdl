@@ -998,7 +998,7 @@ func (sc *Schema_) TypeName() NameValue_ {
 
 var blank string = ""
 var errNameChar string = "Invalid character in identifer at line: %d, column: %d"
-var errNameBegin string = "identifer [%s] cannot start with two underscores at line: %d, column: %d"
+var errNameBegin string = "identifer %q cannot start with two underscores at line: %d, column: %d"
 
 func ValidateName(name string, errS *[]error, loc *Loc_) {
 	// /[_A-Za-z][_0-9A-Za-z]*/

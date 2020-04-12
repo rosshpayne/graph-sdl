@@ -215,9 +215,7 @@ func (p *Parser) addErr(s string, xCode ...int) error {
 // addErr2 appends to error slice held in parser.
 func (p *Parser) addErr2(e error) error {
 
-	fmt.Println("addErr2: before ", len(p.perror))
 	p.perror = append(p.perror, e)
-	fmt.Println("addErr2: after ", len(p.perror))
 	return e
 }
 
@@ -270,6 +268,9 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 	//
 	// create cache
 	//
+	fmt.Println()
+	fmt.Println("SDL ParseDocument....")
+	fmt.Println()
 	fmt.Println("^^^^^^^ typeNotExists : ", len(typeNotExists))
 	fmt.Println("^^^^^^^ Cache_ :", len(p.cache.Cache))
 	defer p.closeLogFile()
@@ -350,7 +351,7 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 	//
 	for _, v := range api.Statements {
 		fmt.Println("A out to resolve types for ", v.TypeName())
-		p.ResolveNestedTypes(v, p.cache)
+		p.ResolveDependents(v, p.cache)
 		if len(p.perror) > 0 {
 			api.ErrorMap[v.TypeName()] = append(api.ErrorMap[v.TypeName()], p.perror...)
 			p.perror = nil
@@ -499,11 +500,11 @@ func (p *Parser) ParseStatement() ast.GQLTypeProvider {
 // TypeResolveErr used only to categorise the error not to provided extra information.
 var TypeResolveErr = errors.New("")
 
-// ResolveNestedTypes is a validation check performed after parsing completes.
+// ResolveDependents is a validation check performed after parsing completes.
 // all nested abstract types for the passed in AST are confirmed to exist either
 // in cache or database.  Resolving continutes in FetchAST, until all nested types are resolved
 // within each type.
-func (p *Parser) ResolveNestedTypes(v ast.GQLTypeProvider, t *Cache_) {
+func (p *Parser) ResolveDependents(v ast.GQLTypeProvider, t *Cache_) {
 	//
 	// find all Abstract Types (ie. non-scalar) nested within the current type v. These need to be resolved.
 	// Note: SolicitAbstractTypes does not recursively evaluate all nested types, only the
@@ -536,13 +537,14 @@ func (p *Parser) ResolveNestedTypes(v ast.GQLTypeProvider, t *Cache_) {
 	// typeName, *GQLType
 	for tyName, gqltype := range nestedAbstractTypes {
 		//
-		// resolve type - note FetchAST will recursively call ResolveNestedTypes to evalute tyName.
+		// resolve type - note FetchAST will recursively call ResolveDependents to evalute tyName.
 		//
 		ast_, err := t.FetchAST(tyName.Name)
 		if err != nil {
 			switch {
 			case errors.Is(err, ErrNotCached):
-				p.addErr2(fmt.Errorf(`Item %q %s in document %q %s %w`, tyName, err, db.GetDocument(), tyName.AtPosition(), TypeResolveErr))
+				//p.addErr2(fmt.Errorf(`Item %q %s in document %q %s %w`, tyName, err, db.GetDocument(), tyName.AtPosition(), TypeResolveErr))
+				p.addErr2(fmt.Errorf(`%q %s in document %q %s %w`, tyName, err, db.GetDocument(), tyName.AtPosition(), TypeResolveErr))
 			case errors.Is(err, db.NoItemFoundErr):
 				p.addErr2(fmt.Errorf(`%s %s %w`, err, tyName.AtPosition(), TypeResolveErr))
 			default:
@@ -593,18 +595,21 @@ func (p *Parser) CheckUnionMembers(x *ast.Union_) {
 				p.addErr(fmt.Sprintf(`Union member %s %s %s`, m, err, m.AtPosition()))
 			}
 		} else {
+			// Spec: The member types of a Union type must all be Object base types; Scalar, Interface and Union types must not be member types of a Union.
+			//		 Similarly, wrapping types must not be member types of a Union.
 			switch ast_.(type) {
-			case *ast.Object_, *ast.Union_, *ast.Interface_, *ast.Scalar_: //, *ast.Int_, *ast.Float_, *ast.String_, *ast.Boolean_, *ast.ID_:
+			case *ast.Object_: //, *ast.Union_, *ast.Interface_, *ast.Scalar_: //, *ast.Int_, *ast.Float_, *ast.String_, *ast.Boolean_, *ast.ID_:
 			default:
-				if x, ok := ast_.(ast.InputValueProvider); ok {
-					switch x.(type) {
-					case *ast.Int_, *ast.Float_, *ast.String_, *ast.Bool_, *ast.ID_:
-					default:
-						p.addErr(fmt.Sprintf(`Union member "%s" must be an object based type %s`, m, m.AtPosition()))
-					}
-				} else {
-					p.addErr(fmt.Sprintf(`Union member "%s" must be an object based type %s`, m, m.AtPosition()))
-				}
+				p.addErr(fmt.Sprintf(`Union member "%s" must be an object based type %s`, m, m.AtPosition()))
+				// if x, ok := ast_.(ast.InputValueProvider); ok {
+				// 	switch x.(type) {
+				// 	case *ast.Int_, *ast.Float_, *ast.String_, *ast.Bool_, *ast.ID_:
+				// 	default:
+				// 		p.addErr(fmt.Sprintf(`Union member "%s" must be an object based type %s`, m, m.AtPosition()))
+				// 	}
+				// } else {
+				// 	p.addErr(fmt.Sprintf(`Union member "%s" must be an object based type %s`, m, m.AtPosition()))
+				// }
 			}
 
 		}
@@ -705,7 +710,7 @@ func (p *Parser) parseOperation(inp *ast.Schema_) *Parser {
 // checkFieldASTAssigned return false if AST is not assigned. Further validations should not be carried out if AST is not assigned
 func (p *Parser) checkFieldASTAssigned(stmt ast.GQLTypeProvider) bool {
 
-	if x, ok := stmt.(ast.SDLObjectInterfacer); ok {
+	if x, ok := stmt.(ast.SDLSelectionSetter); ok {
 
 		for _, fld := range x.GetSelectionSet() {
 			//

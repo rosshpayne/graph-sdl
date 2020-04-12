@@ -258,8 +258,8 @@ var (
 )
 
 type DBFetchErr struct {
-	pk      string // data key
-	sortk   string // data key
+	pk      string // data key - type name
+	sortk   string // data key - document
 	routine string // dynamodb statement
 	code    string // aws error code
 	fatal   bool
@@ -273,7 +273,8 @@ func (e *DBFetchErr) Unwrap() error {
 
 func (e *DBFetchErr) Error() string {
 	if errors.Is(e, NoItemFoundErr) {
-		return fmt.Sprintf(`Item "%s" %s "%s" `, e.pk, e.cat.Error(), e.sortk)
+		//	return fmt.Sprintf(`Item "%s" %s "%s" `, e.pk, e.cat.Error(), e.sortk)
+		return fmt.Sprintf(`"%s" %s "%s" `, e.pk, e.cat.Error(), e.sortk)
 	}
 	if errors.Is(e, SystemErr) {
 		if len(e.code) > 0 {

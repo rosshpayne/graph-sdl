@@ -217,6 +217,7 @@ type ArgumentAppender interface {
 type ArgumentT struct {
 	//( name : value ) e.g. picture(size: 300): Url    where Name_ is size and Value is 300
 	Name_
+	//Type  *GQLtype - not necessary
 	Value *InputValue_
 }
 
@@ -445,7 +446,7 @@ func (f NameS) SolicitAbstractTypes(unresolved UnresolvedMap) { //TODO rename to
 	//  handled by type in which NameS is nested
 }
 
-type SDLObjectInterfacer interface {
+type SDLSelectionSetter interface {
 	GetSelectionSet() FieldSet
 	TypeName() NameValue_
 }
@@ -1101,7 +1102,7 @@ func (i *Interface_) CheckFieldMembers(err *[]error) {
 		switch v.Type.isType() {
 		case OBJECT, ENUM, INTERFACE, UNION, FLOAT, INT, BOOLEAN, ID, SCALAR, STRING:
 		default:
-			*err = append(*err, fmt.Errorf(`Member %q of interface %q is not an appropriate type. Must be an object, enum, interface or union, %s`, v.Name, i.TypeName(), v.Name_.AtPosition()))
+			*err = append(*err, fmt.Errorf(`Member %q of interface %q is not an appropriate type. Must be a scalar, object, enum, interface or union, %s`, v.Name, i.TypeName(), v.Name_.AtPosition()))
 		}
 	}
 }
@@ -1363,6 +1364,7 @@ func (d *Directive_) Type() string {
 
 //func (d *Directive_) ValueNode()      {}
 func (d *Directive_) SolicitAbstractTypes(unresolved UnresolvedMap) {
+	unresolved[d.Name_] = nil
 	d.ArgumentDefs.SolicitAbstractTypes(unresolved)
 }
 func (d *Directive_) CheckDirectiveRef(dir NameValue_, err *[]error) {

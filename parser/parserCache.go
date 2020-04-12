@@ -142,7 +142,7 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 				//
 				// resolve nested types in this type
 				//
-				p2.ResolveNestedTypes(e.data, t)
+				p2.ResolveDependents(e.data, t)
 			}
 		}
 	} else {
