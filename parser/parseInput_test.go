@@ -153,7 +153,7 @@ func TestInputInvalidName(t *testing.T) {
 	directive @june (asdf: String) on | INPUT_FIELD_DEFINITION | INPUT_OBJECT
 `
 	var expectedErr = []string{
-		`identifer [__y3] cannot start with two underscores at line: 6, column: 7`,
+		`identifer "__y3" cannot start with two underscores at line: 6, column: 7`,
 		`Required type for argument "asdf" is String, got Int at line: 10 column: 32`,
 	}
 

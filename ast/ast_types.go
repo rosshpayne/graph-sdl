@@ -358,7 +358,6 @@ func (o ObjectVals) ValidateObjectValues(ref *GQLtype, err *[]error) {
 
 		} else {
 			// compare reference type against field  data
-
 			//	fmt.Printf("Field, , v.Value.isType(), refType.isType2(): %s, %T %T, %s, %s, %s\n", v.Name, v.Value, reftype, v.Value.isType(), reftype.isType2(), reftype.isType()) // InputValue.isType, *GQLtype.isType()
 			fmt.Println("++++++++++++")
 			fmt.Printf("Field v.Name:  [%s]\n", v.Name)
@@ -712,7 +711,10 @@ func (f *Field_) String() string {
 	s.WriteString("\n" + f.Name_.String())
 	s.WriteString(f.ArgumentDefs.String(encl))
 	s.WriteString(" : ")
+	// GQLtype lock
+	f.Type.Lock()
 	s.WriteString(f.Type.String())
+	f.Type.Unlock()
 	s.WriteString(" ")
 	s.WriteString(f.Directives_.String())
 	return s.String()

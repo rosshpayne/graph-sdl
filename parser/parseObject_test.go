@@ -85,7 +85,7 @@ func TestFieldInvalidDT(t *testing.T) {
 }`
 
 	expectedErr := []string{
-		`Item "int" does not exist in document "DefaultDoc"  at line: 4 column: 15`,
+		`"int" does not exist in document "DefaultDoc"  at line: 4 column: 15`,
 	}
 
 	l := lexer.New(input)
@@ -153,7 +153,7 @@ type Person {
   posts: [Boolean!]!
 }`
 	var expectedErr []string = []string{
-		`Item "int" does not exist in document "DefaultDoc" at line: 6 column: 18`,
+		`"int" does not exist in document "DefaultDoc" at line: 6 column: 18`,
 		// `Argument "info" type "int", is not an input type at line: 6 column: 18`, // error is caught in phase 3 of parse. aborted because of type resolve  error above.
 	}
 
@@ -2920,7 +2920,7 @@ type Measure66 {
 	}
 
 	var expectedErr []string = []string{
-		`Item "Myobject66" does not exist in document "DefaultDoc" at line: 9 column: 13`, //
+		`"Myobject66" does not exist in document "DefaultDoc" at line: 9 column: 13`, //
 	}
 	l := lexer.New(input)
 	p := New(l)

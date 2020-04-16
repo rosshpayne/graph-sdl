@@ -35,7 +35,7 @@ type __Person {
   posts: [Float]!
 }`
 
-	expectedErr := `identifer [__Person] cannot start with two underscores at line: 2, column: 6`
+	expectedErr := `identifer "__Person" cannot start with two underscores at line: 2, column: 6`
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
@@ -371,8 +371,8 @@ type lines {
 	}
 `
 	var expectedErr []string = []string{
-		`Item "Post_" does not exist in document "DefaultDoc" at line: 6 column: 11`,
-		`Item "Publication" does not exist in document "DefaultDoc" at line: 9 column: 14`,
+		`"Post_" does not exist in document "DefaultDoc" at line: 6 column: 11`,
+		`"Publication" does not exist in document "DefaultDoc" at line: 9 column: 14`,
 	}
 
 	l := lexer.New(input)
@@ -407,9 +407,9 @@ picture(size : Int =12918@NME(if:"""abc""") ) : Url@iff(abc:123)
 }`
 
 	var expectedErr [3]string
-	expectedErr[0] = `Item "Url" does not exist in document "DefaultDoc" at line: 3 column: 49`
-	expectedErr[1] = `Item "@NME" does not exist in document "DefaultDoc" at line: 3 column: 27`
-	expectedErr[2] = `Item "@iff" does not exist in document "DefaultDoc" at line: 3 column: 53`
+	expectedErr[0] = `"Url" does not exist in document "DefaultDoc" at line: 3 column: 49`
+	expectedErr[1] = `"@NME" does not exist in document "DefaultDoc" at line: 3 column: 27`
+	expectedErr[2] = `"@iff" does not exist in document "DefaultDoc" at line: 3 column: 53`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -449,10 +449,10 @@ picture(size : Int =12918@NME(if:"""abc""") size2 : Boolean =true @NME34(ifx:fal
 }`
 
 	var expectedErr [4]string
-	expectedErr[0] = `Item "Url" does not exist in document "DefaultDoc" at line: 3 column: 88`
-	expectedErr[1] = `Item "@NME" does not exist in document "DefaultDoc" at line: 3 column: 27`
-	expectedErr[2] = `Item "@NME34" does not exist in document "DefaultDoc" at line: 3 column: 68`
-	expectedErr[3] = `Item "@iff" does not exist in document "DefaultDoc" at line: 3 column: 92`
+	expectedErr[0] = `"Url" does not exist in document "DefaultDoc" at line: 3 column: 88`
+	expectedErr[1] = `"@NME" does not exist in document "DefaultDoc" at line: 3 column: 27`
+	expectedErr[2] = `"@NME34" does not exist in document "DefaultDoc" at line: 3 column: 68`
+	expectedErr[3] = `"@iff" does not exist in document "DefaultDoc" at line: 3 column: 92`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -492,12 +492,12 @@ picture(size : Int =12918@NME(if:"""abc""") size2 : Boolean  @NME34(ifx:false) @
 }`
 
 	var expectedErr [6]string
-	expectedErr[0] = `Item "Url" does not exist in document "DefaultDoc" at line: 3 column: 121`
-	expectedErr[5] = `Item "@NME" does not exist in document "DefaultDoc" at line: 3 column: 27`
-	expectedErr[1] = `Item "@NME34" does not exist in document "DefaultDoc"  at line: 3 column: 63`
-	expectedErr[2] = `Item "@NME33" does not exist in document "DefaultDoc" at line: 3 column: 81`
-	expectedErr[3] = `Item "@NME54" does not exist in document "DefaultDoc" at line: 3 column: 102`
-	expectedErr[4] = `Item "@iff" does not exist in document "DefaultDoc" at line: 3 column: 125`
+	expectedErr[0] = `"Url" does not exist in document "DefaultDoc" at line: 3 column: 121`
+	expectedErr[5] = `"@NME" does not exist in document "DefaultDoc" at line: 3 column: 27`
+	expectedErr[1] = `"@NME34" does not exist in document "DefaultDoc"  at line: 3 column: 63`
+	expectedErr[2] = `"@NME33" does not exist in document "DefaultDoc" at line: 3 column: 81`
+	expectedErr[3] = `"@NME54" does not exist in document "DefaultDoc" at line: 3 column: 102`
+	expectedErr[4] = `"@iff" does not exist in document "DefaultDoc" at line: 3 column: 125`
 
 	l := lexer.New(input)
 	p := New(l)

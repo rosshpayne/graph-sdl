@@ -15,8 +15,8 @@ func TestScalarStmtInvalidName(t *testing.T) {
 	scalar __Time @dir 
 `
 	var expectedErr []string = []string{
-		`identifer [__Time] cannot start with two underscores at line: 2, column: 9`,
-		`Item "@dir" does not exist in document "DefaultDoc"  at line: 2 column: 17`,
+		`identifer "__Time" cannot start with two underscores at line: 2, column: 9`,
+		`"@dir" does not exist in document "DefaultDoc"  at line: 2 column: 17`,
 	}
 
 	l := lexer.New(input)
@@ -217,13 +217,13 @@ func TestScalarCheckx(t *testing.T) {
 	}
 `
 	var expectedErr []string = []string{
-		`Item "Time" does not exist in document "DefaultDoc"  at line: 5 column: 8 `,
+		`"Time" does not exist in document "DefaultDoc"  at line: 5 column: 8 `,
 	}
-	// err := db.DeleteType("Time")
-	// if err != nil {
-	// 	t.Errorf(`Not expected Error =[%q]`, err.Error())
-	// }
-	err := db.DeleteType("Foo")
+	err := db.DeleteType("Time")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("Foo")
 	if err != nil {
 		t.Errorf(`Not expected Error =[%q]`, err.Error())
 	} else {
@@ -306,7 +306,7 @@ func TestScalarCheckNoType(t *testing.T) {
 	}
 
 	var expectedErr []string = []string{
-		`Item "Time2" does not exist in document "DefaultDoc" at line: 5 column: 8`,
+		`"Time2" does not exist in document "DefaultDoc" at line: 5 column: 8`,
 	}
 	l := lexer.New(input)
 	p := New(l)

@@ -23,7 +23,7 @@ type Person implements NamedEntity {
 `
 
 	var expectedErr [1]string
-	expectedErr[0] = `Item "NamedEntity" does not exist in document "DefaultDoc" at line: 6 column: 24`
+	expectedErr[0] = `"NamedEntity" does not exist in document "DefaultDoc" at line: 6 column: 24`
 
 	err := db.DeleteType("ValuedEntity")
 	if err != nil {
@@ -144,7 +144,7 @@ type Person implements NamedEntity & ValuedEntity2 {
 	}
 
 	var expectedErr []string = []string{
-		`Item "ValuedEntity2"  does not exist in document "DefaultDoc" at line: 11 column: 38`,
+		`"ValuedEntity2"  does not exist in document "DefaultDoc" at line: 11 column: 38`,
 		//	`Type "Person" does not implement interface "NamedEntity", missing  "name2"`, // error is caught in phase 3 which is aborted because of resolve error
 	}
 
@@ -197,10 +197,10 @@ type Person implements NamedEntity & ValuedEntity {
 `
 
 	var expectedErr []string = []string{
-		`Item "Int2" does not exist in document "DefaultDoc" at line: 4 column: 10`,
-		`Item "Bool" does not exist in document "DefaultDoc" at line: 11 column: 11`,
-		`Item "FLoat" does not exist in document "DefaultDoc" at line: 9 column: 11`,
-		`Item "In" does not exist in document "DefaultDoc" at line: 16 column: 8`,
+		`"Int2" does not exist in document "DefaultDoc" at line: 4 column: 10`,
+		`"Bool" does not exist in document "DefaultDoc" at line: 11 column: 11`,
+		`"FLoat" does not exist in document "DefaultDoc" at line: 9 column: 11`,
+		`"In" does not exist in document "DefaultDoc" at line: 16 column: 8`,
 	}
 
 	err := db.DeleteType("ValuedEntity")
@@ -293,7 +293,7 @@ type Person implements NamedEntity & ValuedEntity {
 	var expectedErr []string = []string{
 		`Type "Person" does not implement interface "NamedEntity", missing  "name2"`,
 		`Type "Person" does not implement interface "ValuedEntity", missing  "value2" "value3" "value4"`,
-		`Item "FLoat" does not exist in document "DefaultDoc" at line: 9 column: 11`,
+		`"FLoat" does not exist in document "DefaultDoc" at line: 9 column: 11`,
 	}
 
 	l := lexer.New(input)

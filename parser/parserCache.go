@@ -2,7 +2,6 @@ package parser
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"sync"
 
@@ -27,7 +26,9 @@ type Cache_ struct {
 var cache *Cache_
 
 func (tc *Cache_) SetLogger(logr *log.Logger) {
-	tc.logr = logr
+	if tc.logr == nil {
+		tc.logr = logr
+	}
 }
 
 // init creates two caches, the not-exists cache which contain all types that do not exist in the current document or in the document being parsed.
@@ -50,16 +51,16 @@ func NewCache() *Cache_ {
 // AddEntry to cache is  concurrency safe.
 // TODO: check typeNotExists cache is handled safely. Concurrency was designed around Cache not typeNotExists cache.
 // NOTE: AddEntry Does NOT save to database. The type is saved to the db only if it has zero errors as part of the defer in parser.go
-func (t *Cache_) AddEntry(name ast.NameValue_, data ast.GQLTypeProvider) { //ast.NameValue_, data GQLTypeProvider) {
+func (t *Cache_) addEntry(name ast.NameValue_, data ast.GQLTypeProvider) { //ast.NameValue_, data GQLTypeProvider) {
 	e := &entry{data: data, ready: make(chan struct{})}
 	close(e.ready)
-	fmt.Println("Added to cache ", name.String())
 	t.Lock()
 	// delete from notExists cache - if present
 	delete(typeNotExists, name.String())
 	// add to type cache
 	t.Cache[name.String()] = e
 	t.Unlock()
+	t.logr.Println("addEntry:  Added to Type cache ", name)
 }
 
 var (
@@ -76,12 +77,13 @@ var (
 // If entry not found in the cache searches dynamodb table for the type SDL statement.
 func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 
-	fmt.Println("***************************************************************. FetchAST ", name.String())
 	name_ := name.String()
 	//
+	t.logr.Println("FetchAST: ", name)
 	// do not handle scalars or nul name
 	switch name_ {
 	case "String", "Int", "Float", "Boolean", "ID", "null":
+		t.logr.Println("FetchAST: scalar value abort...")
 		return nil, ErrnotScalar
 	}
 	if len(name) == 0 {
@@ -89,12 +91,10 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 	}
 	// check if name has been registered as non-existent from previous query
 	if typeNotExists[name_] {
-		fmt.Printf("DBFetch of [%s] does not exist\n", name)
+		t.logr.Printf("FetchAST: DBFetch of [%s] does not exist\n", name)
 		return nil, ErrNotCached
 	}
-	fmt.Println("About to acquire cache lock")
 	t.Lock()
-	fmt.Println("Cache lock acquired....")
 	e := t.Cache[name_] // e will be nil only when name_ is not in the cache. Nil has no other meaning.
 
 	if e == nil {
@@ -126,42 +126,40 @@ func (t *Cache_) FetchAST(name ast.NameValue_) (ast.GQLTypeProvider, error) {
 				close(e.ready)
 				return nil, err
 			} else {
-				t.logr.Printf("Found in DB: %q\n", typeSDL)
+				t.logr.Printf("FetchAST:  returned from DB: %q\n", typeSDL)
 				// generate AST for the resolved type
-				t.logr.Print(" in parseCache about to generate AST.")
-				fmt.Println(" ############### in parseCache about to generate AST thru parseStatement......############")
 				l := lexer.New(typeSDL)
 				p2 := New(l)
 				//
 				// Generate AST for name of stmt or a GQL type and save to cache
-				//
-				e.data = p2.ParseStatement() // source of stmt is db so its been verified, simply resolve types it refs
-				// close the channel to allow unhindered access to this entry
-				t.logr.Print(" found in db. closed channel...")
+				// Important: source of stmt is db so its been verified, simply resolve types it refs
+				ast_ := p2.ParseStatement()
+				e.data = ast_
 				close(e.ready)
 				//
-				// resolve nested types in this type
+				// resolve dependent types
 				//
-				p2.ResolveDependents(e.data, t)
+				p2.resolveDependents(ast_, t)
 			}
 		}
 	} else {
 		t.Unlock()
-		fmt.Println("cache log unlocked.. Waiting on e.ready channel")
 		<-e.ready // AST is now populated in cache for this named type
 	}
 	if e.data == nil {
 		// concurrency issue  (when currency applies) - two queries on same object within short time interval - before typeNotExists is updated.
 		return nil, ErrNotCached
 	}
-	fmt.Println("**** FetchAST returned with data ", e.data.TypeName())
 	return e.data, nil
 
 }
 
 func (t *Cache_) CacheClear() {
-	fmt.Println("******************************************")
-	fmt.Println("************ CLEAR CACHE *****************")
-	fmt.Println("******************************************")
+	if t == nil {
+		return
+	}
+	t.Lock()
 	t.Cache = make(map[string]*entry)
+	typeNotExists = make(map[string]bool)
+	t.Unlock()
 }

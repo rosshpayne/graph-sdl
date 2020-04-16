@@ -154,9 +154,9 @@ func (p *Parser) Loc() *ast.Loc_ {
 	return &ast.Loc_{loc.Line, loc.Col}
 }
 
-func (p *Parser) ClearCache() {
-	p.cache.CacheClear()
-}
+// func (p *Parser) addEntry() {
+// 	p.cache.CacheClear()
+// }
 func (p *Parser) printToken(s ...string) {
 	if len(s) > 0 {
 		fmt.Printf("** Current Token: [%s] %s %s %s %v %s %s [%s]\n", s[0], p.curToken.Type, p.curToken.Literal, p.curToken.Cat, p.curToken.IsScalarType, "Next Token:  ", p.peekToken.Type, p.peekToken.Literal)
@@ -257,6 +257,8 @@ func (p *Parser) closeLogFile() {
 	}
 }
 
+func (p *Parser) ClearCache() {}
+
 // ==================== Start =========================
 
 func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) {
@@ -328,10 +330,7 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 			api.StatementsMap[name] = stmtAST
 			api.ErrorMap[name] = p.perror
 			// add all stmts to cache (even errored ones). This prevents db searches for errored stmts.
-			p.cache.AddEntry(stmtAST.TypeName(), stmtAST)
-			//	if len(p.perror) == 0 {
-			//		p.cache.AddEntry(stmtAST.TypeName(), stmtAST) // stmts define GL types
-			//	}
+			p.cache.addEntry(stmtAST.TypeName(), stmtAST)
 			p.perror = nil
 
 		} else {
@@ -351,7 +350,7 @@ func (p *Parser) ParseDocument(doc ...string) (api *ast.Document, errs []error) 
 	//
 	for _, v := range api.Statements {
 		fmt.Println("A out to resolve types for ", v.TypeName())
-		p.ResolveDependents(v, p.cache)
+		p.resolveDependents(v, p.cache)
 		if len(p.perror) > 0 {
 			api.ErrorMap[v.TypeName()] = append(api.ErrorMap[v.TypeName()], p.perror...)
 			p.perror = nil
@@ -500,11 +499,11 @@ func (p *Parser) ParseStatement() ast.GQLTypeProvider {
 // TypeResolveErr used only to categorise the error not to provided extra information.
 var TypeResolveErr = errors.New("")
 
-// ResolveDependents is a validation check performed after parsing completes.
+// resolveDependents is a validation check performed after parsing completes.
 // all nested abstract types for the passed in AST are confirmed to exist either
 // in cache or database.  Resolving continutes in FetchAST, until all nested types are resolved
 // within each type.
-func (p *Parser) ResolveDependents(v ast.GQLTypeProvider, t *Cache_) {
+func (p *Parser) resolveDependents(v ast.GQLTypeProvider, t *Cache_) {
 	//
 	// find all Abstract Types (ie. non-scalar) nested within the current type v. These need to be resolved.
 	// Note: SolicitAbstractTypes does not recursively evaluate all nested types, only the
@@ -537,7 +536,7 @@ func (p *Parser) ResolveDependents(v ast.GQLTypeProvider, t *Cache_) {
 	// typeName, *GQLType
 	for tyName, gqltype := range nestedAbstractTypes {
 		//
-		// resolve type - note FetchAST will recursively call ResolveDependents to evalute tyName.
+		// resolve type - note FetchAST will recursively call resolveDependents to evalute tyName.
 		//
 		ast_, err := t.FetchAST(tyName.Name)
 		if err != nil {
@@ -554,8 +553,10 @@ func (p *Parser) ResolveDependents(v ast.GQLTypeProvider, t *Cache_) {
 			//
 			// we have reached the leaf nodes when gqltype
 			//
-			if gqltype != nil {
+			if gqltype != nil && gqltype.AST == nil {
+				gqltype.Lock()
 				gqltype.AST = ast_
+				gqltype.Unlock()
 			}
 		}
 	}

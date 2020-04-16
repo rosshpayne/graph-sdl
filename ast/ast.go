@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode"
 	"unicode/utf8"
 
@@ -285,6 +286,7 @@ type GQLtype struct {
 	Depth      uint8           // depth of nested List e.g. depth 2 would be [[type]]. Depth 0 implies non-list type, depth > 0 is a list type
 	Name_                      // type name. inherit AssignName(). Use Name_ to access AST via cache lookup. ALternatively, use AST above or TypeFlag_ instead of string.
 	Base       string          // base type e.g. Name_ = "Episode" has Base = E(num)
+	sync.Mutex
 }
 
 func (t GQLtype) String() string {

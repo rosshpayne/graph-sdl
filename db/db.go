@@ -44,7 +44,6 @@ type PkRow struct {
 var location *time.Location
 
 func init() {
-	fmt.Println("***************************************************************** init ast_repo ***********************************************")
 
 	dynamodbService := func() *dynamodb.DynamoDB {
 		sess, err := session.NewSession(&aws.Config{
@@ -239,6 +238,7 @@ func DeleteType(input string) error {
 	if err != nil {
 		return fmt.Errorf("%s: %s", "Error: failed to marshal type definition ", err.Error())
 	}
+
 	_, err = db.DeleteItem(&dynamodb.DeleteItemInput{
 		TableName: aws.String(TableName),
 		Key:       av,
@@ -247,10 +247,12 @@ func DeleteType(input string) error {
 		return fmt.Errorf(`Error: failed to DeleteItem: "%s"  %s`, input, err.Error())
 	}
 	//TODO - delete any implement items
+	time.Sleep(3 * time.Second)
 	return nil
 }
 
 var (
+	// error categories - returned from Unwrap()
 	NoItemFoundErr  = errors.New("does not exist in document")
 	SystemErr       = errors.New("Database system error")
 	MarshalingErr   = errors.New("Database marshaling error")

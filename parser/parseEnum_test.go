@@ -189,8 +189,8 @@ type Person {
 `
 
 	var expectedErr []string = []string{
-		`Item "@dep2" does not exist in document "DefaultDoc" at line: 6 column: 22`,
-		`Item "@dep3" does not exist in document "DefaultDoc" at line: 6 column: 28`,
+		`"@dep2" does not exist in document "DefaultDoc" at line: 6 column: 22`,
+		`"@dep3" does not exist in document "DefaultDoc" at line: 6 column: 28`,
 	}
 	l := lexer.New(input)
 	p := New(l)
@@ -493,9 +493,9 @@ type Person {
 
 	var expectedErr [4]string
 	expectedErr[0] = `Expected name identifer got TRUE of "true" at line: 4, column: 3`
-	expectedErr[1] = `identifer [__dep] cannot start with two underscores at line: 6, column: 22`
-	expectedErr[2] = `Item "Place" does not exist in document "DefaultDoc" at line: 9 column: 13`
-	expectedErr[3] = `Item "@__dep" does not exist in document "DefaultDoc" at line: 6 column: 22`
+	expectedErr[1] = `identifer "__dep" cannot start with two underscores at line: 6, column: 22`
+	expectedErr[2] = `"Place" does not exist in document "DefaultDoc" at line: 9 column: 13`
+	expectedErr[3] = `"@__dep" does not exist in document "DefaultDoc" at line: 6 column: 22`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -746,7 +746,7 @@ type Person {
 	// 	`Colon expected got IDENT of extra at line: 11, column: 3`,
 	// 	`Expected name identifer got : of ":" at line: 11, column: 8`,
 	// 	`Colon expected got Int of Int at line: 11, column: 10`,
-	// 	`Item "extra" does not exist in document "DefaultDoc" at line: 11 column: 3`,
+	// 	`"extra" does not exist in document "DefaultDoc" at line: 11 column: 3`,
 	// 	`Argument "if" is not a valid name for directive "@dep" at line: 6 column: 27`,
 	// }
 

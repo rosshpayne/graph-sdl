@@ -27,15 +27,15 @@ input ExampleInputObjectDirective @ june (asdf:234) @ june2 (aesdf:234) @ june3 
 `
 	var expectedErr [11]string
 
-	expectedErr[0] = `Item "@june2"  does not exist in document "DefaultDoc" at line: 2 column: 55`
-	expectedErr[1] = `Item "@june3" does not exist in document "DefaultDoc" at line: 2 column: 75`
-	expectedErr[2] = `Item "@ref"  does not exist in document "DefaultDoc" at line: 3 column: 26`
-	expectedErr[3] = `Item "@jack"  does not exist in document "DefaultDoc" at line: 3 column: 41`
-	expectedErr[4] = `Item "@ju" does not exist  in document "DefaultDoc" at line: 3 column: 78`
-	expectedErr[5] = `Item "@judkne" does not exist in document "DefaultDoc" at line: 3 column: 94`
-	expectedErr[6] = `Item "@junqe" does not exist in document "DefaultDoc" at line: 3 column: 133`
-	expectedErr[7] = `Item "@ju" does not exist in document "DefaultDoc" at line: 4 column: 30`
-	expectedErr[8] = `Item "@junse"  does not exist in document "DefaultDoc" at line: 3 column: 114`
+	expectedErr[0] = `"@june2"  does not exist in document "DefaultDoc" at line: 2 column: 55`
+	expectedErr[1] = `"@june3" does not exist in document "DefaultDoc" at line: 2 column: 75`
+	expectedErr[2] = `"@ref"  does not exist in document "DefaultDoc" at line: 3 column: 26`
+	expectedErr[3] = `"@jack"  does not exist in document "DefaultDoc" at line: 3 column: 41`
+	expectedErr[4] = `"@ju" does not exist  in document "DefaultDoc" at line: 3 column: 78`
+	expectedErr[5] = `"@judkne" does not exist in document "DefaultDoc" at line: 3 column: 94`
+	expectedErr[6] = `"@junqe" does not exist in document "DefaultDoc" at line: 3 column: 133`
+	expectedErr[7] = `"@ju" does not exist in document "DefaultDoc" at line: 4 column: 30`
+	expectedErr[8] = `"@junse"  does not exist in document "DefaultDoc" at line: 3 column: 114`
 	expectedErr[9] = `Directive "@june" is not registered for INPUT_FIELD_DEFINITION usage at line: 3 column: 60`
 	expectedErr[10] = `Directive "@june" is not registered for INPUT_FIELD_DEFINITION usage at line: 4 column: 12`
 
@@ -84,7 +84,7 @@ func TestDirectiveInputDoesnotExist(t *testing.T) {
 extend input ExampleInputXYZ @ june (asdf:234) 
 `
 	var expectedErr [1]string
-	expectedErr[0] = `Input type "ExampleInputXYZ" does not exist in document "DefaultDoc" at line: 2 column: 14`
+	expectedErr[0] = `"ExampleInputXYZ" does not exist in document "DefaultDoc" at line: 2 column: 14`
 
 	l := lexer.New(input)
 	p := New(l)
@@ -361,7 +361,7 @@ directive @__example on
 `
 
 	var expectedErr [1]string
-	expectedErr[0] = `identifer [__example] cannot start with two underscores at line: 2, column: 12`
+	expectedErr[0] = `identifer "__example" cannot start with two underscores at line: 2, column: 12`
 
 	l := lexer.New(input)
 	p := New(l)
