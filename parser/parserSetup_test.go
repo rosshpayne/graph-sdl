@@ -354,12 +354,24 @@ type Person43 {name : String! age(ScaleBy : Float ) : [[Int!]]! other : [String!
 
 type Query {allPersons(last : [Int]  first : [[String!]] ) : [Person43!]}
 
-
+scalar Time
 
 `
 
 	var expectedErr []string
 
+	err := db.DeleteType("Person43")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("Query")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
+	err = db.DeleteType("Time")
+	if err != nil {
+		t.Errorf(`Not expected Error =[%q]`, err.Error())
+	}
 	l := lexer.New(input)
 	p := New(l)
 	d, errs := p.ParseDocument()
@@ -388,6 +400,9 @@ type Query {allPersons(last : [Int]  first : [[String!]] ) : [Person43!]}
 		if !found {
 			t.Errorf(`Unexpected Error = [%q]`, got.Error())
 		}
+	}
+	if len(errs) > 0 {
+		t.Fail()
 	}
 	if compare(d.String(), input) {
 		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
