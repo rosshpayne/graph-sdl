@@ -12,7 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
-	"github.com/graph-sdl/ast"
+	"github.com/graphql/internal/graph-sdl/ast"
 )
 
 const (
