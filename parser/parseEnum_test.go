@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/graph-sdl/lexer"
+	"github.com/graphql/internal/graph-sdl/lexer"
 )
 
 func TestEnumValidx(t *testing.T) {

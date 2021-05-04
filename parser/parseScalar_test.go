@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/graph-sdl/db"
-	"github.com/graph-sdl/lexer"
+	"github.com/graphql/internal/graph-sdl/db"
+	"github.com/graphql/internal/graph-sdl/lexer"
 )
 
 func TestScalarStmtInvalidName(t *testing.T) {
@@ -50,7 +50,7 @@ func TestScalarStmtInvalidName(t *testing.T) {
 	//TODO - check didn't create scalar type in DB
 }
 
-func TestScalarStmt(t *testing.T) {
+func TestScalarStmtx(t *testing.T) {
 
 	input := `"my example scalar" 
 	scalar Time @dir2 
@@ -63,6 +63,9 @@ func TestScalarStmt(t *testing.T) {
 	fmt.Println(d.String())
 	for _, v := range errs {
 		fmt.Println(v.Error())
+	}
+	if len(errs) > 0 {
+		t.Fatal()
 	}
 	if compare(d.String(), expectedStr) {
 		fmt.Println(trimWS(d.String()))
@@ -186,6 +189,9 @@ func TestScalarUsage(t *testing.T) {
 	}
 	for _, v := range errs {
 		fmt.Println(v.Error())
+	}
+	if len(errs) > 0 {
+		t.Fail()
 	}
 	if compare(d.String(), expectedStr) {
 		fmt.Println(trimWS(d.String()))

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/graph-sdl/token"
+	"github.com/graphql/internal/graph-sdl/token"
 )
 
 type TypeFlag_ uint8
