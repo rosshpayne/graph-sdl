@@ -3,7 +3,7 @@ package parser
 import (
 	"testing"
 
-	"github.com/graphql/internal/graph-sdl/lexer"
+	"github.com/graph-sdl/lexer"
 )
 
 func TestUnion1(t *testing.T) {

@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/graphql/internal/graph-sdl/db"
-	"github.com/graphql/internal/graph-sdl/lexer"
+	"github.com/graph-sdl/db"
+	"github.com/graph-sdl/lexer"
 )
 
 func TestScalarStmtInvalidName(t *testing.T) {

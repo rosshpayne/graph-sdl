@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/graphql/internal/graph-sdl/lexer"
+	"github.com/graph-sdl/lexer"
 )
 
 func compare(doc, expected string) bool {

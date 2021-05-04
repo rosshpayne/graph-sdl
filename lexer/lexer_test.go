@@ -4,7 +4,7 @@ import (
 	_ "fmt"
 	"testing"
 
-	"github.com/graphql/internal/graph-sdl/token"
+	"github.com/graph-sdl/token"
 )
 
 func TestNextToken(t *testing.T) {
