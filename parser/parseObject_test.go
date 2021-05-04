@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/graph-sdl/db"
-	"github.com/graph-sdl/lexer"
+	"github.com/rosshpayne/graph-sdl/db"
+	"github.com/rosshpayne/graph-sdl/lexer"
 )
 
 func TestBadTypeName(t *testing.T) {

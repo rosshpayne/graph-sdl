@@ -3,7 +3,7 @@ package parser
 import (
 	"testing"
 
-	"github.com/graph-sdl/lexer"
+	"github.com/rosshpayne/graph-sdl/lexer"
 )
 
 func TestMutation1(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/graph-sdl/token"
+	"github.com/rosshpayne/graph-sdl/token"
 )
 
 //

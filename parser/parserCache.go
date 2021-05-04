@@ -5,9 +5,9 @@ import (
 	"log"
 	"sync"
 
-	"github.com/graph-sdl/ast"
-	"github.com/graph-sdl/db"
-	"github.com/graph-sdl/lexer"
+	"github.com/rosshpayne/graph-sdl/ast"
+	"github.com/rosshpayne/graph-sdl/db"
+	"github.com/rosshpayne/graph-sdl/lexer"
 )
 
 // for GL types only
