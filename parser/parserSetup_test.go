@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/rosshpayne/graph-sdl/internal/db"
+	db "github.com/rosshpayne/graph-sdl/document"
 	"github.com/rosshpayne/graph-sdl/lexer"
 )
 
