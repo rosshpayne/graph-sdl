@@ -1,0 +1,53 @@
+{
+    "AttributeDefinitions": [
+        {
+            "AttributeName": "PKey", 
+            "AttributeType": "S"
+        },
+        {
+            "AttributeName": "SortK", 
+            "AttributeType": "S"
+        },
+        {
+            "AttributeName": "Dir", 
+            "AttributeType": "S"
+        }
+    ], 
+    "BillingMode":  "PAY_PER_REQUEST",
+    "TableName": "GraphQL3", 
+    "KeySchema": [
+        {
+            "AttributeName": "PKey", 
+            "KeyType": "HASH"
+        },
+        {
+            "AttributeName": "SortK", 
+            "KeyType": "RANGE"
+        }
+    ],
+    "GlobalSecondaryIndexes": [
+        { "IndexName": "Dir-Stmt", 
+            "KeySchema": [
+                {
+                    "AttributeName": "Dir", 
+                    "KeyType": "HASH"
+                }
+            ], 
+           "Projection": {
+                "ProjectionType": "INCLUDE",
+                "NonKeyAttributes": ["Stmt"]
+            }
+        },
+        { "IndexName": "SortK-index", 
+            "KeySchema": [
+                {
+                    "AttributeName": "SortK", 
+                    "KeyType": "HASH"
+                }
+            ], 
+           "Projection": {
+                "ProjectionType": "KEYS_ONLY"
+            }
+        }
+    ]
+}
