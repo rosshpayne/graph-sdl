@@ -1,4 +1,4 @@
-package doc
+package document
 
 import (
 	"github.com/rosshpayne/graph-sdl/internal/db"
