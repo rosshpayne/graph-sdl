@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rosshpayne/graph-sdl/db"
+	"github.com/rosshpayne/graph-sdl/internal/db"
 	"github.com/rosshpayne/graph-sdl/lexer"
 )
 
@@ -52,10 +52,14 @@ func TestScalarStmtInvalidName(t *testing.T) {
 
 func TestScalarStmtx(t *testing.T) {
 
-	input := `"my example scalar" 
+	input := `
+    directive @dir2 on | ENUM_VALUE | SCALAR
+    
+	"my example scalar" 
 	scalar Time @dir2 
 `
-	expectedStr := `scalar Time @dir2 `
+	expectedStr := `directive @dir2 on | ENUM_VALUE | SCALAR
+	scalar Time @dir2 `
 
 	l := lexer.New(input)
 	p := New(l)

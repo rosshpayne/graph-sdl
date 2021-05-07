@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/rosshpayne/graph-sdl/ast"
-	"github.com/rosshpayne/graph-sdl/db"
+	"github.com/rosshpayne/graph-sdl/internal/db"
 	"github.com/rosshpayne/graph-sdl/lexer"
 )
 

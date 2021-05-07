@@ -232,7 +232,7 @@ func DeleteType(input string) error {
 		}
 		document = defaultDoc
 	}
-	fmt.Println("delete from document: ", document)
+	fmt.Printf("delete %q from document %q \n", input, document)
 	typeDef := PkRow{PKey: input, SortK: document}
 	av, err := dynamodbattribute.MarshalMap(typeDef)
 	if err != nil {
@@ -247,7 +247,7 @@ func DeleteType(input string) error {
 		return fmt.Errorf(`Error: failed to DeleteItem: "%s"  %s`, input, err.Error())
 	}
 	//TODO - delete any implement items
-	time.Sleep(3 * time.Second)
+	time.Sleep(1 * time.Second)
 	return nil
 }
 

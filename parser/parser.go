@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	"github.com/rosshpayne/graph-sdl/ast"
-	"github.com/rosshpayne/graph-sdl/db"
+	"github.com/rosshpayne/graph-sdl/internal/db"
+	"github.com/rosshpayne/graph-sdl/internal/token"
 	"github.com/rosshpayne/graph-sdl/lexer"
-	"github.com/rosshpayne/graph-sdl/token"
 )
 
 const (

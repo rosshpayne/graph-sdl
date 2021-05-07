@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/rosshpayne/graph-sdl/db"
+	"github.com/rosshpayne/graph-sdl/internal/db"
 	"github.com/rosshpayne/graph-sdl/lexer"
 )
 
@@ -2925,6 +2925,9 @@ type Measure66 {
 	l := lexer.New(input)
 	p := New(l)
 	_, errs := p.ParseDocument()
+	if len(errs) > 0 {
+		fmt.Println("errors.....:", errs)
+	}
 	for _, ex := range expectedErr {
 		found := false
 		for _, err := range errs {
