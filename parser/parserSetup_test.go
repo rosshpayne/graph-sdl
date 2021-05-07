@@ -79,7 +79,7 @@ type Query {
     type Starship {id:ID! name:String! length(unit:LengthUnit=METER):Float}
    `
 	var expectedErr [3]string
-	expectedErr[0] = ``
+	//	expectedErr[0] = ``
 	// 	expectedErr[1] = `Type "Business" does not implement interface "NamedEntity", missing  "XXX"`
 	// 	expectedErr[2] = `Type "Business" does not implement interface "ValuedEntity", missing  "size" "length"`
 
@@ -354,7 +354,14 @@ type Person43 {name : String! age(ScaleBy : Float ) : [[Int!]]! other : [String!
 
 type Query {allPersons(last : [Int]  first : [[String!]] ) : [Person43!]}
 
+type Post {
+title : String! 
+title2 : String! 
+author : [Person!]! 
+}
+
 scalar Time
+
 
 `
 
@@ -404,7 +411,7 @@ scalar Time
 	if len(errs) > 0 {
 		t.Fail()
 	}
-	if compare(d.String(), input) {
+	if len(trimWS(d.String())) != len(trimWS(input)) {
 		t.Errorf("Got:      [%s] \n", trimWS(d.String()))
 		t.Errorf("Expected: [%s] \n", trimWS(input))
 		t.Errorf(`Unexpected: program.String() wrong. `)

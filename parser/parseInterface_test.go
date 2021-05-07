@@ -905,7 +905,15 @@ type Droid implements Character {
   friends: [Character]
   appearsIn: [Episode]!
   primaryFunction: String
-}`
+}
+
+enum LengthUnit{
+METER
+CENTERMETER
+MILLIMETER
+KILOMETER
+}
+`
 
 	expectedErr := []string{}
 	err := db.DeleteType("NamedEntity")

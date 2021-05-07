@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	TableName string = "GraphQL2"
+	TableName string = "GraphQL3"
 )
 
 var (
@@ -247,7 +247,7 @@ func DeleteType(input string) error {
 		return fmt.Errorf(`Error: failed to DeleteItem: "%s"  %s`, input, err.Error())
 	}
 	//TODO - delete any implement items
-	time.Sleep(1 * time.Second)
+	//	time.Sleep(1 * time.Second)
 	return nil
 }
 
