@@ -10,7 +10,7 @@ func GetDocument() string {
 	return db.GetDocument()
 }
 
-func SetDocument(doc string) string {
+func SetDocument(doc string) {
 	db.SetDocument(doc)
 }
 
