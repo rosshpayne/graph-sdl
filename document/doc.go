@@ -14,7 +14,7 @@ func SetDocument(doc string) {
 	db.SetDocument(doc)
 }
 
-func DeleteTyp(obj string) error {
+func DeleteType(obj string) error {
 	return db.DeleteType(obj)
 }
 
